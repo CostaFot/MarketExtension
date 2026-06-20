@@ -6,8 +6,12 @@ from. These files are kept **verbatim** and are **not compiled** (they live outs
 never ship in the MSIX).
 
 Use them as worked examples: find the pattern you need, then copy and adapt it into
-`MarketExtension/`. The compiled starters in the project (`SampleCommand`, `SampleListPage`,
-`ProcessHelper`) are minimal, build-verified versions of the most common patterns.
+`MarketExtension/`. The compiled starter in the project (`ProcessHelper`) is a minimal, build-verified version of
+the most common helper pattern.
+
+> **Dock support** for the future ticker phase is documented separately in
+> [`dock-support.md`](dock-support.md) — it draws on two other extensions on disk
+> (PowerToys' built-in Performance Monitor, and MediaControlsExtension), not on AdbExtension.
 
 ## Pages
 

@@ -17,8 +17,7 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
         // See reference/settings/AdbSettingsManager.cs for an example.
 
         _commands = [
-            new CommandItem(new SampleListPage()) { Title = "Market Sample List" },
-            new CommandItem(new SampleCommand()) { Title = "Market Run Sample" },
+            new CommandItem(new MarketsPage()) { Title = "Markets" },
         ];
     }
 
