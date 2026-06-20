@@ -136,9 +136,10 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   pinned band updates immediately instead of going stale (both designed below).
 - **Deferred:** FX provider (keyless Frankfurter); settings UI for bring-your-own-key; rate-limit (429)
   + richer error UX; crypto/FX in symbol search.
-- **Wishlist:** a **portfolio** screen + its own dock band (holdings, total value, daily P&L); and a
-  **per-symbol detail screen + live chart for any ticker** — drill-in from any list row and clickable
-  from any dock item (Performance-Monitor-style). Both designed below.
+- **Wishlist:** a **portfolio** screen + its own dock band (holdings, total value, daily P&L); a
+  **per-symbol detail screen + live chart for any ticker** (drill-in from any list row, clickable from any
+  dock item); and **official asset logos as icons app-wide** (replacing today's generic copy/glyph icons).
+  All designed below.
 
 ### Three-screen UX (done)
 
@@ -302,6 +303,44 @@ mechanism is simpler than it looks:
   Favorites, and Portfolio, **and the click target of every dock button** (favorites dock + portfolio
   dock). It is the single symbol-detail screen, shared everywhere — explicitly not a portfolio feature.
 - Port `ChartHelper` mostly as-is (already pure-string SVG); feed it our `UiQuote`/price series.
+
+### Asset logos as icons, app-wide (future wishlist)
+
+Every row and dock button should show the instrument's **official logo** (AAPL's apple, BABA's logo,
+BTC's coin) instead of today's generic icon. Right now the dock items use `CopyTextCommand`, so they
+render its **copy glyph** — wrong on both counts: the icon should be the asset logo, and a **left-click
+should open the chart** (the symbol-detail page above), not copy.
+
+**Where to get logos:**
+- **Stocks / ETFs — Finnhub `/stock/profile2`** (free tier; reuses our existing key). Returns a hosted
+  `logo` URL (plus `weburl`, `name`, …) — docs: <https://finnhub.io/docs/api/company-profile2>. One call
+  per symbol, and **logos are immutable, so cache the URL to disk forever and fetch each symbol at most
+  once** (profile2 counts against the ~60/min, ~300/day budget). Fallback: Clearbit
+  `https://logo.clearbit.com/{weburl-domain}` (caveat: Clearbit is now HubSpot — verify it still serves).
+- **Crypto — CoinGecko** (keyless): `image` URLs from `/coins/markets?vs_currency=usd&symbols=btc`, or
+  **bundle a static set** (e.g. `spothq/cryptocurrency-icons` SVG/PNG by symbol) under `Assets/` for an
+  offline, no-network, AOT-friendly path.
+- **Forex / currency:** deferred (country flags or a currency glyph when FX lands).
+- **Fallback (never the copy icon):** a per-`AssetCategory` Segoe glyph or a first-letter monogram when
+  no logo resolves.
+
+**How to load it** (the toolkit already supports all three):
+- Remote URL → `new IconInfo(logoUrl)` (same as today's github favicon).
+- Bundled asset → `IconHelpers.FromRelativePath("Assets\\crypto\\btc.png")`.
+- Inline → a `data:` URI (same trick as the chart SVG).
+
+**Architecture:** the logo source is provider-specific, so it fits the existing seam — add an optional
+`Task<string?> GetLogoUrlAsync(DomainInstrument)` to `IMarketDataProvider` (default `null`), routed by
+`MarketRepository` exactly like quotes (Finnhub serves stocks; a crypto provider serves coins). Wrap it in
+a shared, **disk-persisted** `Helpers/AssetIconResolver.cs` (symbol → `IconInfo`, cached forever). Since
+`GetItems()` is synchronous, resolve logo URLs **as part of the async price load** (set `ListItem.Icon`
+once known), or render a fallback glyph first and `RaiseItemsChanged()` when the logo arrives; after first
+run it's served from cache instantly.
+
+**Wire it everywhere:** set `ListItem.Icon` to the resolved logo in every row builder — `SearchPage`,
+`WatchlistPage`, `FavoritesPage`, the future `PortfolioPage` — and on the dock items. For the dock, **also
+swap the command from `CopyTextCommand` to the `SymbolDetailPage`** so left-click opens the chart (keep
+"Copy price" as a `MoreCommands` context item). Dock bands still require a non-empty `Command.Id`.
 
 ## CommandPalette Toolkit — Quick Reference
 
