@@ -136,6 +136,8 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   pinned band updates immediately instead of going stale (both designed below).
 - **Deferred:** FX provider (keyless Frankfurter); settings UI for bring-your-own-key; rate-limit (429)
   + richer error UX; crypto/FX in symbol search.
+- **Wishlist:** a **portfolio** screen + its own dock band — holdings with total market value and daily
+  P&L (design below).
 
 ### Three-screen UX (done)
 
@@ -209,6 +211,43 @@ until the next tick). To update it the instant a favorite changes:
   visible keeps a hidden band from doing work and avoids leaks.
 - Complementary to polling, not redundant: polling catches *price* drift on a timer; this pushes
   *membership* changes immediately, and still works when polling is **Off**.
+
+### Portfolio screen + dock band (future wishlist)
+
+A fourth top-level screen (**Markets Portfolio**) plus its own dock band, tracking actual *holdings*
+(not just symbols): total market value and **daily P&L**. Reuses the existing data seam with **no
+provider changes** — `MarketRepository.GetQuotesAsync` already returns per-instrument daily change.
+
+**Data model** (keep the `Api`/`Domain`/`Ui` layering; formatting only in `Ui*`):
+- `Settings/PortfolioStore.cs` — JSON-persisted holdings, modeled on `WatchlistStore` (singleton, lock,
+  source-gen `PortfolioJsonContext` → `market_portfolio.json`). Each entry = symbol + name + category +
+  **quantity** (+ optional **cost basis** for total/unrealized P&L later); quantity is `decimal` so
+  crypto fractions work.
+- `Models/DomainPosition.cs` — a holding's provider-agnostic identity (`DomainInstrument` + quantity +
+  optional cost basis), **no prices**.
+- `Models/UiPosition.cs` + `UiPortfolio.cs` — presentation projection: combine a `DomainQuote` with the
+  quantity to expose `MarketValue` (qty × price), `DailyPnL` (qty × `DomainQuote.Change`),
+  `DailyPnLPercent`, and the `Format*()` helpers (the only place formatting lives, like `UiQuote`);
+  `UiPortfolio` rolls up the totals.
+
+**Daily P&L:** per position = `Quantity × DomainQuote.Change` (Finnhub `/quote` `d` = today's per-unit
+change, `dp` = its percent). Portfolio total value = Σ market value; total daily P&L = Σ daily P&L; the
+aggregate **percent is `totalDailyPnL / (totalValue − totalDailyPnL)`** (vs. yesterday's close) — not an
+average of the per-position percents.
+
+**Screen** (`Pages/PortfolioPage.cs`): reuse `PricedListPage`'s async price/refresh plumbing (price the
+holdings via the repository, zip with quantities). Render a **totals summary** as the first item
+("Portfolio $12,345.67  ▲ +$120.50 (+0.98%)") then one row per holding ("AAPL · 10 sh" → value + daily
+P&L). Editing needs a quantity-input affordance the palette doesn't give for free — add via search → a
+small "set quantity" form/content page; Enter on a row to edit/remove.
+
+**Dock band** (`Pages/PortfolioDockPage.cs`): a second band registered in `GetDockBands()` next to the
+favorites band, showing the one-line portfolio summary (total value + daily P&L, green/red). Needs its
+own **non-empty `Command.Id`** (`com.costafotiadis.market.dock.portfolio` — see `reference/dock-support.md`)
+and inherits the same live-refresh story as the favorites band (the polling + push-on-change work above).
+
+**Caveats:** assumes a single quote currency (USD); mixed-currency holdings need FX conversion (deferred —
+ties to the FX-provider item). Exclude `IsValid:false` quotes from totals (or show them as unpriced).
 
 ## CommandPalette Toolkit — Quick Reference
 
