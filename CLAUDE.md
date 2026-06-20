@@ -17,13 +17,17 @@ dotnet build MarketExtension.sln
 ```
 Deploy the MSIX package, then reload Command Palette to pick up changes.
 
+> Debug builds are clean. A **Release** build on an ARM64 box needs a pinned RID, e.g.
+> `dotnet build MarketExtension/MarketExtension.csproj -c Release -r win-arm64` (the release
+> pipeline pins RIDs already, so this only matters for local Release builds).
+
 ## Reference Library (`reference/`)
 
 Real-world implementations from the **AdbExtension** this project was scaffolded from live
 in `reference/` — **not compiled** (outside the project folder). Consult them before
-writing a new command or page; copy and adapt rather than reinventing. The starters in
-`MarketExtension/` (`SampleCommand`, `SampleListPage`, `ProcessHelper`) are minimal,
-build-verified versions of these patterns. See `reference/README.md` for the full index;
+writing a new command or page; copy and adapt rather than reinventing. The live code
+(`Pages/MarketsPage.cs`, `Pages/FavoritesDockPage.cs`, `Helpers/ProcessHelper.cs`) shows these
+patterns in use. See `reference/README.md` for the full index;
 the highest-value examples:
 
 | Example | Demonstrates |
@@ -41,6 +45,76 @@ the highest-value examples:
 - All external process execution goes through `ProcessHelper.Run()` — never use `Process` directly in command files
 - Error toasts use `CommandResult.KeepOpen()` so the user can read them; success toasts use the default `Dismiss()`
 - Icons: `new IconInfo("https://github.com/favicon.ico")` per project preference
+
+## Market Data Architecture (the core of this app)
+
+Live quotes flow through three explicitly-named layers + a coordinator. **Keep this layering and
+naming for new code.**
+
+```
+ApiFinnhubQuoteDto ─(provider maps)→ DomainQuote ─(repository routes+merges)→ IReadOnlyList<DomainQuote>
+                                                          └─(page maps via UiQuote.From)→ UiQuote (rendered)
+```
+
+**Naming convention:**
+- `Api*` — raw provider DTOs (provider-specific), e.g. `ApiFinnhubQuoteDto`.
+- `Domain*` — provider-agnostic, **no formatting**; what every provider AND the repository return (`DomainQuote`, `DomainInstrument`).
+- `Ui*` — presentation; the ONLY place `FormatPrice()`/`FormatChange()` live (`UiQuote`).
+- `AssetCategory` (enum) stays **unprefixed** — shared vocabulary across all layers.
+
+**File map:**
+
+| File | Role |
+|---|---|
+| `Data/MarketRepository.cs` | **The coordinator the UI depends on.** Routes each `DomainInstrument` to the first `IMarketDataProvider` whose `Supports(AssetCategory)` matches, fans out concurrently, merges into one order-preserving list. No provider for a category → `IsValid:false` placeholder. |
+| `Data/IMarketDataProvider.cs` | ONE data source: `bool Supports(AssetCategory)` + `Task<IReadOnlyList<DomainQuote>> GetQuotesAsync(IReadOnlyList<DomainInstrument>, ct)`. |
+| `Data/Finnhub/FinnhubMarketDataProvider.cs` | Active provider (`Supports` Stock+Crypto). Maps `ApiFinnhubQuoteDto` → `DomainQuote`. |
+| `Data/MockMarketDataProvider.cs` | Offline fallback (`Supports` all). |
+| `Data/InstrumentCatalog.cs` | Static `DomainInstrument` list of what to price. |
+| `Data/Finnhub/ApiFinnhubQuoteDto.cs` | Raw `/quote` DTO + `FinnhubJsonContext` (source-gen JSON). |
+| `Models/{AssetCategory,DomainInstrument,DomainQuote,UiQuote}.cs` | the model layers |
+
+**To add a provider** (e.g. forex): implement `IMarketDataProvider`, declare `Supports`, map its
+`Api*` DTO → `DomainQuote`, and register it in `MarketExtensionCommandsProvider`:
+`new MarketRepository(new FinnhubMarketDataProvider(), new YourProvider())`. **Zero UI changes.**
+
+**Finnhub specifics:**
+- Base `https://finnhub.io/api/v1`, endpoint `/quote`. Free tier ~60 calls/min, ~300/day.
+- **No forex on the free tier** — `OANDA:*` returns 403. FX is omitted from `InstrumentCatalog`;
+  re-add via a paid plan or a keyless FX provider (e.g. Frankfurter) behind the same seam.
+- Symbol formats: stock = bare (`AAPL`), crypto = `BINANCE:{SYM}USDT`, FX = `OANDA:{BASE}_{QUOTE}`.
+- An all-zero `/quote` response = invalid/unknown symbol → map to `IsValid:false`.
+
+**AOT/trim:** project is AOT/trim-enabled and treats trim warnings as errors **on publish**, so all
+JSON must go through a source-gen `JsonSerializerContext` (never reflection-based `JsonSerializer`).
+⚠️ `Settings/FavoritesStore.cs` still uses reflection JSON (IL2026/IL3050) — fine in Debug, will
+ERROR on a trimmed Release publish; convert it before shipping a trimmed build.
+
+## API Key (secrets.props — the .NET "local.properties")
+
+- The Finnhub key lives in **gitignored** `MarketExtension/secrets.props`. Fresh clone: copy
+  `MarketExtension/secrets.props.template` → `secrets.props` and paste the key.
+- The csproj `GenerateSecrets` target bakes it into a generated `Secrets.FinnhubApiKey` const (the
+  BuildConfig analog); `FinnhubMarketDataProvider` reads that. Missing file → empty key, build still succeeds.
+- Caveat: the key is compiled into the shipped MSIX (extractable). True per-user secrecy = the
+  deferred bring-your-own-key in Command Palette settings.
+
+## Logging
+
+- `Log.Info/Warn/Error(tag, message)` (`Helpers/Log.cs`) — tagged by component (`Finnhub`,
+  `Repository`, `ComServer`, `Startup`).
+- `Info`/`Warn` are `[Conditional("DEBUG")]` → **compiled out of Release** (the MSIX ships silent).
+  `Error` also reports to **Sentry**, which survives into Release (no-op until a DSN is set in `Program.cs`).
+- Watch live (Debug builds): VS **Debug → Attach to Process → `MarketExtension.exe`** (Managed) →
+  Output window; or Sysinternals **DebugView** ("Capture Global Win32"). **NEVER log the API token.**
+
+## Current Status / Next Steps
+
+- **Done:** layered data architecture, live Finnhub provider, `MarketRepository` coordinator,
+  `secrets.props` key handling, tagged logging. ⚠️ Working tree is **uncommitted** (on `master`).
+- **Deferred / next:** FX provider (keyless Frankfurter); Finnhub `/search` add flow + `PinnedItem`
+  persistence; settings UI for bring-your-own-key; dock live-polling timer; rate-limit (429) + error
+  UX; convert `FavoritesStore` to source-gen JSON.
 
 ## CommandPalette Toolkit — Quick Reference
 
@@ -77,7 +151,7 @@ The fix: re-implement `INotifyItemsChanged` on the page class and intercept the 
 **Critical:** use `INotifyItemsChanged.ItemsChanged`, not `IListPage.ItemsChanged` — `ItemsChanged` lives on `INotifyItemsChanged`, and the class must re-list the interface to override base class dispatch.
 
 ```csharp
-// For pages that load data async (see Pages/SampleListPage.cs, reference/pages/AdbExtensionPage.cs):
+// For pages that load data async (see Pages/MarketsPage.cs, reference/pages/AdbExtensionPage.cs):
 internal sealed partial class MyPage : DynamicListPage, INotifyItemsChanged
 {
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
@@ -248,4 +322,5 @@ This was scaffolded from AdbExtension. Already changed: COM GUID (`6b38c9aa-bbee
 - **GitHub secrets**: add `SIGNING_CERT_PFX` + `SIGNING_CERT_PASSWORD` (see `MarketExtension/create-signing-cert.ps1`). Template clones do not carry secrets.
 - **Assets**: replace the art in `MarketExtension/Assets/` (still the AdbExtension tiles/logos).
 - **Sentry**: set your own DSN in `Program.cs` or leave it empty to disable.
+- **API key**: create `MarketExtension/secrets.props` from `secrets.props.template` and paste your Finnhub key (gitignored; see the "API Key" section above).
 - **Description**: update the placeholder description in `Package.appxmanifest`.
