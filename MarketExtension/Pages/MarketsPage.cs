@@ -16,12 +16,9 @@ namespace MarketExtension;
 // a real API. Favorites are pinned into their own section at the top.
 internal sealed partial class MarketsPage : DynamicListPage, INotifyItemsChanged
 {
-    // Intentionally typed as the interface, not the concrete mock — this is the seam where the
-    // real API implementation drops in later. (CA1859 suggests narrowing to the concrete type
-    // for perf; that would defeat the abstraction, so it's suppressed.)
-#pragma warning disable CA1859
-    private readonly IMarketDataProvider _provider = new MockMarketDataProvider();
-#pragma warning restore CA1859
+    // Injected so the palette page and the dock band share one data source (the seam where the
+    // real API implementation drops in later — see reference/dock-support.md).
+    private readonly IMarketDataProvider _provider;
     private Quote[]? _quotes;
 
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
@@ -35,8 +32,9 @@ internal sealed partial class MarketsPage : DynamicListPage, INotifyItemsChanged
     protected new void RaiseItemsChanged(int totalItems = -1)
         => _itemsChanged?.Invoke(this, new ItemsChangedEventArgs(totalItems));
 
-    public MarketsPage()
+    public MarketsPage(IMarketDataProvider provider)
     {
+        _provider = provider;
         Icon = new IconInfo("https://github.com/favicon.ico");
         Title = "Markets";
         Name = "Open";
