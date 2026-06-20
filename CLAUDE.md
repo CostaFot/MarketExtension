@@ -66,16 +66,20 @@ ApiFinnhubQuoteDto ─(provider maps)→ DomainQuote ─(repository routes+merge
 
 | File | Role |
 |---|---|
-| `Data/MarketRepository.cs` | **The coordinator the UI depends on.** Routes each `DomainInstrument` to the first `IMarketDataProvider` whose `Supports(AssetCategory)` matches, fans out concurrently, merges into one order-preserving list. No provider for a category → `IsValid:false` placeholder. |
-| `Data/IMarketDataProvider.cs` | ONE data source: `bool Supports(AssetCategory)` + `Task<IReadOnlyList<DomainQuote>> GetQuotesAsync(IReadOnlyList<DomainInstrument>, ct)`. |
-| `Data/Finnhub/FinnhubMarketDataProvider.cs` | Active provider (`Supports` Stock+Crypto). Maps `ApiFinnhubQuoteDto` → `DomainQuote`. |
-| `Data/MockMarketDataProvider.cs` | Offline fallback (`Supports` all). |
-| `Data/InstrumentCatalog.cs` | Static `DomainInstrument` list of what to price. |
-| `Data/Finnhub/ApiFinnhubQuoteDto.cs` | Raw `/quote` DTO + `FinnhubJsonContext` (source-gen JSON). |
+| `Data/MarketRepository.cs` | **The coordinator the UI depends on.** Routes each `DomainInstrument` to the first `IMarketDataProvider` whose `Supports(AssetCategory)` matches, fans out concurrently, merges into one order-preserving list. Also `SearchAsync(query)` — fans out the free-text lookup to every provider and merges/dedupes by symbol. No provider for a category → `IsValid:false` placeholder. |
+| `Data/IMarketDataProvider.cs` | ONE data source: `bool Supports(AssetCategory)` + `GetQuotesAsync(instruments, ct)` + `SearchAsync(query, ct)` (free-text symbol lookup → `DomainInstrument`s, **identity only, no prices**; a provider that can't search returns `[]`). |
+| `Data/Finnhub/FinnhubMarketDataProvider.cs` | Active provider (`Supports` Stock+Crypto). Maps `ApiFinnhubQuoteDto` → `DomainQuote`; `SearchAsync` calls `/search` (US equities only — see Finnhub specifics). |
+| `Data/MockMarketDataProvider.cs` | Offline fallback (`Supports` all). `SearchAsync` filters its seed keys. |
+| `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults to price (the always-shown seeds). |
+| `Data/Watchlist.cs` | `Instruments()` = catalog defaults ∪ user-pinned (`FavoritesStore.Pinned`), deduped. The single "what to price" list both `MarketsPage` and `FavoritesDockPage` use. |
+| `Settings/FavoritesStore.cs` | JSON-persisted pinned instruments — stores **full `DomainInstrument` identity** (symbol+name+category, so searched non-catalog symbols re-price) via source-gen `PinnedItem`/`FavoritesJsonContext`; migrates the legacy symbol-only array. |
+| `Data/Finnhub/ApiFinnhubQuoteDto.cs` | Raw `/quote` DTO + the **single** `FinnhubJsonContext` (all `[JsonSerializable]` live here — see AOT/trim gotcha). |
+| `Data/Finnhub/ApiFinnhubSearchDto.cs` | Raw `/search` DTOs (`ApiFinnhubSearchDto` / `...ResultDto`); registered on `FinnhubJsonContext` in the quote file. |
 | `Models/{AssetCategory,DomainInstrument,DomainQuote,UiQuote}.cs` | the model layers |
 
-**To add a provider** (e.g. forex): implement `IMarketDataProvider`, declare `Supports`, map its
-`Api*` DTO → `DomainQuote`, and register it in `MarketExtensionCommandsProvider`:
+**To add a provider** (e.g. forex): implement `IMarketDataProvider` (`Supports`, `GetQuotesAsync`,
+and `SearchAsync` — return `[]` if it can't search), map its `Api*` DTO → `DomainQuote`, and register
+it in `MarketExtensionCommandsProvider`:
 `new MarketRepository(new FinnhubMarketDataProvider(), new YourProvider())`. **Zero UI changes.**
 
 **Finnhub specifics:**
@@ -84,11 +88,22 @@ ApiFinnhubQuoteDto ─(provider maps)→ DomainQuote ─(repository routes+merge
   re-add via a paid plan or a keyless FX provider (e.g. Frankfurter) behind the same seam.
 - Symbol formats: stock = bare (`AAPL`), crypto = `BINANCE:{SYM}USDT`, FX = `OANDA:{BASE}_{QUOTE}`.
 - An all-zero `/quote` response = invalid/unknown symbol → map to `IsValid:false`.
+- **Symbol search** `/search?q=&exchange=US` (free tier): returns identity only (`symbol`/`description`/
+  `type`), **no prices**. `symbol` is the canonical id for `/quote`; `displaySymbol` is for UI. Scoped to
+  **US equities** and mapped to `AssetCategory.Stock` — Finnhub's canonical `symbol` only round-trips
+  through `ToFinnhubSymbol(Stock)` for plain US tickers; crypto/FX search needs symbol-format
+  reconciliation (deferred). UI is **Enter-only** (the synthetic "Search Finnhub for …" item), never
+  per-keystroke, to protect the rate limit. A name can list across exchanges → dedupe by symbol.
 
-**AOT/trim:** project is AOT/trim-enabled and treats trim warnings as errors **on publish**, so all
-JSON must go through a source-gen `JsonSerializerContext` (never reflection-based `JsonSerializer`).
-⚠️ `Settings/FavoritesStore.cs` still uses reflection JSON (IL2026/IL3050) — fine in Debug, will
-ERROR on a trimmed Release publish; convert it before shipping a trimmed build.
+**AOT/trim:** project is AOT/trim-enabled; `EnableTrimAnalyzer` is on **in Debug** (so IL2026/IL3050
+surface every build) and `ILLinkTreatWarningsAsErrors` is set, so all JSON must go through a source-gen
+`JsonSerializerContext` (never reflection-based `JsonSerializer`). Both contexts are source-gen:
+`FinnhubJsonContext` (quotes + search) and `FavoritesJsonContext` (pinned items).
+⚠️ **Gotcha:** the JSON source generator does **not** support `[JsonSerializable]` attributes split
+across multiple `partial` declarations of one context — it emits a colliding hintName (e.g.
+`FinnhubJsonContext.Decimal.g.cs`) and the *whole* generator silently fails, cascading CS0534
+("does not implement … `GetTypeInfo`") onto **every** context in the build. Keep all `[JsonSerializable]`
+for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
 
 ## API Key (secrets.props — the .NET "local.properties")
 
@@ -110,11 +125,31 @@ ERROR on a trimmed Release publish; convert it before shipping a trimmed build.
 
 ## Current Status / Next Steps
 
-- **Done:** layered data architecture, live Finnhub provider, `MarketRepository` coordinator,
-  `secrets.props` key handling, tagged logging. ⚠️ Working tree is **uncommitted** (on `master`).
-- **Deferred / next:** FX provider (keyless Frankfurter); Finnhub `/search` add flow + `PinnedItem`
-  persistence; settings UI for bring-your-own-key; dock live-polling timer; rate-limit (429) + error
-  UX; convert `FavoritesStore` to source-gen JSON.
+- **Done:** layered data architecture; live Finnhub provider; `MarketRepository` coordinator;
+  `secrets.props` key handling; tagged logging; **Enter-only Finnhub `/search`** + **persistent
+  watchlist** (`PinnedItem` identity persistence, source-gen `FavoritesStore`,
+  `Watchlist.Instruments()` catalog ∪ pinned union, searched stocks add to watchlist + dock).
+  ⚠️ Working tree is **uncommitted** (on `repo`).
+- **Deferred / next:** the **three-screen UX** (below — the next major piece); FX provider (keyless
+  Frankfurter); settings UI for bring-your-own-key; dock live-polling timer; rate-limit (429) +
+  richer error UX; crypto/FX in symbol search.
+
+### Planned three-screen UX (next major piece)
+
+Split the single `MarketsPage` into **three top-level commands**, and separate **watchlist**
+(everything the user tracks) from **favorites** (a curated subset — the only thing the dock shows):
+
+1. **Markets Search** (default / entry screen) — just the Enter-only `/search` flow; results can be
+   added to the watchlist.
+2. **Watchlist** — the user's tracked instruments, added from search and persisted across sessions
+   (today's `FavoritesStore` + `Watchlist.Instruments()` is the seed for this).
+3. **Favorites** — a curated subset of the watchlist; **only favorites render in the dock band**.
+
+Implication: today `FavoritesStore` conflates "pinned/watchlist" with "favorites" and the dock shows
+up to 3 of them. The split needs a **watchlist store** (tracked) distinct from a **favorites** mark
+(dock subset) — e.g. add an `IsFavorite` bit to `PinnedItem`, or a second store. Register the three
+pages in `MarketExtensionCommandsProvider.TopLevelCommands()`; keep `GetDockBands()` pointed at the
+favorites subset only.
 
 ## CommandPalette Toolkit — Quick Reference
 
