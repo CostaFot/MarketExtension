@@ -1,0 +1,39 @@
+using System;
+using System.ComponentModel;
+using Microsoft.CommandPalette.Extensions;
+using Microsoft.CommandPalette.Extensions.Toolkit;
+
+namespace AdbExtension;
+
+internal sealed partial class ClearAppDataCommand : InvokableCommand
+{
+    private readonly string _packageName;
+
+    public ClearAppDataCommand(string packageName)
+    {
+        _packageName = packageName;
+        Name = "Clear App Data";
+    }
+
+    public override ICommandResult Invoke()
+    {
+        try
+        {
+            AdbHelper.RunAdb($"shell pm clear {_packageName}", out _, out string error);
+            return string.IsNullOrEmpty(error)
+                ? AdbSettingsManager.Instance.SuccessToast($"Cleared data for {_packageName}")
+                : ErrorToast($"Failed to clear data: {error}");
+        }
+        catch (Exception ex) when (ex is Win32Exception w && w.NativeErrorCode == 2)
+        {
+            return ErrorToast("ADB not found. Make sure adb.exe is in your PATH.");
+        }
+        catch (Exception ex)
+        {
+            return ErrorToast($"Unexpected error: {ex.Message}");
+        }
+    }
+
+    private static ICommandResult ErrorToast(string message) =>
+        CommandResult.ShowToast(new ToastArgs { Message = message, Result = CommandResult.KeepOpen() });
+}

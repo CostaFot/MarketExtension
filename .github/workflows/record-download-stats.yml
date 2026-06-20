@@ -1,0 +1,84 @@
+name: Record Download Stats
+
+on:
+  schedule:
+    - cron: '17 3 * * *'   # daily at 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect stats
+        id: stats
+        shell: pwsh
+        env:
+          GH_TOKEN:            ${{ github.token }}
+          STORE_TENANT_ID:     ${{ secrets.STORE_TENANT_ID }}
+          STORE_CLIENT_ID:     ${{ secrets.STORE_CLIENT_ID }}
+          STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+        run: |
+          $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
+
+          # --- GitHub + WinGet: cumulative downloads across all release assets ---
+          $ghLines = gh api "repos/$env:GITHUB_REPOSITORY/releases" --paginate `
+            --jq '[.[].assets[].download_count] | add // 0'
+          $github = ($ghLines | ForEach-Object { [int]$_ } | Measure-Object -Sum).Sum
+
+          # --- Microsoft Store: cumulative acquisitions since launch ---
+          # Skipped (left blank) if the STORE_* secrets aren't configured.
+          $store = ""
+          if (-not [string]::IsNullOrWhiteSpace($env:STORE_TENANT_ID)) {
+            try {
+              $store = ./Get-StoreStats.ps1 -StartDate ([datetime]"2026-04-01")
+            } catch {
+              Write-Host "::warning::Store fetch failed: $_"
+            }
+          }
+
+          "date=$date"     | Out-File $env:GITHUB_OUTPUT -Append
+          "github=$github" | Out-File $env:GITHUB_OUTPUT -Append
+          "store=$store"   | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "Collected $date -> github=$github store=$store"
+
+      - name: Append to stats branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DATE:   ${{ steps.stats.outputs.date }}
+          GITHUB: ${{ steps.stats.outputs.github }}
+          STORE:  ${{ steps.stats.outputs.store }}
+        run: |
+          # Work in an isolated clone so the orphan 'stats' branch never touches
+          # master (master is the GitHub Pages source — keep redeploys off it).
+          tmp="$(mktemp -d)"
+          cd "$tmp"
+          git init -q
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if git fetch -q --depth 1 origin stats 2>/dev/null; then
+            git checkout -q FETCH_HEAD -b stats
+          else
+            git checkout -q --orphan stats
+          fi
+
+          FILE=download-stats.csv
+          [ -f "$FILE" ] || echo "date,github_downloads,store_acquisitions" > "$FILE"
+          grep -v "^$DATE," "$FILE" > "$FILE.tmp" || true
+          mv "$FILE.tmp" "$FILE"
+          echo "$DATE,$GITHUB,$STORE" >> "$FILE"
+
+          git add "$FILE"
+          if git diff --staged --quiet; then
+            echo "No change to commit"
+          else
+            git commit -q -m "stats: $DATE"
+            git push -q origin stats
+          fi

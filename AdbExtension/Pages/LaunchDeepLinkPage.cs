@@ -1,0 +1,32 @@
+using Microsoft.CommandPalette.Extensions;
+using Microsoft.CommandPalette.Extensions.Toolkit;
+
+namespace AdbExtension;
+
+internal sealed partial class LaunchDeepLinkPage : DynamicListPage
+{
+    public LaunchDeepLinkPage()
+    {
+        Icon = new IconInfo("\uE71B"); // Link
+        Title = "Launch Deep Link";
+        Name = "Open";
+        PlaceholderText = "Enter URL or deep link (e.g. https://example.com or myapp://home)";
+    }
+
+    public override void UpdateSearchText(string oldSearch, string newSearch)
+        => RaiseItemsChanged(0);
+
+    public override IListItem[] GetItems()
+    {
+        if (string.IsNullOrWhiteSpace(SearchText))
+            return [new ListItem(new NoOpCommand()) { Title = "Type a URL or deep link above to launch" }];
+
+        return [
+            new ListItem(new LaunchDeepLinkCommand(SearchText))
+            {
+                Title = $"Launch: {SearchText}",
+                Subtitle = "adb shell am start -a android.intent.action.VIEW",
+            },
+        ];
+    }
+}
