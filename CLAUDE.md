@@ -136,8 +136,9 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   pinned band updates immediately instead of going stale (both designed below).
 - **Deferred:** FX provider (keyless Frankfurter); settings UI for bring-your-own-key; rate-limit (429)
   + richer error UX; crypto/FX in symbol search.
-- **Wishlist:** a **portfolio** screen + its own dock band — holdings with total market value and daily
-  P&L (design below).
+- **Wishlist:** a **portfolio** screen + its own dock band (holdings, total value, daily P&L); and a
+  **per-symbol detail screen + live chart for any ticker** — drill-in from any list row and clickable
+  from any dock item (Performance-Monitor-style). Both designed below.
 
 ### Three-screen UX (done)
 
@@ -239,7 +240,8 @@ average of the per-position percents.
 holdings via the repository, zip with quantities). Render a **totals summary** as the first item
 ("Portfolio $12,345.67  ▲ +$120.50 (+0.98%)") then one row per holding ("AAPL · 10 sh" → value + daily
 P&L). Editing needs a quantity-input affordance the palette doesn't give for free — add via search → a
-small "set quantity" form/content page; Enter on a row to edit/remove.
+small "set quantity" form/content page; Enter on a row to edit/remove. Like every other list, a row also
+opens the **shared symbol detail + chart** (below) — here via a context item, since Enter is taken by edit.
 
 **Dock band** (`Pages/PortfolioDockPage.cs`): a second band registered in `GetDockBands()` next to the
 favorites band, showing the one-line portfolio summary (total value + daily P&L, green/red). Needs its
@@ -248,6 +250,58 @@ and inherits the same live-refresh story as the favorites band (the polling + pu
 
 **Caveats:** assumes a single quote currency (USD); mixed-currency holdings need FX conversion (deferred —
 ties to the FX-provider item). Exclude `IsValid:false` quotes from totals (or show them as unpriced).
+
+### Symbol detail + live chart — for ANY instrument (future wishlist)
+
+**App-wide, not portfolio-specific.** Every instrument — from search results, the watchlist, favorites,
+**and** portfolio rows, plus **every dock band** — should open a per-symbol **detail screen with a small
+live line chart** of its price (the way Performance Monitor's bands open a CPU/RAM graph). **One** shared
+`SymbolDetailPage` backs both the **drill-in (Enter, or a context item, on any row)** and the
+**dock-item click**. Investigated against its on-disk source
+(`C:\Users\jarla\code\PowerToys\src\modules\cmdpal\ext\Microsoft.CmdPal.Ext.PerformanceMonitor\`) — the
+mechanism is simpler than it looks:
+
+**How Performance Monitor does it (the pattern to copy):**
+- A band button's `Command` is itself an **`IContentPage`** (`WidgetPage : OnLoadContentPage`), so
+  clicking the button **navigates into** the page. Same trick works for a list row — point the row's
+  command at the content page.
+- The page renders an **Adaptive Card** via a `FormContent` (`TemplateJson` = an adaptive-card template +
+  `DataJson` = bound values); `GetContent()` returns `[formContent]`.
+- **The chart is an inline SVG embedded as a data URI** — `ChartHelper.CreateImageUrl(values, type)`
+  returns `"data:image/svg+xml;utf8," + <svg>…</svg>`, where the `<svg>` is just two `<polyline>`s (the
+  line + a gradient-fill loop) and a border `<rect>`, built with `System.Xml.Linq`. **No
+  System.Drawing/SkiaSharp** → AOT/trim-safe (this project requires that — see the AOT section). The card
+  template binds that data-URI as an `Image`. `MaxChartValues = 34` is a rolling window of the last 34 samples.
+- Live update reuses the same Loaded/Unloaded lifecycle as our pages: `OnLoadBasePage` turns the
+  `ItemsChanged` add/remove into `Loaded()`/`Unloaded()`; each data tick re-renders `DataJson` and calls
+  `RaiseItemsChanged()` so the card repaints. A `PushActivate`/`PopActivate` refcount keeps the source
+  alive while either the band button or the open chart needs it.
+
+**Where to look (exact files):**
+- `…/PerformanceMonitor/PerformanceWidgetsPage.cs` — `WidgetPage : OnLoadContentPage`, `GetContent()` →
+  `FormContent`; `LoadContentData()` sets `cpuGraphUrl = CreateCPUImageUrl()`; the `Updated →
+  RaiseItemsChanged` repaint; the `PushActivate`/`PopActivate` refcount.
+- `…/PerformanceMonitor/OnLoadStaticPage.cs` — `OnLoadContentPage` / `OnLoadBasePage`: the `ItemsChanged`
+  add/remove ⇒ `Loaded()`/`Unloaded()` (the generalized form of our on-load hook).
+- `…/PerformanceMonitor/DevHome/Helpers/ChartHelper.cs` — **the file to port**: `CreateImageUrl` →
+  `CreateChart(List<float>, type)` building the SVG polyline/rect; `ChartHeight`/`ChartWidth`, `MaxChartValues`.
+- `…/PerformanceMonitor/DevHome/Helpers/CPUStats.cs` — `CreateCPUImageUrl()` + the `CpuChartValues`
+  rolling `List<float>` buffer (the sampling model).
+- `…/PerformanceMonitor/DevHome/Templates/*.json` — the adaptive-card templates that place the
+  `${…graphUrl}` image; copy the shape.
+- MediaControls `…/Pages/DockHeadItem.cs` — the event-driven content-band variant.
+
+**For market data specifically:**
+- Data source = **sample the price into a rolling per-symbol buffer each poll tick** (exactly Perf
+  Monitor's model — it samples a live metric, it does not fetch history). So this **depends on the live
+  polling work above**; a paid `/stock/candle` (premium-gated on the free tier) could backfill real history
+  later. Keep the buffer where the cache/sampler lives (repository-side).
+- Add **one** `Pages/SymbolDetailPage.cs` (`IContentPage`) that renders the SVG sparkline (plus
+  open/high/low/prev-close, already in `/quote`) for any `DomainInstrument`, recolored green/red by day
+  direction. Wire **every** surface to it: **Enter or a context item on rows** in Search, Watchlist,
+  Favorites, and Portfolio, **and the click target of every dock button** (favorites dock + portfolio
+  dock). It is the single symbol-detail screen, shared everywhere — explicitly not a portfolio feature.
+- Port `ChartHelper` mostly as-is (already pure-string SVG); feed it our `UiQuote`/price series.
 
 ## CommandPalette Toolkit — Quick Reference
 
