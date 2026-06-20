@@ -8,20 +8,20 @@ namespace MarketExtension;
 // in/out of the Favorites section. Adapted from reference/commands/ToggleFavoriteCommand.cs.
 internal sealed partial class ToggleFavoriteCommand : InvokableCommand
 {
-    private readonly string _symbol;
+    private readonly DomainInstrument _instrument;
     private readonly Action _refresh;
 
-    public ToggleFavoriteCommand(string symbol, Action refresh)
+    public ToggleFavoriteCommand(DomainInstrument instrument, Action refresh)
     {
-        _symbol = symbol;
+        _instrument = instrument;
         _refresh = refresh;
-        Name = FavoritesStore.Instance.IsFavorite(symbol) ? "Remove from Favorites" : "Add to Favorites";
-        Icon = new IconInfo(FavoritesStore.Instance.IsFavorite(symbol) ? "" : ""); // FavoriteStarFill / FavoriteStar
+        Name = FavoritesStore.Instance.IsFavorite(instrument.Symbol) ? "Remove from Favorites" : "Add to Favorites";
+        Icon = new IconInfo(FavoritesStore.Instance.IsFavorite(instrument.Symbol) ? "" : ""); // FavoriteStarFill / FavoriteStar
     }
 
     public override ICommandResult Invoke()
     {
-        FavoritesStore.Instance.Toggle(_symbol);
+        FavoritesStore.Instance.Toggle(_instrument);
         _refresh();
         return CommandResult.KeepOpen();
     }

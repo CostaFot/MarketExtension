@@ -26,6 +26,17 @@ internal sealed class MockMarketDataProvider : IMarketDataProvider
 
     public bool Supports(AssetCategory category) => true;
 
+    public Task<IReadOnlyList<DomainInstrument>> SearchAsync(string query, CancellationToken ct = default)
+    {
+        query = query?.Trim() ?? string.Empty;
+        IReadOnlyList<DomainInstrument> matches = query.Length == 0
+            ? []
+            : [.. Seed.Keys
+                .Where(s => s.Contains(query, System.StringComparison.OrdinalIgnoreCase))
+                .Select(s => new DomainInstrument(s, s, AssetCategory.Stock))];
+        return Task.FromResult(matches);
+    }
+
     public Task<IReadOnlyList<DomainQuote>> GetQuotesAsync(
         IReadOnlyList<DomainInstrument> instruments, CancellationToken ct = default)
     {

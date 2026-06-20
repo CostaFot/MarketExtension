@@ -51,4 +51,23 @@ internal sealed class MarketRepository(params IMarketDataProvider[] providers)
             $"{ordered.Count(q => q.IsValid)} valid, {unserviceable.Count} unserviceable");
         return ordered;
     }
+
+    // Free-text instrument lookup. Fans out to every provider and merges their matches into one
+    // list, deduped by symbol and preserving first-seen (provider) order. Identity only — callers
+    // fetch quotes separately, so a search stays one call per provider regardless of match count.
+    public async Task<IReadOnlyList<DomainInstrument>> SearchAsync(
+        string query, CancellationToken ct = default)
+    {
+        var results = await Task.WhenAll(
+            providers.Select(p => p.SearchAsync(query, ct))).ConfigureAwait(false);
+
+        var merged = results
+            .SelectMany(r => r)
+            .GroupBy(i => i.Symbol, System.StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
+        Log.Info("Repository", $"search '{query}' -> {merged.Count} merged result(s)");
+        return merged;
+    }
 }

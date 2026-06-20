@@ -15,4 +15,9 @@ internal interface IMarketDataProvider
 
     Task<IReadOnlyList<DomainQuote>> GetQuotesAsync(
         IReadOnlyList<DomainInstrument> instruments, CancellationToken ct = default);
+
+    // Look up instruments by free-text query (symbol or name). Returns identity only — no prices,
+    // so a search costs one call regardless of how many matches come back. A provider that can't
+    // search returns an empty list. MarketRepository fans out and merges across providers.
+    Task<IReadOnlyList<DomainInstrument>> SearchAsync(string query, CancellationToken ct = default);
 }

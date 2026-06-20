@@ -83,7 +83,7 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
 
     private async Task LoadQuotes()
     {
-        _quotes = [.. (await _repository.GetQuotesAsync(InstrumentCatalog.All)).Select(UiQuote.From)];
+        _quotes = [.. (await _repository.GetQuotesAsync(Watchlist.Instruments())).Select(UiQuote.From)];
         IsLoading = false;
         RaiseItemsChanged(0);
     }

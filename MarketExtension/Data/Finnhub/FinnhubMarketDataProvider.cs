@@ -32,6 +32,67 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
         return await Task.WhenAll(instruments.Select(i => FetchQuoteAsync(i, ct))).ConfigureAwait(false);
     }
 
+    // Max search results surfaced. Finnhub can return dozens for a common name; we cap to keep the
+    // list usable (one /search call regardless — the cap is purely a UI trim).
+    private const int MaxSearchResults = 25;
+
+    public async Task<IReadOnlyList<DomainInstrument>> SearchAsync(string query, CancellationToken ct = default)
+    {
+        query = query?.Trim() ?? string.Empty;
+        if (query.Length == 0)
+            return [];
+
+        try
+        {
+            // exchange=US keeps results to plain US tickers whose canonical `symbol` round-trips
+            // through ToFinnhubSymbol(Stock) for the later /quote (see InstrumentCatalog note). We
+            // therefore treat every match as a Stock; crypto/FX search would need symbol-format
+            // reconciliation and is deferred.
+            // NEVER log the full URL — it carries the API token. Log the query only.
+            Log.Info("Finnhub", $"GET /search q={query}");
+            using var response = await Http.GetAsync(
+                $"search?q={Uri.EscapeDataString(query)}&exchange=US&token={ApiKey}", ct).ConfigureAwait(false);
+
+            var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            Log.Info("Finnhub", $"search '{query}' <- {(int)response.StatusCode} {response.StatusCode}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                // e.g. 429 rate-limited. Degrade to no results rather than throwing.
+                Log.Warn("Finnhub", $"search '{query}': non-success status {(int)response.StatusCode} — no results");
+                return [];
+            }
+
+            var dto = JsonSerializer.Deserialize(json, FinnhubJsonContext.Default.ApiFinnhubSearchDto);
+            if (dto?.Result is not { Count: > 0 } results)
+                return [];
+
+            // Map to neutral identities, dropping entries without a usable symbol, deduping by
+            // symbol (a name can list across exchanges), and capping for the UI.
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var instruments = new List<DomainInstrument>();
+            foreach (var r in results)
+            {
+                var symbol = r.Symbol;
+                if (string.IsNullOrWhiteSpace(symbol) || !seen.Add(symbol))
+                    continue;
+
+                var name = string.IsNullOrWhiteSpace(r.Description) ? symbol : r.Description!;
+                instruments.Add(new DomainInstrument(symbol, name, AssetCategory.Stock));
+                if (instruments.Count >= MaxSearchResults)
+                    break;
+            }
+
+            Log.Info("Finnhub", $"search '{query}' -> {instruments.Count} result(s)");
+            return instruments;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Error("Finnhub", $"search '{query}': request failed", ex);
+            return [];
+        }
+    }
+
     private static async Task<DomainQuote> FetchQuoteAsync(DomainInstrument instrument, CancellationToken ct)
     {
         var symbol = ToFinnhubSymbol(instrument);

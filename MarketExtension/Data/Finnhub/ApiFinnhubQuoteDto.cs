@@ -15,4 +15,5 @@ internal sealed record ApiFinnhubQuoteDto(
     [property: JsonPropertyName("pc")] decimal? PreviousClose); // previous close
 
 [JsonSerializable(typeof(ApiFinnhubQuoteDto))]
+[JsonSerializable(typeof(ApiFinnhubSearchDto))] // /search response — see ApiFinnhubSearchDto.cs
 internal sealed partial class FinnhubJsonContext : JsonSerializerContext;
