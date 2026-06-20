@@ -16,10 +16,10 @@ namespace MarketExtension;
 // a real API. Favorites are pinned into their own section at the top.
 internal sealed partial class MarketsPage : DynamicListPage, INotifyItemsChanged
 {
-    // Injected so the palette page and the dock band share one data source (the seam where the
-    // real API implementation drops in later — see reference/dock-support.md).
-    private readonly IMarketDataProvider _provider;
-    private Quote[]? _quotes;
+    // Injected so the palette page and the dock band share one repository — the coordinator over
+    // market-data providers (see Data/MarketRepository.cs).
+    private readonly MarketRepository _repository;
+    private UiQuote[]? _quotes;
 
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
 
@@ -32,9 +32,9 @@ internal sealed partial class MarketsPage : DynamicListPage, INotifyItemsChanged
     protected new void RaiseItemsChanged(int totalItems = -1)
         => _itemsChanged?.Invoke(this, new ItemsChangedEventArgs(totalItems));
 
-    public MarketsPage(IMarketDataProvider provider)
+    public MarketsPage(MarketRepository repository)
     {
-        _provider = provider;
+        _repository = repository;
         Icon = new IconInfo("https://github.com/favicon.ico");
         Title = "Markets";
         Name = "Open";
@@ -77,7 +77,7 @@ internal sealed partial class MarketsPage : DynamicListPage, INotifyItemsChanged
         return items.ToArray();
     }
 
-    private ListItem BuildItem(Quote q, string section) =>
+    private ListItem BuildItem(UiQuote q, string section) =>
         new(new ToggleFavoriteCommand(q.Symbol, () => RaiseItemsChanged(0)))
         {
             Title = $"{q.Symbol} · {q.Name}",
@@ -105,9 +105,9 @@ internal sealed partial class MarketsPage : DynamicListPage, INotifyItemsChanged
         Task.Run(LoadQuotes);
     }
 
-    private void LoadQuotes()
+    private async Task LoadQuotes()
     {
-        _quotes = [.. _provider.GetQuotes()];
+        _quotes = [.. (await _repository.GetQuotesAsync(InstrumentCatalog.All)).Select(UiQuote.From)];
         IsLoading = false;
         RaiseItemsChanged(0);
     }

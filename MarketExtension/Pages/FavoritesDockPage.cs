@@ -19,8 +19,8 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
 {
     private const int MaxDockFavorites = 3;
 
-    private readonly IMarketDataProvider _provider;
-    private Quote[]? _quotes;
+    private readonly MarketRepository _repository;
+    private UiQuote[]? _quotes;
 
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
 
@@ -33,9 +33,9 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
     protected new void RaiseItemsChanged(int totalItems = -1)
         => _itemsChanged?.Invoke(this, new ItemsChangedEventArgs(totalItems));
 
-    public FavoritesDockPage(IMarketDataProvider provider)
+    public FavoritesDockPage(MarketRepository repository)
     {
-        _provider = provider;
+        _repository = repository;
         Id = "com.costafotiadis.market.dock.favorites"; // dock bands require a non-empty command Id
         Title = "Markets";
         Icon = new IconInfo("https://github.com/favicon.ico");
@@ -81,9 +81,9 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
         Task.Run(LoadQuotes);
     }
 
-    private void LoadQuotes()
+    private async Task LoadQuotes()
     {
-        _quotes = [.. _provider.GetQuotes()];
+        _quotes = [.. (await _repository.GetQuotesAsync(InstrumentCatalog.All)).Select(UiQuote.From)];
         IsLoading = false;
         RaiseItemsChanged(0);
     }

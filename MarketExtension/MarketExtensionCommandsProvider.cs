@@ -5,9 +5,10 @@ namespace MarketExtension;
 
 public partial class MarketExtensionCommandsProvider : CommandProvider
 {
-    // One shared data source for both the palette page and the dock band. Swap this single
-    // line for a real API-backed IMarketDataProvider later (see reference/dock-support.md).
-    private readonly IMarketDataProvider _dataProvider = new MockMarketDataProvider();
+    // The repository coordinates all market-data providers; both the palette page and the dock
+    // band share this one instance. Add a provider here to extend coverage (e.g. a forex source);
+    // MockMarketDataProvider is the offline fallback.
+    private readonly MarketRepository _repository = new(new FinnhubMarketDataProvider());
 
     private readonly ICommandItem[] _commands;
     private readonly ICommandItem[] _dockBands;
@@ -23,12 +24,12 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
         // See reference/settings/AdbSettingsManager.cs for an example.
 
         _commands = [
-            new CommandItem(new MarketsPage(_dataProvider)) { Title = "Markets" },
+            new CommandItem(new MarketsPage(_repository)) { Title = "Markets" },
         ];
 
         // Dock band: a ticker strip of up to 3 favorited instruments. Pinned from the Dock.
         _dockBands = [
-            new CommandItem(new FavoritesDockPage(_dataProvider)) { Title = "Markets" },
+            new CommandItem(new FavoritesDockPage(_repository)) { Title = "Markets" },
         ];
     }
 

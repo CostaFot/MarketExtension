@@ -25,28 +25,28 @@ public class Program
             options.AutoSessionTracking = true;
         });
 
-        Log.Info("MarketExtension starting");
+        Log.Info("Startup", "MarketExtension starting");
 
         if (args.Length > 0 && args[0] == "-RegisterProcessAsComServer")
         {
-            Log.Info("RegisterProcessAsComServer mode detected.");
+            Log.Info("ComServer", "RegisterProcessAsComServer mode detected");
             try
             {
                 global::Shmuelie.WinRTServer.ComServer server = new();
                 ManualResetEvent extensionDisposedEvent = new(false);
                 MarketExtension extensionInstance = new(extensionDisposedEvent);
                 server.RegisterClass<MarketExtension, IExtension>(() => extensionInstance);
-                Log.Info("COM server registered. Starting...");
+                Log.Info("ComServer", "COM server registered, starting...");
                 server.Start();
-                Log.Info("COM server started. Waiting for disposal signal.");
+                Log.Info("ComServer", "COM server started, waiting for disposal signal");
                 extensionDisposedEvent.WaitOne();
-                Log.Info("Disposal signal received. Stopping server.");
+                Log.Info("ComServer", "Disposal signal received, stopping server");
                 server.Stop();
                 server.UnsafeDispose();
             }
             catch (Exception ex)
             {
-                Log.Error("COM server failed", ex);
+                Log.Error("ComServer", "COM server failed", ex);
             }
         }
         else
