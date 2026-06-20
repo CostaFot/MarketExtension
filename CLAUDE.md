@@ -1,4 +1,4 @@
-# ADB Extension for Command Palette — Claude Guide
+# Market Extension for Command Palette — Claude Guide
 
 ## Documentation
 
@@ -12,15 +12,31 @@
 
 Build via Visual Studio or:
 ```
-dotnet build AdbExtension.sln
+dotnet build MarketExtension.sln
 ```
 Deploy the MSIX package, then reload Command Palette to pick up changes.
 
+## Reference Library (`reference/`)
+
+Real-world implementations from the **AdbExtension** this project was scaffolded from live
+in `reference/` — **not compiled** (outside the project folder). Consult them before
+writing a new command or page; copy and adapt rather than reinventing. The starters in
+`MarketExtension/` (`SampleCommand`, `SampleListPage`, `ProcessHelper`) are minimal,
+build-verified versions of these patterns. See `reference/README.md` for the full index;
+the highest-value examples:
+
+| Example | Demonstrates |
+|---|---|
+| `reference/pages/AdbExtensionPage.cs` | `DynamicListPage` + async load + the `INotifyItemsChanged` on-load refresh, sections, nested command |
+| `reference/pages/PackageActionsPage.cs` | `ListPage` (sync `GetItems`) + `INotifyItemsChanged` fire-on-subscribe variant, per-item action menu |
+| `reference/commands/TakeScreenshotCommand.cs` | external process exec, pull a file, success/error toasts, `Win32` errno-2 handling |
+| `reference/settings/AdbSettingsManager.cs` | `JsonSettingsManager` singleton + a "keep open" success-toast helper |
+
 ## Project Conventions
 
-- New commands → `AdbExtension/Commands/`, extend `InvokableCommand`
-- New pages → `AdbExtension/Pages/`, extend `ListPage` or `DynamicListPage`
-- All ADB execution goes through `AdbHelper.RunAdb()` — never use `Process` directly in command files
+- New commands → `MarketExtension/Commands/`, extend `InvokableCommand`
+- New pages → `MarketExtension/Pages/`, extend `ListPage` or `DynamicListPage`
+- All external process execution goes through `ProcessHelper.Run()` — never use `Process` directly in command files
 - Error toasts use `CommandResult.KeepOpen()` so the user can read them; success toasts use the default `Dismiss()`
 - Icons: `new IconInfo("https://github.com/favicon.ico")` per project preference
 
@@ -59,7 +75,7 @@ The fix: re-implement `INotifyItemsChanged` on the page class and intercept the 
 **Critical:** use `INotifyItemsChanged.ItemsChanged`, not `IListPage.ItemsChanged` — `ItemsChanged` lives on `INotifyItemsChanged`, and the class must re-list the interface to override base class dispatch.
 
 ```csharp
-// For pages that load data async (e.g. AdbExtensionPage):
+// For pages that load data async (see Pages/SampleListPage.cs, reference/pages/AdbExtensionPage.cs):
 internal sealed partial class MyPage : DynamicListPage, INotifyItemsChanged
 {
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
@@ -74,7 +90,7 @@ internal sealed partial class MyPage : DynamicListPage, INotifyItemsChanged
         => _itemsChanged?.Invoke(this, new ItemsChangedEventArgs(totalItems));
 }
 
-// For pages with synchronous GetItems() (e.g. PackageActionsPage):
+// For pages with synchronous GetItems() (see reference/pages/PackageActionsPage.cs):
 internal sealed partial class MyPage : ListPage, INotifyItemsChanged
 {
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
@@ -167,7 +183,7 @@ internal sealed partial class MyCommand : InvokableCommand
         }
         catch (Exception ex) when (ex is Win32Exception w && w.NativeErrorCode == 2)
         {
-            return ErrorToast("ADB not found. Make sure adb.exe is in your PATH.");
+            return ErrorToast("Required tool not found. Make sure it is on your PATH.");
         }
         catch (Exception ex)
         {
@@ -180,19 +196,15 @@ internal sealed partial class MyCommand : InvokableCommand
 }
 ```
 
-## AdbHelper API
+## ProcessHelper API
 
 ```csharp
-// Run any adb command. Read both streams before WaitForExit (prevents pipe deadlocks).
-AdbHelper.RunAdb(string arguments, out string stdout, out string stderr);
-
-// Returns 3rd-party packages. Debuggable ones sorted first.
-// Returns [] on error (no device, adb not in PATH, etc.)
-PackageInfo[] AdbHelper.GetInstalledPackages();
-
-// PackageInfo record
-record PackageInfo(string Name, bool IsDebuggable);
+// Run any external process. Reads BOTH stdout and stderr before WaitForExit (prevents
+// pipe deadlocks). stderr is non-empty only on failure (non-zero exit).
+ProcessHelper.Run(string fileName, string arguments, out string stdout, out string stderr);
 ```
+
+For richer process handling (output parsing into records, etc.) see `reference/helpers/AdbHelper.cs`.
 
 ## Releasing a New Version
 
@@ -200,15 +212,15 @@ record PackageInfo(string Name, bool IsDebuggable);
 
 | File | Field |
 |---|---|
-| `AdbExtension/AdbExtension.csproj` | `<AppxPackageVersion>` |
-| `AdbExtension/Package.appxmanifest` | `Identity Version=` |
-| `AdbExtension/app.manifest` | `assemblyIdentity version=` |
-| `AdbExtension/build-exe.ps1` | `$Version` default param |
-| `AdbExtension/setup-template.iss` | `#define AppVersion` |
+| `MarketExtension/MarketExtension.csproj` | `<AppxPackageVersion>` |
+| `MarketExtension/Package.appxmanifest` | `Identity Version=` |
+| `MarketExtension/app.manifest` | `assemblyIdentity version=` |
+| `MarketExtension/build-exe.ps1` | `$Version` default param |
+| `MarketExtension/setup-template.iss` | `#define AppVersion` |
 
 One-liner (replace `OLD` and `NEW`):
 ```powershell
-$files = @("AdbExtension/AdbExtension.csproj","AdbExtension/Package.appxmanifest","AdbExtension/app.manifest","AdbExtension/build-exe.ps1","AdbExtension/setup-template.iss")
+$files = @("MarketExtension/MarketExtension.csproj","MarketExtension/Package.appxmanifest","MarketExtension/app.manifest","MarketExtension/build-exe.ps1","MarketExtension/setup-template.iss")
 $files | ForEach-Object { (Get-Content $_) -replace 'OLD','NEW' | Set-Content $_ }
 ```
 
@@ -218,10 +230,20 @@ $files | ForEach-Object { (Get-Content $_) -replace 'OLD','NEW' | Set-Content $_
 gh workflow run release-msix.yml --ref master -f release_notes="Your release notes here"
 ```
 
-This reads the version from the csproj automatically, builds x64 + ARM64, bundles into a `.msixbundle`, signs it, and creates a GitHub Release.
+This reads the version from the csproj automatically, builds x64 + ARM64, bundles into a `.msixbundle`, signs it, and creates a GitHub Release. (`release-extension.yml` is the alternative self-signed `.exe` installer path.)
 
 ### Step 3 — Submit to Partner Center
 
 1. Download the `.msixbundle` from the GitHub Release
 2. Partner Center → app → new submission → Packages → upload the `.msixbundle`
 3. Update description/notes, submit
+
+## One-time setup (this extension's own identity)
+
+This was scaffolded from AdbExtension. Already changed: COM GUID (`6b38c9aa-bbee-45e9-81e9-cf25707910e7`), namespace/assembly (`MarketExtension`), package identity (`CostaFotiadis.MarketExtension`), version (`0.0.1.0`). Still TODO before shipping:
+
+- **Partner Center**: reserve the app name; confirm `Identity Name` + `Publisher` in `Package.appxmanifest`/csproj match what it assigns.
+- **GitHub secrets**: add `SIGNING_CERT_PFX` + `SIGNING_CERT_PASSWORD` (see `MarketExtension/create-signing-cert.ps1`). Template clones do not carry secrets.
+- **Assets**: replace the art in `MarketExtension/Assets/` (still the AdbExtension tiles/logos).
+- **Sentry**: set your own DSN in `Program.cs` or leave it empty to disable.
+- **Description**: update the placeholder description in `Package.appxmanifest`.

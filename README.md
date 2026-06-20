@@ -1,127 +1,25 @@
-# ADB Extension for Command Palette
+# Market Extension
 
-[![GitHub release](https://img.shields.io/github/v/release/CostaFot/AdbExtension?style=flat-square&logo=github&label=release)](https://github.com/CostaFot/AdbExtension/releases/latest)
-[![GitHub downloads](https://img.shields.io/github/downloads/CostaFot/AdbExtension/total?style=flat-square&logo=github&label=downloads)](https://github.com/CostaFot/AdbExtension/releases)
+A [PowerToys Command Palette](https://learn.microsoft.com/en-us/windows/powertoys/command-palette/overview) extension.
 
-📊 [Stats](https://costafot.github.io/AdbExtension/stats.html)
-
-<a href="https://www.costafotiadis.com/it-looks-like-youre-trying-to-build-an-extension-for-command-palette/">
-  <img src="screenshots/header_blog.png" width="600"/>
-</a>
-
-> Check out the blog post — [here](https://www.costafotiadis.com/it-looks-like-youre-trying-to-build-an-extension-for-command-palette/).
-
-A Windows 11 Command Palette extension (PowerToys) for Android developers. Exposes common ADB operations directly from the command palette.
-
-![Top-level commands](screenshots/top_level_1.png)
+> Scaffolded from the **AdbExtension** template. Replace this README, the sample command/page,
+> and the assets in `MarketExtension/Assets/` with your own.
 
 ## Requirements
 
+- Windows 11
 - [PowerToys](https://github.com/microsoft/PowerToys) with Command Palette enabled
-- [Android Platform Tools](https://developer.android.com/tools/releases/platform-tools) — `adb.exe` must be in your `PATH`
-- A connected Android device or running emulator
 
-## Installation
-
-### Microsoft Store
-
-<a href="https://get.microsoft.com/installer/download/9nhdx4xwcngs?referrer=appbadge" target="_self" >
-	<img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200"/>
-</a>
-
-
-### WinGet
+## Development
 
 ```powershell
-winget install --id CostaFotiadis.ADBExtensionforCommandPalette
+dotnet build MarketExtension.sln
 ```
 
-## Features
+Then deploy the MSIX package and reload Command Palette to pick up changes.
 
-### ADB App Commands
-
-Browse all installed packages on the connected device, filtered by status (foreground, running, debuggable). Select a package to act on it:
-
-![Package list](screenshots/adb_packages_1.png)
-
-![Package actions](screenshots/adb_packages_commands.png)
-
-| Action | ADB equivalent |
-|---|---|
-| Launch | `am start -n <launcher activity>` |
-| Restart | `am force-stop` + `am start` |
-| Kill Process | `am kill` |
-| Force Stop | `am force-stop` |
-| Clear App Data | `pm clear` |
-| Clear Data & Restart | `pm clear` + `am start` |
-| Open Deep Link | `am start -a android.intent.action.VIEW -d <url>` |
-| Grant All Permissions | `pm grant <permission>` for each declared permission |
-| Revoke All Permissions | `pm revoke <permission>` for each declared permission |
-| Uninstall | `pm uninstall` |
-
-### ADB APK Manager
-
-Install one or more APKs from a file picker.
-
-![APK Manager](screenshots/apk_manager.png)
-
-Actions can be starred as favorites and will appear at the top of the list for that package.
-
-### ADB Take Screenshot
-
-Captures the screen and saves it to Pictures (or a custom folder configured in settings).
-
-### ADB Toggle Animations
-
-Enables/disables window, transition, and animator duration scales.
-
-### ADB Toggle Touch Coordinates
-
-Shows/hides touch coordinate overlay.
-
-### ADB Toggle Layout Bounds
-
-Shows/hides layout bounds overlay.
-
-### ADB Toggle Airplane Mode
-
-Toggles airplane mode on/off.
-
-### ADB Enable / Disable Wi-Fi
-
-Turns Wi-Fi on or off.
-
-### ADB Enable / Disable Mobile Data
-
-Turns mobile data on or off.
-
-### ADB Launch Deep Link
-
-Fire an arbitrary deep link without targeting a specific package.
-
-## Wishlist
-
-### App targeting
-- [ ] Pull a specific shared pref file
-- [ ] Dump app's database to desktop
-
-### Device state
-- [ ] Set screen timeout
-- [ ] Set font size / display size
-- [ ] Change locale
-
-### Media / files
-- [ ] Pull latest screenshot to clipboard
-- [ ] Record screen (start/stop)
-
-### Simulation
-- [ ] Send a broadcast intent
-- [ ] Simulate low battery / charging state
-- [ ] Trigger doze mode
-- [ ] Fake a GPS location
-
-### P0 bugs
-- [ ] Sydney Sweeney
+- **Conventions, the Command Palette toolkit quick-reference, and the release process** are in [`CLAUDE.md`](CLAUDE.md).
+- **Worked examples** (real commands/pages from the AdbExtension this was derived from) live in [`reference/`](reference/) — not compiled; copy and adapt.
 
 ## License
 

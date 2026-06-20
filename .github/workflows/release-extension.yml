@@ -14,10 +14,10 @@ on:
         type: string
 
 env:
-  DISPLAY_NAME: ADB Extension for Command Palette
-  EXTENSION_NAME: AdbExtension
-  FOLDER_NAME: AdbExtension
-  GITHUB_REPO_URL: https://github.com/CostaFot/AdbExtension
+  DISPLAY_NAME: Market Extension
+  EXTENSION_NAME: MarketExtension
+  FOLDER_NAME: MarketExtension
+  GITHUB_REPO_URL: https://github.com/CostaFot/MarketExtension
 
 jobs:
   build:
@@ -89,8 +89,8 @@ jobs:
 
           Download the installer for your architecture:
 
-          - **x64 (Intel/AMD)**: `AdbExtension-Setup-${{ steps.version.outputs.VERSION }}-x64.exe`
-          - **ARM64 (Windows on ARM)**: `AdbExtension-Setup-${{ steps.version.outputs.VERSION }}-arm64.exe`
+          - **x64 (Intel/AMD)**: `MarketExtension-Setup-${{ steps.version.outputs.VERSION }}-x64.exe`
+          - **ARM64 (Windows on ARM)**: `MarketExtension-Setup-${{ steps.version.outputs.VERSION }}-arm64.exe`
 
           1. Download the appropriate installer from the Assets section below
           2. Run the installer

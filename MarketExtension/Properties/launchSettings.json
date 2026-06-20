@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "MarketExtension (Package)": {
+      "commandName": "MsixPackage",
+      "doNotLaunchApp": true
+    },
+    "MarketExtension (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

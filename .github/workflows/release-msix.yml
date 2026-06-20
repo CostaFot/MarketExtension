@@ -14,9 +14,9 @@ on:
         type: string
 
 env:
-  DISPLAY_NAME: ADB Extension for Command Palette
-  EXTENSION_NAME: AdbExtension
-  FOLDER_NAME: AdbExtension
+  DISPLAY_NAME: Market Extension
+  EXTENSION_NAME: MarketExtension
+  FOLDER_NAME: MarketExtension
 
 jobs:
   build:

@@ -16,4 +16,4 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Build
-        run: dotnet build AdbExtension.sln --configuration Debug
+        run: dotnet build MarketExtension.sln --configuration Debug
