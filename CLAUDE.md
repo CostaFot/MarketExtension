@@ -43,7 +43,9 @@ the highest-value examples:
 - New commands → `MarketExtension/Commands/`, extend `InvokableCommand`
 - New pages → `MarketExtension/Pages/`, extend `ListPage` or `DynamicListPage`
 - All external process execution goes through `ProcessHelper.Run()` — never use `Process` directly in command files
-- Error toasts use `CommandResult.KeepOpen()` so the user can read them; success toasts use the default `Dismiss()`
+- Error toasts use `CommandResult.KeepOpen()` so the user can read them; one-shot success toasts use the
+  default `Dismiss()`. Exception: in-place list mutations (watchlist/favorites add/remove — see
+  `Commands/MembershipCommands.cs`) toast **and** `KeepOpen()`, so the user gets explicit confirmation and can keep editing
 - Icons: `new IconInfo("https://github.com/favicon.ico")` per project preference
 
 ## Market Data Architecture (the core of this app)
@@ -129,8 +131,11 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   watchlist + favorites** as two independent flags (`WatchlistStore`); and the **three-screen UX**
   (Markets Search / Watchlist / Favorites — see below).
   ⚠️ Working tree is **uncommitted** (on `repo`).
-- **Deferred / next:** FX provider (keyless Frankfurter); settings UI for bring-your-own-key; dock
-  live-polling timer; rate-limit (429) + richer error UX; crypto/FX in symbol search.
+- **Next up:** **live price polling** — auto-refresh prices on a timer while a surface is visible,
+  **default 60 s, configurable in settings**; and **pushing dock refreshes when favorites change** so a
+  pinned band updates immediately instead of going stale (both designed below).
+- **Deferred:** FX provider (keyless Frankfurter); settings UI for bring-your-own-key; rate-limit (429)
+  + richer error UX; crypto/FX in symbol search.
 
 ### Three-screen UX (done)
 
@@ -146,12 +151,64 @@ namespace) when searching the Command Palette root:
 2. **Markets Watchlist** (`Pages/WatchlistPage.cs`) — the tracked instruments, priced and grouped by
    class; a ★ marks favorites. **Enter** → remove from watchlist; **Ctrl+Enter** → toggle favorite.
 3. **Markets Favorites** (`Pages/FavoritesPage.cs`) — the curated subset; **only favorites render in
-   the dock band** (`FavoritesDockPage` prices `WatchlistStore.Favorites`). **Enter** → remove from favorites.
+   the dock band** (`FavoritesDockPage` prices `WatchlistStore.Favorites`). **Enter** → remove from
+   favorites. (Caveat: a pinned band only re-reads when it reopens — pushing live refreshes on change
+   is a next step, see below.)
 
 Watchlist + Favorites share `Pages/PricedListPage.cs` (async price + the on-load `INotifyItemsChanged`
 refresh + local filter). The catalog seeds the watchlist **once** on first run; thereafter every row
 is user-removable. The membership actions live in `Commands/MembershipCommands.cs`
-(`AddToWatchlist`/`RemoveFromWatchlist`/`AddToFavorites`/`RemoveFromFavorites`/`ToggleFavorite`).
+(`AddToWatchlist`/`RemoveFromWatchlist`/`AddToFavorites`/`RemoveFromFavorites`/`ToggleFavorite`) — each
+**shows a confirmation toast** (e.g. "Added AAPL to watchlist") and **keeps the palette open** so the
+user gets explicit feedback and can keep editing (the silent re-list alone was too ambiguous).
+
+### Live price polling (next — designed, not built)
+
+Today every priced surface fetches **once** when it becomes visible (the on-load `INotifyItemsChanged`
+refresh). The next iteration auto-refreshes on a timer while a surface is visible: **default 60 s,
+configurable in settings** (including an "Off" choice).
+
+- **Where:** `Pages/PricedListPage.cs` (covers Markets Watchlist + Markets Favorites) and
+  `Pages/FavoritesDockPage.cs`. `SearchPage` is exempt — its results are identity-only, no prices.
+- **Lifecycle = the event we already have.** The `INotifyItemsChanged.ItemsChanged` `add`/`remove`
+  accessors are de-facto `Loaded()`/`Unloaded()` hooks (CmdPal subscribes when a surface is visible,
+  unsubscribes when hidden — see `reference/dock-support.md`). Today `add` does the one-shot fetch;
+  extend it to also start a poll loop and stop that loop in `remove`. This is the
+  `PerformanceWidgetsPage` pattern: Loaded → start timer; tick → re-price + `RaiseItemsChanged()`;
+  Unloaded → cancel. Guard a shared source with a refcount if a page and the dock can be live at once.
+- **Mechanism:** a `PeriodicTimer` in an async loop guarded by a `CancellationTokenSource` created in
+  `add` and cancelled/disposed in `remove`. Re-read the interval from settings each tick (so changes
+  apply without a reload) and **skip a tick if the previous fetch is still in flight** (no overlapping
+  calls). The on-load fetch stays as the immediate first paint; the timer drives the rest.
+- **Settings:** add `Settings/MarketSettingsManager.cs` — a `JsonSettingsManager` singleton modeled on
+  `reference/settings/AdbSettingsManager.cs` (`FilePath` = `…/market.settings.json`, `Settings.Add(...)`,
+  `LoadSettings()`, `Settings.SettingsChanged += SaveSettings`). Expose a refresh-interval setting (a
+  `ChoiceSetSetting` of presets — `Off / 30 s / 60 s / 5 m` — or a numeric `TextSetting` defaulting to
+  `60`). Wire it in `MarketExtensionCommandsProvider` via `Settings = MarketSettingsManager.Instance.Settings;`
+  (the commented-out hook is already there). The poll loop reads `MarketSettingsManager.Instance.RefreshIntervalSeconds`.
+- ⚠️ **Rate-limit tension (design around this):** Finnhub free tier is **~60 calls/min AND ~300/day**,
+  and `GetQuotesAsync` issues **one `/quote` call per instrument**. Polling N instruments every 60 s = N
+  calls/min — e.g. 6 favorites = 360 calls/hour, which **exhausts the ~300/day budget in under an hour**.
+  60 s is fine for short sessions but not sustained use. Mitigations to ship alongside: the configurable
+  interval + an **Off** escape, polling **only while visible** (the lifecycle guarantees this), and real
+  **429 handling** (back off; surface a "rate-limited" state rather than blanking prices). A
+  batched-quote provider or cheaper data source would relax this later.
+
+### Dock refresh on favorites change (next — designed, not built)
+
+`FavoritesDockPage` only re-reads favorites + prices when it becomes **visible** (its on-load
+`INotifyItemsChanged` hook). So adding/removing a favorite from a palette page does **not** update a
+band that's already pinned and showing — it stays stale until the dock re-opens (or, once polling lands,
+until the next tick). To update it the instant a favorite changes:
+
+- Make `WatchlistStore` **observable**: raise a `FavoritesChanged` event whenever a favorite flag flips
+  (`AddToFavorites` / `RemoveFromFavorites`, and the first-run migration). Keep it lightweight (no args —
+  listeners just re-read `Favorites`).
+- `FavoritesDockPage` **subscribes in its `add` accessor and unsubscribes in `remove`** (the same
+  Loaded/Unloaded lifecycle as polling), calling `RefreshQuotes()` on the event. Subscribing only while
+  visible keeps a hidden band from doing work and avoids leaks.
+- Complementary to polling, not redundant: polling catches *price* drift on a timer; this pushes
+  *membership* changes immediately, and still works when polling is **Off**.
 
 ## CommandPalette Toolkit — Quick Reference
 

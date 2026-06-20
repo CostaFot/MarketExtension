@@ -6,8 +6,9 @@ namespace MarketExtension;
 
 // The watchlist/favorites membership actions surfaced on list rows. Each one mutates WatchlistStore
 // for one instrument, then asks the host page to re-list so the row reflects its new membership (or
-// drops out of the list). KeepOpen keeps the user on the page so they can act on several rows in a
-// row — matching the project's star-in-place UX. Adapted from reference/commands/ToggleFavoriteCommand.cs.
+// drops out of the list). It also pops a confirmation toast ("Added AAPL to watchlist") and keeps the
+// palette open: the silent re-list alone left users unsure the action took, and KeepOpen lets them act
+// on several rows in a row. Adapted from reference/commands/ToggleFavoriteCommand.cs.
 internal abstract partial class MembershipCommand : InvokableCommand
 {
     // Segoe MDL2 glyphs: Add, Delete, FavoriteStar (outline), FavoriteStarFill.
@@ -25,13 +26,15 @@ internal abstract partial class MembershipCommand : InvokableCommand
         _refresh = refresh;
     }
 
-    protected abstract void Apply();
+    // Performs the mutation and returns the confirmation message to toast (so toggles can report
+    // exactly what they did).
+    protected abstract string Apply();
 
     public override ICommandResult Invoke()
     {
-        Apply();
+        var message = Apply();
         _refresh();
-        return CommandResult.KeepOpen();
+        return CommandResult.ShowToast(new ToastArgs { Message = message, Result = CommandResult.KeepOpen() });
     }
 }
 
@@ -43,7 +46,11 @@ internal sealed partial class AddToWatchlistCommand : MembershipCommand
         Icon = new IconInfo(AddGlyph);
     }
 
-    protected override void Apply() => WatchlistStore.Instance.AddToWatchlist(Instrument);
+    protected override string Apply()
+    {
+        WatchlistStore.Instance.AddToWatchlist(Instrument);
+        return $"Added {Instrument.Symbol} to watchlist";
+    }
 }
 
 internal sealed partial class RemoveFromWatchlistCommand : MembershipCommand
@@ -54,7 +61,11 @@ internal sealed partial class RemoveFromWatchlistCommand : MembershipCommand
         Icon = new IconInfo(DeleteGlyph);
     }
 
-    protected override void Apply() => WatchlistStore.Instance.RemoveFromWatchlist(Instrument.Symbol);
+    protected override string Apply()
+    {
+        WatchlistStore.Instance.RemoveFromWatchlist(Instrument.Symbol);
+        return $"Removed {Instrument.Symbol} from watchlist";
+    }
 }
 
 internal sealed partial class AddToFavoritesCommand : MembershipCommand
@@ -65,7 +76,11 @@ internal sealed partial class AddToFavoritesCommand : MembershipCommand
         Icon = new IconInfo(StarGlyph);
     }
 
-    protected override void Apply() => WatchlistStore.Instance.AddToFavorites(Instrument);
+    protected override string Apply()
+    {
+        WatchlistStore.Instance.AddToFavorites(Instrument);
+        return $"Added {Instrument.Symbol} to favorites";
+    }
 }
 
 internal sealed partial class RemoveFromFavoritesCommand : MembershipCommand
@@ -76,7 +91,11 @@ internal sealed partial class RemoveFromFavoritesCommand : MembershipCommand
         Icon = new IconInfo(StarFillGlyph);
     }
 
-    protected override void Apply() => WatchlistStore.Instance.RemoveFromFavorites(Instrument.Symbol);
+    protected override string Apply()
+    {
+        WatchlistStore.Instance.RemoveFromFavorites(Instrument.Symbol);
+        return $"Removed {Instrument.Symbol} from favorites";
+    }
 }
 
 // Star/unstar in place — used as the Ctrl+Enter secondary on the Watchlist screen so the user can
@@ -90,11 +109,15 @@ internal sealed partial class ToggleFavoriteCommand : MembershipCommand
         Icon = new IconInfo(isFavorite ? StarFillGlyph : StarGlyph);
     }
 
-    protected override void Apply()
+    protected override string Apply()
     {
         if (WatchlistStore.Instance.IsFavorite(Instrument.Symbol))
+        {
             WatchlistStore.Instance.RemoveFromFavorites(Instrument.Symbol);
-        else
-            WatchlistStore.Instance.AddToFavorites(Instrument);
+            return $"Removed {Instrument.Symbol} from favorites";
+        }
+
+        WatchlistStore.Instance.AddToFavorites(Instrument);
+        return $"Added {Instrument.Symbol} to favorites";
     }
 }
