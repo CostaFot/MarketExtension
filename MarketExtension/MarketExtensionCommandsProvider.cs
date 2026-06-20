@@ -23,8 +23,14 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
         //   Settings = MySettingsManager.Instance.Settings;
         // See reference/settings/AdbSettingsManager.cs for an example.
 
+        // Three top-level screens: search (the default entry), the tracked watchlist, and the
+        // curated favorites. All share the one repository; favorites also feed the dock band below.
+        // All three titles share the "Markets " prefix so they group together (and don't pollute the
+        // global namespace) when the user searches the Command Palette root.
         _commands = [
-            new CommandItem(new MarketsPage(_repository)) { Title = "Markets" },
+            new CommandItem(new SearchPage(_repository)) { Title = "Markets Search" },
+            new CommandItem(new WatchlistPage(_repository)) { Title = "Markets Watchlist" },
+            new CommandItem(new FavoritesPage(_repository)) { Title = "Markets Favorites" },
         ];
 
         // Dock band: a ticker strip of up to 3 favorited instruments. Pinned from the Dock.

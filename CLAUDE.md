@@ -26,8 +26,8 @@ Deploy the MSIX package, then reload Command Palette to pick up changes.
 Real-world implementations from the **AdbExtension** this project was scaffolded from live
 in `reference/` — **not compiled** (outside the project folder). Consult them before
 writing a new command or page; copy and adapt rather than reinventing. The live code
-(`Pages/MarketsPage.cs`, `Pages/FavoritesDockPage.cs`, `Helpers/ProcessHelper.cs`) shows these
-patterns in use. See `reference/README.md` for the full index;
+(`Pages/SearchPage.cs`, `Pages/PricedListPage.cs`, `Pages/FavoritesDockPage.cs`,
+`Helpers/ProcessHelper.cs`) shows these patterns in use. See `reference/README.md` for the full index;
 the highest-value examples:
 
 | Example | Demonstrates |
@@ -70,9 +70,8 @@ ApiFinnhubQuoteDto ─(provider maps)→ DomainQuote ─(repository routes+merge
 | `Data/IMarketDataProvider.cs` | ONE data source: `bool Supports(AssetCategory)` + `GetQuotesAsync(instruments, ct)` + `SearchAsync(query, ct)` (free-text symbol lookup → `DomainInstrument`s, **identity only, no prices**; a provider that can't search returns `[]`). |
 | `Data/Finnhub/FinnhubMarketDataProvider.cs` | Active provider (`Supports` Stock+Crypto). Maps `ApiFinnhubQuoteDto` → `DomainQuote`; `SearchAsync` calls `/search` (US equities only — see Finnhub specifics). |
 | `Data/MockMarketDataProvider.cs` | Offline fallback (`Supports` all). `SearchAsync` filters its seed keys. |
-| `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults to price (the always-shown seeds). |
-| `Data/Watchlist.cs` | `Instruments()` = catalog defaults ∪ user-pinned (`FavoritesStore.Pinned`), deduped. The single "what to price" list both `MarketsPage` and `FavoritesDockPage` use. |
-| `Settings/FavoritesStore.cs` | JSON-persisted pinned instruments — stores **full `DomainInstrument` identity** (symbol+name+category, so searched non-catalog symbols re-price) via source-gen `PinnedItem`/`FavoritesJsonContext`; migrates the legacy symbol-only array. |
+| `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults — the **first-run seed** for `WatchlistStore` (no longer always-shown; removable once seeded). |
+| `Settings/WatchlistStore.cs` | JSON-persisted tracked instruments, each carrying **two independent flags** `InWatchlist`/`IsFavorite` (favorites = the dock subset). Stores **full `DomainInstrument` identity** so searched non-catalog symbols re-price; an entry with both flags false is dropped. Source-gen `WatchlistItem`/`WatchlistJsonContext` → `market_watchlist.json`; seeds `InstrumentCatalog` on first run, else migrates the legacy `market_favorites.json` (old pins → watchlisted **and** favorited). Pages read its `Watchlist`/`Favorites` subsets directly. Replaces the old `FavoritesStore` + `Watchlist.cs`. |
 | `Data/Finnhub/ApiFinnhubQuoteDto.cs` | Raw `/quote` DTO + the **single** `FinnhubJsonContext` (all `[JsonSerializable]` live here — see AOT/trim gotcha). |
 | `Data/Finnhub/ApiFinnhubSearchDto.cs` | Raw `/search` DTOs (`ApiFinnhubSearchDto` / `...ResultDto`); registered on `FinnhubJsonContext` in the quote file. |
 | `Models/{AssetCategory,DomainInstrument,DomainQuote,UiQuote}.cs` | the model layers |
@@ -98,7 +97,7 @@ it in `MarketExtensionCommandsProvider`:
 **AOT/trim:** project is AOT/trim-enabled; `EnableTrimAnalyzer` is on **in Debug** (so IL2026/IL3050
 surface every build) and `ILLinkTreatWarningsAsErrors` is set, so all JSON must go through a source-gen
 `JsonSerializerContext` (never reflection-based `JsonSerializer`). Both contexts are source-gen:
-`FinnhubJsonContext` (quotes + search) and `FavoritesJsonContext` (pinned items).
+`FinnhubJsonContext` (quotes + search) and `WatchlistJsonContext` (watchlist items + legacy migration).
 ⚠️ **Gotcha:** the JSON source generator does **not** support `[JsonSerializable]` attributes split
 across multiple `partial` declarations of one context — it emits a colliding hintName (e.g.
 `FinnhubJsonContext.Decimal.g.cs`) and the *whole* generator silently fails, cascading CS0534
@@ -126,30 +125,33 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
 ## Current Status / Next Steps
 
 - **Done:** layered data architecture; live Finnhub provider; `MarketRepository` coordinator;
-  `secrets.props` key handling; tagged logging; **Enter-only Finnhub `/search`** + **persistent
-  watchlist** (`PinnedItem` identity persistence, source-gen `FavoritesStore`,
-  `Watchlist.Instruments()` catalog ∪ pinned union, searched stocks add to watchlist + dock).
+  `secrets.props` key handling; tagged logging; **Enter-only Finnhub `/search`**; **persistent
+  watchlist + favorites** as two independent flags (`WatchlistStore`); and the **three-screen UX**
+  (Markets Search / Watchlist / Favorites — see below).
   ⚠️ Working tree is **uncommitted** (on `repo`).
-- **Deferred / next:** the **three-screen UX** (below — the next major piece); FX provider (keyless
-  Frankfurter); settings UI for bring-your-own-key; dock live-polling timer; rate-limit (429) +
-  richer error UX; crypto/FX in symbol search.
+- **Deferred / next:** FX provider (keyless Frankfurter); settings UI for bring-your-own-key; dock
+  live-polling timer; rate-limit (429) + richer error UX; crypto/FX in symbol search.
 
-### Planned three-screen UX (next major piece)
+### Three-screen UX (done)
 
-Split the single `MarketsPage` into **three top-level commands**, and separate **watchlist**
-(everything the user tracks) from **favorites** (a curated subset — the only thing the dock shows):
+Three top-level commands in `MarketExtensionCommandsProvider.TopLevelCommands()`, backed by **two
+independent membership flags** per instrument in `WatchlistStore` — an instrument can be on either
+list, both, or neither (so "watchlist" and "favorites" are genuinely separate sets, not subset/superset).
+All three command titles share the **`Markets ` prefix** so they group together (and don't pollute the
+namespace) when searching the Command Palette root:
 
-1. **Markets Search** (default / entry screen) — just the Enter-only `/search` flow; results can be
-   added to the watchlist.
-2. **Watchlist** — the user's tracked instruments, added from search and persisted across sessions
-   (today's `FavoritesStore` + `Watchlist.Instruments()` is the seed for this).
-3. **Favorites** — a curated subset of the watchlist; **only favorites render in the dock band**.
+1. **Markets Search** (`Pages/SearchPage.cs`, default entry) — the Enter-only `/search` flow. On a
+   result: **Enter** → add to watchlist; **Ctrl+Enter** (the first `MoreCommands` context item, the
+   toolkit's secondary-activation slot) → add to favorites. Empty box links to the other two screens.
+2. **Markets Watchlist** (`Pages/WatchlistPage.cs`) — the tracked instruments, priced and grouped by
+   class; a ★ marks favorites. **Enter** → remove from watchlist; **Ctrl+Enter** → toggle favorite.
+3. **Markets Favorites** (`Pages/FavoritesPage.cs`) — the curated subset; **only favorites render in
+   the dock band** (`FavoritesDockPage` prices `WatchlistStore.Favorites`). **Enter** → remove from favorites.
 
-Implication: today `FavoritesStore` conflates "pinned/watchlist" with "favorites" and the dock shows
-up to 3 of them. The split needs a **watchlist store** (tracked) distinct from a **favorites** mark
-(dock subset) — e.g. add an `IsFavorite` bit to `PinnedItem`, or a second store. Register the three
-pages in `MarketExtensionCommandsProvider.TopLevelCommands()`; keep `GetDockBands()` pointed at the
-favorites subset only.
+Watchlist + Favorites share `Pages/PricedListPage.cs` (async price + the on-load `INotifyItemsChanged`
+refresh + local filter). The catalog seeds the watchlist **once** on first run; thereafter every row
+is user-removable. The membership actions live in `Commands/MembershipCommands.cs`
+(`AddToWatchlist`/`RemoveFromWatchlist`/`AddToFavorites`/`RemoveFromFavorites`/`ToggleFavorite`).
 
 ## CommandPalette Toolkit — Quick Reference
 
@@ -186,7 +188,7 @@ The fix: re-implement `INotifyItemsChanged` on the page class and intercept the 
 **Critical:** use `INotifyItemsChanged.ItemsChanged`, not `IListPage.ItemsChanged` — `ItemsChanged` lives on `INotifyItemsChanged`, and the class must re-list the interface to override base class dispatch.
 
 ```csharp
-// For pages that load data async (see Pages/MarketsPage.cs, reference/pages/AdbExtensionPage.cs):
+// For pages that load data async (see Pages/PricedListPage.cs, reference/pages/AdbExtensionPage.cs):
 internal sealed partial class MyPage : DynamicListPage, INotifyItemsChanged
 {
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;

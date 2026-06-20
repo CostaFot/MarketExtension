@@ -46,17 +46,14 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
         if (_quotes is null)
             return [];
 
-        var favorites = _quotes
-            .Where(q => FavoritesStore.Instance.IsFavorite(q.Symbol))
-            .Take(MaxDockFavorites)
-            .ToArray();
+        var favorites = _quotes.Take(MaxDockFavorites).ToArray();
 
         if (favorites.Length == 0)
         {
             return [new ListItem(new NoOpCommand { Id = "com.costafotiadis.market.dock.empty" })
             {
                 Title = "No favorites yet",
-                Subtitle = "Star instruments in the Markets page",
+                Subtitle = "Star instruments from Markets Search or your Watchlist",
             }];
         }
 
@@ -83,7 +80,8 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
 
     private async Task LoadQuotes()
     {
-        _quotes = [.. (await _repository.GetQuotesAsync(Watchlist.Instruments())).Select(UiQuote.From)];
+        // The dock shows only favorites — price exactly that subset.
+        _quotes = [.. (await _repository.GetQuotesAsync(WatchlistStore.Instance.Favorites)).Select(UiQuote.From)];
         IsLoading = false;
         RaiseItemsChanged(0);
     }
