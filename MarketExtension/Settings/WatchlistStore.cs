@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -19,6 +20,10 @@ namespace MarketExtension;
 internal sealed class WatchlistStore
 {
     public static readonly WatchlistStore Instance = new();
+
+    // Raised after a favorite flag flips (and is persisted). Args-less — listeners just re-read Favorites.
+    // Lets the pinned dock band refresh immediately instead of going stale until reopened.
+    public event Action? FavoritesChanged;
 
     private readonly Lock _lock = new();
     // Keyed by normalized symbol; value carries the identity plus the two membership flags.
@@ -82,6 +87,8 @@ internal sealed class WatchlistStore
         }
 
         Save();
+        // Fire outside the lock: the dock's handler re-reads Favorites, which re-acquires it.
+        if (favorite is not null) FavoritesChanged?.Invoke();
     }
 
     private void SetFlag(DomainInstrument instrument, bool? watchlist = null, bool? favorite = null)
@@ -95,6 +102,7 @@ internal sealed class WatchlistStore
         }
 
         Save();
+        if (favorite is not null) FavoritesChanged?.Invoke();
     }
 
     // Apply a flag change, then drop the entry entirely once it's on neither list.
@@ -131,6 +139,7 @@ internal sealed class WatchlistStore
             // First run: migrate the old FavoritesStore file if present (its pinned items were both
             // tracked and dock-shown, so they become watchlisted AND favorited), otherwise seed the
             // built-in catalog onto the watchlist. Either way we persist so this is one-time.
+            // No FavoritesChanged fires here: this runs in the singleton's ctor, before any subscriber.
             _entries = SeedEntries();
             Save();
         }

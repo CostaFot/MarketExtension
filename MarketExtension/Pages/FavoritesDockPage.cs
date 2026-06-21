@@ -26,9 +26,23 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
 
     event TypedEventHandler<object, IItemsChangedEventArgs> INotifyItemsChanged.ItemsChanged
     {
-        add { _itemsChanged += value; RefreshQuotes(); } // fires when the band becomes visible
-        remove => _itemsChanged -= value;
+        add
+        {
+            _itemsChanged += value;
+            // Subscribe idempotently so starring/unstarring from a palette page refreshes this
+            // pinned band at once, instead of waiting for it to be reopened.
+            WatchlistStore.Instance.FavoritesChanged -= OnFavoritesChanged;
+            WatchlistStore.Instance.FavoritesChanged += OnFavoritesChanged;
+            RefreshQuotes(); // fires when the band becomes visible
+        }
+        remove
+        {
+            _itemsChanged -= value;
+            WatchlistStore.Instance.FavoritesChanged -= OnFavoritesChanged;
+        }
     }
+
+    private void OnFavoritesChanged() => RefreshQuotes();
 
     protected new void RaiseItemsChanged(int totalItems = -1)
         => _itemsChanged?.Invoke(this, new ItemsChangedEventArgs(totalItems));
