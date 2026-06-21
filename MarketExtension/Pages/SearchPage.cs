@@ -9,9 +9,10 @@ namespace MarketExtension;
 
 // Default entry screen: the Enter-only Finnhub /search flow. Typing never hits the network
 // (free-tier rate limits) — it only changes what the synthetic "Search Finnhub for ..." item will
-// look up. Results are price-less identities; Enter adds the instrument to the watchlist, Ctrl+Enter
-// (the first MoreCommands context item) adds it to favorites. The two lists are independent — a
-// result can go on either, both, or neither. Lifted from the search half of the old MarketsPage.
+// look up. Results are price-less identities; Enter on a result opens its SymbolDetailPage, while
+// adding to the watchlist (Ctrl+Enter — the first MoreCommands context item) or favorites lives in
+// the More menu. The two lists are independent — a result can go on either, both, or neither.
+// Lifted from the search half of the old MarketsPage.
 //
 // Subscribes to the WatchlistStore membership flows while visible (the INotifyItemsChanged add/remove
 // lifecycle) so a row's membership subtitle/★ refreshes the instant it's added — no manual callback.
@@ -128,34 +129,33 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         return [.. items];
     }
 
-    // A price-less search result. Enter adds to the watchlist; Ctrl+Enter adds to favorites. The
-    // subtitle reflects current membership so the available actions are obvious.
+    // A price-less search result. Enter opens its detail page; adding to the watchlist (Ctrl+Enter)
+    // or favorites lives in the More menu. The subtitle reflects current membership so the user can
+    // see at a glance what the row is already on.
     private static ListItem BuildResultItem(DomainInstrument instrument)
     {
         var inWatchlist = WatchlistStore.Instance.IsInWatchlist(instrument.Symbol);
         var isFavorite = WatchlistStore.Instance.IsFavorite(instrument.Symbol);
 
-        return new ListItem(new AddToWatchlistCommand(instrument))
+        return new ListItem(new SymbolDetailPage(instrument))
         {
             Title = (isFavorite ? "★ " : "") + $"{instrument.Symbol} · {instrument.Name}",
             Subtitle = MembershipSubtitle(inWatchlist, isFavorite),
             Section = "Search results",
             MoreCommands =
             [
-                new CommandContextItem(new AddToFavoritesCommand(instrument))
-                {
-                    Title = "Add to Favorites",
-                },
+                new CommandContextItem(new AddToWatchlistCommand(instrument)),
+                new CommandContextItem(new AddToFavoritesCommand(instrument)),
             ],
         };
     }
 
     private static string MembershipSubtitle(bool inWatchlist, bool isFavorite) => (inWatchlist, isFavorite) switch
     {
-        (true, true) => "On watchlist · ★ Favorite",
-        (true, false) => "On watchlist · Ctrl+Enter to favorite",
-        (false, true) => "★ Favorite · Enter to add to watchlist",
-        (false, false) => "Enter to add to watchlist · Ctrl+Enter to favorite",
+        (true, true) => "On watchlist · ★ Favorite · Enter for details",
+        (true, false) => "On watchlist · Enter for details",
+        (false, true) => "★ Favorite · Enter for details",
+        (false, false) => "Enter for details · add to watchlist or favorites from the More menu",
     };
 
     // Runs the single online /search call for the current SearchText, then re-lists with results.

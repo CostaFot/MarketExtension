@@ -92,8 +92,8 @@ internal sealed partial class RemoveFromFavoritesCommand : MembershipCommand
     }
 }
 
-// Star/unstar in place — used as the Ctrl+Enter secondary on the Watchlist screen so the user can
-// favorite a tracked instrument without re-searching. Name/icon reflect the current state.
+// Star/unstar in place — a More-menu action on the Watchlist screen so the user can favorite a
+// tracked instrument without re-searching. Name/icon reflect the current state.
 internal sealed partial class ToggleFavoriteCommand : MembershipCommand
 {
     public ToggleFavoriteCommand(DomainInstrument instrument) : base(instrument)

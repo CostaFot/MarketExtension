@@ -155,15 +155,22 @@ list, both, or neither (so "watchlist" and "favorites" are genuinely separate se
 All three command titles share the **`Markets ` prefix** so they group together (and don't pollute the
 namespace) when searching the Command Palette root:
 
+**Enter on any row opens the shared `Pages/SymbolDetailPage.cs`** — the (currently placeholder)
+per-symbol detail screen. The list-management actions are demoted to **context items** (`MoreCommands`;
+**Ctrl+Enter** activates the first one) until the detail page takes them over (per the "Symbol detail +
+live chart" wishlist). The screens:
+
 1. **Markets Search** (`Pages/SearchPage.cs`, default entry) — the Enter-only `/search` flow. On a
-   result: **Enter** → add to watchlist; **Ctrl+Enter** (the first `MoreCommands` context item, the
-   toolkit's secondary-activation slot) → add to favorites. Empty box links to the other two screens.
+   result: **Enter** → open detail page; **More menu** → Add to Watchlist (**Ctrl+Enter**) / Add to
+   Favorites. Empty box links to the other two screens.
 2. **Markets Watchlist** (`Pages/WatchlistPage.cs`) — the tracked instruments, priced and grouped by
-   class; a ★ marks favorites. **Enter** → remove from watchlist; **Ctrl+Enter** → toggle favorite.
+   class; a ★ marks favorites. **Enter** → open detail page; **More menu** → Remove from Watchlist
+   (**Ctrl+Enter**) / toggle favorite / copy price.
 3. **Markets Favorites** (`Pages/FavoritesPage.cs`) — the curated subset; **only favorites render in
-   the dock band** (`FavoritesDockPage` subscribes to `WatchlistStore.Favorites`). **Enter** → remove
-   from favorites. A pinned band now updates **immediately** when favorites change anywhere (it
-   subscribes to the flow while visible), not just on reopen.
+   the dock band** (`FavoritesDockPage` subscribes to `WatchlistStore.Favorites`). **Enter** → open
+   detail page; **More menu** → Remove from Favorites (**Ctrl+Enter**) / copy price. A pinned band now
+   updates **immediately** when favorites change anywhere (it subscribes to the flow while visible), not
+   just on reopen.
 
 Watchlist + Favorites share `Pages/PricedListPage.cs`, which **subscribes to its `StateFlow`** in the
 `INotifyItemsChanged` add/remove lifecycle (StateFlow's replay-on-subscribe drives the first price load;

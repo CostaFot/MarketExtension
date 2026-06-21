@@ -5,9 +5,9 @@ using Microsoft.CommandPalette.Extensions.Toolkit;
 namespace MarketExtension;
 
 // Top-level screen: the instruments the user tracks, priced live and grouped by asset class. A ★
-// prefix marks rows that are also favorited. Enter removes the row from the watchlist; Ctrl+Enter
-// (the first MoreCommands context item) toggles its favorite mark so the user can curate the dock
-// without going back to search.
+// prefix marks rows that are also favorited. Enter opens the row's SymbolDetailPage; removing from
+// the watchlist (Ctrl+Enter — the first MoreCommands context item) and toggling its favorite mark
+// live in the More menu, so the user can curate the dock without going back to search.
 internal sealed partial class WatchlistPage : PricedListPage
 {
     public WatchlistPage(MarketRepository repository) : base(repository, WatchlistStore.Instance.Watchlist)
@@ -27,13 +27,14 @@ internal sealed partial class WatchlistPage : PricedListPage
         var instrument = new DomainInstrument(q.Symbol, q.Name, q.Category);
         var isFavorite = WatchlistStore.Instance.IsFavorite(q.Symbol);
 
-        return new ListItem(new RemoveFromWatchlistCommand(instrument))
+        return new ListItem(new SymbolDetailPage(instrument))
         {
             Title = (isFavorite ? "★ " : "") + $"{q.Symbol} · {q.Name}",
             Subtitle = $"{q.FormatPrice()}   {q.FormatChange()}",
             Section = SectionLabel(q.Category),
             MoreCommands =
             [
+                new CommandContextItem(new RemoveFromWatchlistCommand(instrument)),
                 new CommandContextItem(new ToggleFavoriteCommand(instrument))
                 {
                     Title = isFavorite ? "Remove from Favorites" : "Add to Favorites",
@@ -48,7 +49,7 @@ internal sealed partial class WatchlistPage : PricedListPage
         new ListItem(new NoOpCommand())
         {
             Title = "Your watchlist is empty",
-            Subtitle = "Use Markets Search to look up instruments, then press Enter to add them",
+            Subtitle = "Use Markets Search to look up instruments, then add them from the More menu",
         },
     ];
 
