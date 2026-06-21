@@ -1,0 +1,143 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+
+namespace MarketExtension;
+
+// A minimal StateFlow analog (Kotlin's StateFlow): holds a current value, REPLAYS it to every new
+// subscriber the moment they subscribe, then pushes the new value on each change. Deduplicates with an
+// equality comparer (distinct-until-changed). Hand-rolled rather than System.Reactive so the AOT/trim
+// build stays warning-clean (reflection-free; see CLAUDE.md AOT section).
+//
+// This is the read-only face consumers see (read Value / Subscribe). Only the writable MutableStateFlow
+// subclass can change the value — mirroring Kotlin's MutableStateFlow/StateFlow split, so the store
+// mutates while pages and the dock merely observe.
+//
+// Subscriber-count awareness: OnActive() fires when the subscriber count goes 0 -> 1 and OnInactive()
+// when it returns 1 -> 0. That is the WhileSubscribed / Rx RefCount() seam — a future PolledStateFlow
+// (the ticker) starts its poll loop on OnActive and stops it on OnInactive, so it only does work while
+// something is actually watching. Plain flows leave both hooks no-op.
+internal partial class StateFlow<T>
+{
+    private readonly Lock _lock = new();
+    private readonly IEqualityComparer<T> _comparer;
+    private T _value;
+    private Action<T>? _observers;
+    private int _count;
+
+    protected StateFlow(T initial, IEqualityComparer<T>? comparer = null)
+    {
+        _value = initial;
+        _comparer = comparer ?? EqualityComparer<T>.Default;
+    }
+
+    public T Value
+    {
+        get { lock (_lock) return _value; }
+    }
+
+    // Subscribe and immediately receive the current value (StateFlow replay). Dispose to unsubscribe;
+    // disposal is idempotent. Handlers run on whatever thread mutates the value — the toolkit marshals
+    // the RaiseItemsChanged that handlers ultimately call.
+    public IDisposable Subscribe(Action<T> onNext)
+    {
+        ArgumentNullException.ThrowIfNull(onNext);
+
+        bool becameActive;
+        T current;
+        lock (_lock)
+        {
+            _observers += onNext;
+            becameActive = ++_count == 1;
+            current = _value;
+        }
+
+        if (becameActive) OnActive(); // wake any producer before the first replay
+        onNext(current);              // replay the current value
+        return new Subscription(this, onNext);
+    }
+
+    // Writable entry point for subclasses. Returns true if the value actually changed (i.e. listeners
+    // were notified). Fires handlers OUTSIDE the lock — they re-read the store, which re-takes it.
+    protected bool SetValue(T value)
+    {
+        Action<T>? observers;
+        lock (_lock)
+        {
+            if (_comparer.Equals(_value, value)) return false; // distinct-until-changed
+            _value = value;
+            observers = _observers;
+        }
+
+        observers?.Invoke(value);
+        return true;
+    }
+
+    // Called on the 0 -> 1 subscriber transition (the flow "becomes active"). No-op by default.
+    protected virtual void OnActive() { }
+
+    // Called on the 1 -> 0 subscriber transition (the flow "goes idle"). No-op by default.
+    protected virtual void OnInactive() { }
+
+    private void Unsubscribe(Action<T> onNext)
+    {
+        bool becameIdle;
+        lock (_lock)
+        {
+            _observers -= onNext;
+            becameIdle = --_count == 0;
+        }
+
+        if (becameIdle) OnInactive();
+    }
+
+    private sealed partial class Subscription(StateFlow<T> flow, Action<T> onNext) : IDisposable
+    {
+        private StateFlow<T>? _flow = flow;
+
+        public void Dispose()
+        {
+            // Null out atomically so a double-dispose can't decrement the count twice.
+            var owner = Interlocked.Exchange(ref _flow, null);
+            owner?.Unsubscribe(onNext);
+        }
+    }
+}
+
+// The writable side of a StateFlow — only the data owner (e.g. WatchlistStore) holds one of these and
+// exposes it typed as the read-only StateFlow<T>.
+internal sealed class MutableStateFlow<T>(T initial, IEqualityComparer<T>? comparer = null)
+    : StateFlow<T>(initial, comparer)
+{
+    public bool Update(T value) => SetValue(value);
+}
+
+// Compares two instrument lists by their symbol sequence (order-sensitive, case-insensitive). Used as
+// the dedup comparer for the watchlist/favorites flows so re-publishing both subsets after a mutation
+// only notifies the one whose membership actually changed.
+internal sealed class InstrumentListComparer : IEqualityComparer<IReadOnlyList<DomainInstrument>>
+{
+    public static readonly InstrumentListComparer Instance = new();
+
+    private InstrumentListComparer() { }
+
+    public bool Equals(IReadOnlyList<DomainInstrument>? x, IReadOnlyList<DomainInstrument>? y)
+    {
+        if (ReferenceEquals(x, y)) return true;
+        if (x is null || y is null || x.Count != y.Count) return false;
+
+        for (var i = 0; i < x.Count; i++)
+            if (!string.Equals(x[i].Symbol, y[i].Symbol, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+        return true;
+    }
+
+    public int GetHashCode(IReadOnlyList<DomainInstrument> obj)
+    {
+        var hash = new HashCode();
+        foreach (var instrument in obj)
+            hash.Add(instrument.Symbol, StringComparer.OrdinalIgnoreCase);
+        return hash.ToHashCode();
+    }
+}

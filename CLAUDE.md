@@ -73,7 +73,8 @@ ApiFinnhubQuoteDto ─(provider maps)→ DomainQuote ─(repository routes+merge
 | `Data/Finnhub/FinnhubMarketDataProvider.cs` | Active provider (`Supports` Stock+Crypto). Maps `ApiFinnhubQuoteDto` → `DomainQuote`; `SearchAsync` calls `/search` (US equities only — see Finnhub specifics). |
 | `Data/MockMarketDataProvider.cs` | Offline fallback (`Supports` all). `SearchAsync` filters its seed keys. |
 | `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults — the **first-run seed** for `WatchlistStore` (no longer always-shown; removable once seeded). |
-| `Settings/WatchlistStore.cs` | JSON-persisted tracked instruments, each carrying **two independent flags** `InWatchlist`/`IsFavorite` (favorites = the dock subset). Stores **full `DomainInstrument` identity** so searched non-catalog symbols re-price; an entry with both flags false is dropped. Source-gen `WatchlistItem`/`WatchlistJsonContext` → `market_watchlist.json`; seeds `InstrumentCatalog` on first run, else migrates the legacy `market_favorites.json` (old pins → watchlisted **and** favorited). Pages read its `Watchlist`/`Favorites` subsets directly. Replaces the old `FavoritesStore` + `Watchlist.cs`. |
+| `Settings/WatchlistStore.cs` | JSON-persisted tracked instruments, each carrying **two independent flags** `InWatchlist`/`IsFavorite` (favorites = the dock subset). Stores **full `DomainInstrument` identity** so searched non-catalog symbols re-price; an entry with both flags false is dropped. Source-gen `WatchlistItem`/`WatchlistJsonContext` → `market_watchlist.json`; seeds `InstrumentCatalog` on first run, else migrates the legacy `market_favorites.json` (old pins → watchlisted **and** favorited). Exposes its `Watchlist`/`Favorites` subsets as **observable `StateFlow`s** (each mutation calls `PublishState()` → re-publishes both); pages and the dock **subscribe** and re-render themselves. Replaces the old `FavoritesStore` + `Watchlist.cs`. |
+| `Helpers/StateFlow.cs` | A tiny **Kotlin-StateFlow analog** (hand-rolled, no System.Reactive — keeps the AOT/trim build clean): `StateFlow<T>` (read-only `Value` + `Subscribe` with **replay-on-subscribe** + distinct-until-changed) and writable `MutableStateFlow<T>` (`Update`). Has **subscriber-count hooks** `OnActive`/`OnInactive` (0↔1 transitions = the WhileSubscribed / Rx `RefCount()` seam) for the future ticker poll loop. Plus `InstrumentListComparer` (symbol-sequence dedup for the store's two flows). |
 | `Data/Finnhub/ApiFinnhubQuoteDto.cs` | Raw `/quote` DTO + the **single** `FinnhubJsonContext` (all `[JsonSerializable]` live here — see AOT/trim gotcha). |
 | `Data/Finnhub/ApiFinnhubSearchDto.cs` | Raw `/search` DTOs (`ApiFinnhubSearchDto` / `...ResultDto`); registered on `FinnhubJsonContext` in the quote file. |
 | `Models/{AssetCategory,DomainInstrument,DomainQuote,UiQuote}.cs` | the model layers |
@@ -128,12 +129,17 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
 
 - **Done:** layered data architecture; live Finnhub provider; `MarketRepository` coordinator;
   `secrets.props` key handling; tagged logging; **Enter-only Finnhub `/search`**; **persistent
-  watchlist + favorites** as two independent flags (`WatchlistStore`); and the **three-screen UX**
-  (Markets Search / Watchlist / Favorites — see below).
+  watchlist + favorites** as two independent flags (`WatchlistStore`); the **three-screen UX**
+  (Markets Search / Watchlist / Favorites — see below); and the **observable (StateFlow) data layer** —
+  the store exposes `Watchlist`/`Favorites` as `StateFlow`s, all surfaces subscribe and re-render
+  themselves, the membership commands no longer thread a manual refresh callback, and **dock refresh on
+  favorites change is now live** (push, not poll). Priced pages **reconcile locally** on membership
+  change (drop removed rows free, fetch only new symbols). See `Helpers/StateFlow.cs`.
   ⚠️ Working tree is **uncommitted** (on `repo`).
 - **Next up:** **live price polling** — auto-refresh prices on a timer while a surface is visible,
-  **default 60 s, configurable in settings**; and **pushing dock refreshes when favorites change** so a
-  pinned band updates immediately instead of going stale (both designed below).
+  **default 60 s, configurable in settings**. The `StateFlow` subscriber-count hooks (`OnActive`/
+  `OnInactive`) are already in place as the WhileSubscribed/`RefCount()` seam for a `PolledStateFlow<T>`
+  (designed below).
 - **Deferred:** FX provider (keyless Frankfurter); settings UI for bring-your-own-key; rate-limit (429)
   + richer error UX; crypto/FX in symbol search.
 - **Wishlist:** a **portfolio** screen + its own dock band (holdings, total value, daily P&L); a
@@ -155,35 +161,44 @@ namespace) when searching the Command Palette root:
 2. **Markets Watchlist** (`Pages/WatchlistPage.cs`) — the tracked instruments, priced and grouped by
    class; a ★ marks favorites. **Enter** → remove from watchlist; **Ctrl+Enter** → toggle favorite.
 3. **Markets Favorites** (`Pages/FavoritesPage.cs`) — the curated subset; **only favorites render in
-   the dock band** (`FavoritesDockPage` prices `WatchlistStore.Favorites`). **Enter** → remove from
-   favorites. (Caveat: a pinned band only re-reads when it reopens — pushing live refreshes on change
-   is a next step, see below.)
+   the dock band** (`FavoritesDockPage` subscribes to `WatchlistStore.Favorites`). **Enter** → remove
+   from favorites. A pinned band now updates **immediately** when favorites change anywhere (it
+   subscribes to the flow while visible), not just on reopen.
 
-Watchlist + Favorites share `Pages/PricedListPage.cs` (async price + the on-load `INotifyItemsChanged`
-refresh + local filter). The catalog seeds the watchlist **once** on first run; thereafter every row
-is user-removable. The membership actions live in `Commands/MembershipCommands.cs`
+Watchlist + Favorites share `Pages/PricedListPage.cs`, which **subscribes to its `StateFlow`** in the
+`INotifyItemsChanged` add/remove lifecycle (StateFlow's replay-on-subscribe drives the first price load;
+later membership pushes trigger a **local reconcile** — drop departed rows with no network call, fetch
+only newly-added symbols) + local filter. A page can also observe secondary flows for re-render only via
+`RelistTriggers` (Watchlist uses it to keep its ★ current when favorites change). The catalog seeds the
+watchlist **once** on first run; thereafter every row is user-removable. The membership actions live in
+`Commands/MembershipCommands.cs`
 (`AddToWatchlist`/`RemoveFromWatchlist`/`AddToFavorites`/`RemoveFromFavorites`/`ToggleFavorite`) — each
-**shows a confirmation toast** (e.g. "Added AAPL to watchlist") and **keeps the palette open** so the
-user gets explicit feedback and can keep editing (the silent re-list alone was too ambiguous).
+just **mutates the store** (no manual UI callback: the flows re-render every live surface) and
+**shows a confirmation toast** (e.g. "Added AAPL to watchlist") while **keeping the palette open** so
+the user gets explicit feedback and can keep editing.
 
 ### Live price polling (next — designed, not built)
 
-Today every priced surface fetches **once** when it becomes visible (the on-load `INotifyItemsChanged`
-refresh). The next iteration auto-refreshes on a timer while a surface is visible: **default 60 s,
-configurable in settings** (including an "Off" choice).
+Today every priced surface fetches **once** when it becomes visible (the StateFlow replay-on-subscribe
+that drives the first price load). The next iteration auto-refreshes on a timer while a surface is
+visible: **default 60 s, configurable in settings** (including an "Off" choice).
 
 - **Where:** `Pages/PricedListPage.cs` (covers Markets Watchlist + Markets Favorites) and
   `Pages/FavoritesDockPage.cs`. `SearchPage` is exempt — its results are identity-only, no prices.
-- **Lifecycle = the event we already have.** The `INotifyItemsChanged.ItemsChanged` `add`/`remove`
-  accessors are de-facto `Loaded()`/`Unloaded()` hooks (CmdPal subscribes when a surface is visible,
-  unsubscribes when hidden — see `reference/dock-support.md`). Today `add` does the one-shot fetch;
-  extend it to also start a poll loop and stop that loop in `remove`. This is the
-  `PerformanceWidgetsPage` pattern: Loaded → start timer; tick → re-price + `RaiseItemsChanged()`;
-  Unloaded → cancel. Guard a shared source with a refcount if a page and the dock can be live at once.
+- **Lifecycle = the StateFlow subscriber-count seam (already built).** `Helpers/StateFlow.cs` already
+  fires `OnActive()` on the 0→1 subscriber transition and `OnInactive()` on 1→0 — Kotlin's
+  WhileSubscribed / Rx `RefCount()`. Subclass it as `PolledStateFlow<T> : StateFlow<T>` that **starts a
+  poll loop in `OnActive` and cancels it in `OnInactive`**, so polling runs only while something is
+  watching. (Surfaces already Subscribe/Dispose on the `INotifyItemsChanged` add/remove lifecycle, so
+  the refcount tracks visibility for free.)
 - **Mechanism:** a `PeriodicTimer` in an async loop guarded by a `CancellationTokenSource` created in
-  `add` and cancelled/disposed in `remove`. Re-read the interval from settings each tick (so changes
-  apply without a reload) and **skip a tick if the previous fetch is still in flight** (no overlapping
-  calls). The on-load fetch stays as the immediate first paint; the timer drives the rest.
+  `OnActive` and cancelled/disposed in `OnInactive`. Re-read the interval from settings each tick (so
+  changes apply without a reload); the loop is naturally non-overlapping (linear `await` per tick). An
+  immediate first fetch covers the initial paint; the timer drives the rest.
+- **Shared-source refcount comes free.** Point both `FavoritesPage` and `FavoritesDockPage` at **one**
+  favorites `PolledStateFlow`: the refcount keeps it polling while *either* is visible and stops only
+  when *both* are gone — no manual coordination. (Refinements to add then: a small stop-timeout so
+  bouncing between pages doesn't thrash the loop, and a generation token guarding rapid resubscribe.)
 - **Settings:** add `Settings/MarketSettingsManager.cs` — a `JsonSettingsManager` singleton modeled on
   `reference/settings/AdbSettingsManager.cs` (`FilePath` = `…/market.settings.json`, `Settings.Add(...)`,
   `LoadSettings()`, `Settings.SettingsChanged += SaveSettings`). Expose a refresh-interval setting (a
@@ -198,20 +213,17 @@ configurable in settings** (including an "Off" choice).
   **429 handling** (back off; surface a "rate-limited" state rather than blanking prices). A
   batched-quote provider or cheaper data source would relax this later.
 
-### Dock refresh on favorites change (next — designed, not built)
+### Dock refresh on favorites change (done)
 
-`FavoritesDockPage` only re-reads favorites + prices when it becomes **visible** (its on-load
-`INotifyItemsChanged` hook). So adding/removing a favorite from a palette page does **not** update a
-band that's already pinned and showing — it stays stale until the dock re-opens (or, once polling lands,
-until the next tick). To update it the instant a favorite changes:
+A pinned `FavoritesDockPage` updates the instant a favorite changes anywhere, instead of going stale
+until reopened. Implemented via the observable layer:
 
-- Make `WatchlistStore` **observable**: raise a `FavoritesChanged` event whenever a favorite flag flips
-  (`AddToFavorites` / `RemoveFromFavorites`, and the first-run migration). Keep it lightweight (no args —
-  listeners just re-read `Favorites`).
-- `FavoritesDockPage` **subscribes in its `add` accessor and unsubscribes in `remove`** (the same
-  Loaded/Unloaded lifecycle as polling), calling `RefreshQuotes()` on the event. Subscribing only while
+- `WatchlistStore.Favorites` is a `StateFlow`; every favorite flip re-publishes it (`PublishState()`),
+  deduped by `InstrumentListComparer` so a watchlist-only change doesn't wake favorites subscribers.
+- `FavoritesDockPage` **subscribes in its `add` accessor and disposes the `IDisposable` in `remove`**
+  (the Loaded/Unloaded lifecycle), calling `RefreshQuotes()` on each emission. Subscribing only while
   visible keeps a hidden band from doing work and avoids leaks.
-- Complementary to polling, not redundant: polling catches *price* drift on a timer; this pushes
+- Complementary to the (still-pending) polling: polling catches *price* drift on a timer; this pushes
   *membership* changes immediately, and still works when polling is **Off**.
 
 ### Portfolio screen + dock band (future wishlist)

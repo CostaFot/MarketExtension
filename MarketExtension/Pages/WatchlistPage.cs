@@ -10,29 +10,31 @@ namespace MarketExtension;
 // without going back to search.
 internal sealed partial class WatchlistPage : PricedListPage
 {
-    public WatchlistPage(MarketRepository repository) : base(repository)
+    public WatchlistPage(MarketRepository repository) : base(repository, WatchlistStore.Instance.Watchlist)
     {
         Title = "Markets Watchlist";
         Name = "Open";
         PlaceholderText = "Filter your watchlist...";
     }
 
-    protected override IReadOnlyList<DomainInstrument> InstrumentsToPrice()
-        => WatchlistStore.Instance.Watchlist;
+    // A favorite toggled here doesn't change the watchlist set, so observe the Favorites flow too and
+    // re-render when it changes — that keeps the ★ marks current after a Ctrl+Enter toggle.
+    protected override IEnumerable<StateFlow<IReadOnlyList<DomainInstrument>>> RelistTriggers
+        => [WatchlistStore.Instance.Favorites];
 
     protected override IListItem BuildRow(UiQuote q)
     {
         var instrument = new DomainInstrument(q.Symbol, q.Name, q.Category);
         var isFavorite = WatchlistStore.Instance.IsFavorite(q.Symbol);
 
-        return new ListItem(new RemoveFromWatchlistCommand(instrument, () => RaiseItemsChanged(0)))
+        return new ListItem(new RemoveFromWatchlistCommand(instrument))
         {
             Title = (isFavorite ? "★ " : "") + $"{q.Symbol} · {q.Name}",
             Subtitle = $"{q.FormatPrice()}   {q.FormatChange()}",
             Section = SectionLabel(q.Category),
             MoreCommands =
             [
-                new CommandContextItem(new ToggleFavoriteCommand(instrument, () => RaiseItemsChanged(0)))
+                new CommandContextItem(new ToggleFavoriteCommand(instrument))
                 {
                     Title = isFavorite ? "Remove from Favorites" : "Add to Favorites",
                 },

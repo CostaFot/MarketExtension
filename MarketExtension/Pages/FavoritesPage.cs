@@ -9,21 +9,18 @@ namespace MarketExtension;
 // only place, besides the Watchlist screen's Ctrl+Enter, that unstars an instrument.
 internal sealed partial class FavoritesPage : PricedListPage
 {
-    public FavoritesPage(MarketRepository repository) : base(repository)
+    public FavoritesPage(MarketRepository repository) : base(repository, WatchlistStore.Instance.Favorites)
     {
         Title = "Markets Favorites";
         Name = "Open";
         PlaceholderText = "Filter your favorites...";
     }
 
-    protected override IReadOnlyList<DomainInstrument> InstrumentsToPrice()
-        => WatchlistStore.Instance.Favorites;
-
     protected override IListItem BuildRow(UiQuote q)
     {
         var instrument = new DomainInstrument(q.Symbol, q.Name, q.Category);
 
-        return new ListItem(new RemoveFromFavoritesCommand(instrument, () => RaiseItemsChanged(0)))
+        return new ListItem(new RemoveFromFavoritesCommand(instrument))
         {
             Title = $"★ {q.Symbol} · {q.Name}",
             Subtitle = $"{q.FormatPrice()}   {q.FormatChange()}",

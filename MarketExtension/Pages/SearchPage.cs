@@ -13,8 +13,9 @@ namespace MarketExtension;
 // (the first MoreCommands context item) adds it to favorites. The two lists are independent — a
 // result can go on either, both, or neither. Lifted from the search half of the old MarketsPage.
 //
-// Uses the project's INotifyItemsChanged fire-on-subscribe hook (see CLAUDE.md) so the async
-// /search completion and the post-add re-lists reach the framework's listener.
+// Subscribes to the WatchlistStore membership flows while visible (the INotifyItemsChanged add/remove
+// lifecycle) so a row's membership subtitle/★ refreshes the instant it's added — no manual callback.
+// Their replay-on-subscribe also paints the initial list; the async /search completion re-lists too.
 internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
 {
     private const string SearchGlyph = "\uE721"; // Segoe MDL2 Search
@@ -32,11 +33,27 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
     private string _searchedQuery = string.Empty;
 
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
+    private readonly List<IDisposable> _subscriptions = [];
 
     event TypedEventHandler<object, IItemsChangedEventArgs> INotifyItemsChanged.ItemsChanged
     {
-        add { _itemsChanged += value; _itemsChanged?.Invoke(this, new ItemsChangedEventArgs(-1)); }
-        remove => _itemsChanged -= value;
+        add
+        {
+            _itemsChanged += value;
+            // Results are identity-only (no prices), but each row's subtitle/★ reflects current
+            // membership — so re-render whenever the watchlist or favorites change (e.g. right after an
+            // Enter/Ctrl+Enter add). StateFlow's replay also fires the initial list on subscribe, which
+            // replaces the old explicit fire-on-subscribe.
+            _subscriptions.Add(WatchlistStore.Instance.Watchlist.Subscribe(_ => RaiseItemsChanged(0)));
+            _subscriptions.Add(WatchlistStore.Instance.Favorites.Subscribe(_ => RaiseItemsChanged(0)));
+        }
+        remove
+        {
+            _itemsChanged -= value;
+            foreach (var subscription in _subscriptions)
+                subscription.Dispose();
+            _subscriptions.Clear();
+        }
     }
 
     protected new void RaiseItemsChanged(int totalItems = -1)
@@ -113,19 +130,19 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
 
     // A price-less search result. Enter adds to the watchlist; Ctrl+Enter adds to favorites. The
     // subtitle reflects current membership so the available actions are obvious.
-    private ListItem BuildResultItem(DomainInstrument instrument)
+    private static ListItem BuildResultItem(DomainInstrument instrument)
     {
         var inWatchlist = WatchlistStore.Instance.IsInWatchlist(instrument.Symbol);
         var isFavorite = WatchlistStore.Instance.IsFavorite(instrument.Symbol);
 
-        return new ListItem(new AddToWatchlistCommand(instrument, () => RaiseItemsChanged(0)))
+        return new ListItem(new AddToWatchlistCommand(instrument))
         {
             Title = (isFavorite ? "★ " : "") + $"{instrument.Symbol} · {instrument.Name}",
             Subtitle = MembershipSubtitle(inWatchlist, isFavorite),
             Section = "Search results",
             MoreCommands =
             [
-                new CommandContextItem(new AddToFavoritesCommand(instrument, () => RaiseItemsChanged(0)))
+                new CommandContextItem(new AddToFavoritesCommand(instrument))
                 {
                     Title = "Add to Favorites",
                 },

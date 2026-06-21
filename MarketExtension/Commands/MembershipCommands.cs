@@ -1,14 +1,14 @@
-using System;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 
 namespace MarketExtension;
 
-// The watchlist/favorites membership actions surfaced on list rows. Each one mutates WatchlistStore
-// for one instrument, then asks the host page to re-list so the row reflects its new membership (or
-// drops out of the list). It also pops a confirmation toast ("Added AAPL to watchlist") and keeps the
-// palette open: the silent re-list alone left users unsure the action took, and KeepOpen lets them act
-// on several rows in a row. Adapted from reference/commands/ToggleFavoriteCommand.cs.
+// The watchlist/favorites membership actions surfaced on list rows. Each one just mutates WatchlistStore
+// for one instrument; the store re-publishes its observable subsets, so every live page and the dock
+// re-list themselves \u2014 no manual refresh callback is threaded through any more. It also pops a
+// confirmation toast ("Added AAPL to watchlist") and keeps the palette open: the silent re-list alone
+// left users unsure the action took, and KeepOpen lets them act on several rows in a row. Adapted from
+// reference/commands/ToggleFavoriteCommand.cs.
 internal abstract partial class MembershipCommand : InvokableCommand
 {
     // Segoe MDL2 glyphs: Add, Delete, FavoriteStar (outline), FavoriteStarFill.
@@ -18,13 +18,8 @@ internal abstract partial class MembershipCommand : InvokableCommand
     protected const string StarFillGlyph = "\uE735";
 
     protected readonly DomainInstrument Instrument;
-    private readonly Action _refresh;
 
-    protected MembershipCommand(DomainInstrument instrument, Action refresh)
-    {
-        Instrument = instrument;
-        _refresh = refresh;
-    }
+    protected MembershipCommand(DomainInstrument instrument) => Instrument = instrument;
 
     // Performs the mutation and returns the confirmation message to toast (so toggles can report
     // exactly what they did).
@@ -33,14 +28,13 @@ internal abstract partial class MembershipCommand : InvokableCommand
     public override ICommandResult Invoke()
     {
         var message = Apply();
-        _refresh();
         return CommandResult.ShowToast(new ToastArgs { Message = message, Result = CommandResult.KeepOpen() });
     }
 }
 
 internal sealed partial class AddToWatchlistCommand : MembershipCommand
 {
-    public AddToWatchlistCommand(DomainInstrument instrument, Action refresh) : base(instrument, refresh)
+    public AddToWatchlistCommand(DomainInstrument instrument) : base(instrument)
     {
         Name = "Add to Watchlist";
         Icon = new IconInfo(AddGlyph);
@@ -55,7 +49,7 @@ internal sealed partial class AddToWatchlistCommand : MembershipCommand
 
 internal sealed partial class RemoveFromWatchlistCommand : MembershipCommand
 {
-    public RemoveFromWatchlistCommand(DomainInstrument instrument, Action refresh) : base(instrument, refresh)
+    public RemoveFromWatchlistCommand(DomainInstrument instrument) : base(instrument)
     {
         Name = "Remove from Watchlist";
         Icon = new IconInfo(DeleteGlyph);
@@ -70,7 +64,7 @@ internal sealed partial class RemoveFromWatchlistCommand : MembershipCommand
 
 internal sealed partial class AddToFavoritesCommand : MembershipCommand
 {
-    public AddToFavoritesCommand(DomainInstrument instrument, Action refresh) : base(instrument, refresh)
+    public AddToFavoritesCommand(DomainInstrument instrument) : base(instrument)
     {
         Name = "Add to Favorites";
         Icon = new IconInfo(StarGlyph);
@@ -85,7 +79,7 @@ internal sealed partial class AddToFavoritesCommand : MembershipCommand
 
 internal sealed partial class RemoveFromFavoritesCommand : MembershipCommand
 {
-    public RemoveFromFavoritesCommand(DomainInstrument instrument, Action refresh) : base(instrument, refresh)
+    public RemoveFromFavoritesCommand(DomainInstrument instrument) : base(instrument)
     {
         Name = "Remove from Favorites";
         Icon = new IconInfo(StarFillGlyph);
@@ -102,7 +96,7 @@ internal sealed partial class RemoveFromFavoritesCommand : MembershipCommand
 // favorite a tracked instrument without re-searching. Name/icon reflect the current state.
 internal sealed partial class ToggleFavoriteCommand : MembershipCommand
 {
-    public ToggleFavoriteCommand(DomainInstrument instrument, Action refresh) : base(instrument, refresh)
+    public ToggleFavoriteCommand(DomainInstrument instrument) : base(instrument)
     {
         var isFavorite = WatchlistStore.Instance.IsFavorite(instrument.Symbol);
         Name = isFavorite ? "Remove from Favorites" : "Add to Favorites";

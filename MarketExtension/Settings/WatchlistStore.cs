@@ -21,13 +21,22 @@ internal sealed class WatchlistStore
 {
     public static readonly WatchlistStore Instance = new();
 
-    // Raised after a favorite flag flips (and is persisted). Args-less — listeners just re-read Favorites.
-    // Lets the pinned dock band refresh immediately instead of going stale until reopened.
-    public event Action? FavoritesChanged;
-
     private readonly Lock _lock = new();
     // Keyed by normalized symbol; value carries the identity plus the two membership flags.
     private Dictionary<string, Entry> _entries = [];
+
+    // The two membership subsets as observable StateFlows. Every mutation re-publishes both via
+    // PublishState(); consumers (the priced pages and the dock band) Subscribe and react instead of
+    // being poked manually. The InstrumentListComparer dedup means a watchlist-only change won't wake
+    // favorites subscribers (and vice-versa). Exposed read-only — only this store writes them.
+    private readonly MutableStateFlow<IReadOnlyList<DomainInstrument>> _watchlist = new([], InstrumentListComparer.Instance);
+    private readonly MutableStateFlow<IReadOnlyList<DomainInstrument>> _favorites = new([], InstrumentListComparer.Instance);
+
+    // The watchlisted instruments, in insertion order. Subscribe for live membership; read .Value for a snapshot.
+    public StateFlow<IReadOnlyList<DomainInstrument>> Watchlist => _watchlist;
+
+    // The favorited instruments (the dock subset), in insertion order.
+    public StateFlow<IReadOnlyList<DomainInstrument>> Favorites => _favorites;
 
     private sealed class Entry(DomainInstrument instrument)
     {
@@ -49,7 +58,11 @@ internal sealed class WatchlistStore
         }
     }
 
-    private WatchlistStore() => Load();
+    private WatchlistStore()
+    {
+        Load();
+        PublishState(); // seed the flows with the loaded subsets, before any subscriber exists
+    }
 
     public bool IsInWatchlist(string symbol)
     {
@@ -59,18 +72,6 @@ internal sealed class WatchlistStore
     public bool IsFavorite(string symbol)
     {
         lock (_lock) return _entries.TryGetValue(Normalize(symbol), out var e) && e.IsFavorite;
-    }
-
-    // The watchlisted instruments, in insertion order, as provider-agnostic identities.
-    public IReadOnlyList<DomainInstrument> Watchlist
-    {
-        get { lock (_lock) return [.. _entries.Values.Where(e => e.InWatchlist).Select(e => e.Instrument)]; }
-    }
-
-    // The favorited instruments (the dock subset), in insertion order.
-    public IReadOnlyList<DomainInstrument> Favorites
-    {
-        get { lock (_lock) return [.. _entries.Values.Where(e => e.IsFavorite).Select(e => e.Instrument)]; }
     }
 
     public void AddToWatchlist(DomainInstrument instrument) => SetFlag(instrument, watchlist: true);
@@ -87,8 +88,7 @@ internal sealed class WatchlistStore
         }
 
         Save();
-        // Fire outside the lock: the dock's handler re-reads Favorites, which re-acquires it.
-        if (favorite is not null) FavoritesChanged?.Invoke();
+        PublishState();
     }
 
     private void SetFlag(DomainInstrument instrument, bool? watchlist = null, bool? favorite = null)
@@ -102,7 +102,23 @@ internal sealed class WatchlistStore
         }
 
         Save();
-        if (favorite is not null) FavoritesChanged?.Invoke();
+        PublishState();
+    }
+
+    // Recompute both membership subsets and push them onto the flows. Called after every mutation (and
+    // once at construction). The flows' InstrumentListComparer dedups, so subscribers of an unchanged
+    // subset aren't woken. Snapshots under the lock, then lets the flow fire its handlers outside it.
+    private void PublishState()
+    {
+        IReadOnlyList<DomainInstrument> watchlist, favorites;
+        lock (_lock)
+        {
+            watchlist = [.. _entries.Values.Where(e => e.InWatchlist).Select(e => e.Instrument)];
+            favorites = [.. _entries.Values.Where(e => e.IsFavorite).Select(e => e.Instrument)];
+        }
+
+        _watchlist.Update(watchlist);
+        _favorites.Update(favorites);
     }
 
     // Apply a flag change, then drop the entry entirely once it's on neither list.
@@ -114,7 +130,9 @@ internal sealed class WatchlistStore
             _entries.Remove(Normalize(entry.Instrument.Symbol));
     }
 
-    private static string Normalize(string symbol) => symbol.Trim().ToUpperInvariant();
+    // The canonical key form for a symbol. Internal so priced pages can key their local quote cache the
+    // same way the store keys its entries.
+    internal static string Normalize(string symbol) => symbol.Trim().ToUpperInvariant();
 
     private void Load()
     {
@@ -138,8 +156,8 @@ internal sealed class WatchlistStore
 
             // First run: migrate the old FavoritesStore file if present (its pinned items were both
             // tracked and dock-shown, so they become watchlisted AND favorited), otherwise seed the
-            // built-in catalog onto the watchlist. Either way we persist so this is one-time.
-            // No FavoritesChanged fires here: this runs in the singleton's ctor, before any subscriber.
+            // built-in catalog onto the watchlist. Either way we persist so this is one-time. The
+            // constructor's PublishState() seeds the flows afterward, before any subscriber exists.
             _entries = SeedEntries();
             Save();
         }

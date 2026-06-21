@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CommandPalette.Extensions;
@@ -23,26 +24,25 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
     private UiQuote[]? _quotes;
 
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
+    private IDisposable? _subscription;
 
     event TypedEventHandler<object, IItemsChangedEventArgs> INotifyItemsChanged.ItemsChanged
     {
         add
         {
             _itemsChanged += value;
-            // Subscribe idempotently so starring/unstarring from a palette page refreshes this
-            // pinned band at once, instead of waiting for it to be reopened.
-            WatchlistStore.Instance.FavoritesChanged -= OnFavoritesChanged;
-            WatchlistStore.Instance.FavoritesChanged += OnFavoritesChanged;
-            RefreshQuotes(); // fires when the band becomes visible
+            // Observe the favorites flow while the band is visible: its replay paints the band the moment
+            // it opens, and any later star/unstar from a palette page refreshes it at once (no waiting
+            // for a reopen). Disposed in `remove` so a hidden band does no work and doesn't leak.
+            _subscription = WatchlistStore.Instance.Favorites.Subscribe(_ => RefreshQuotes());
         }
         remove
         {
             _itemsChanged -= value;
-            WatchlistStore.Instance.FavoritesChanged -= OnFavoritesChanged;
+            _subscription?.Dispose();
+            _subscription = null;
         }
     }
-
-    private void OnFavoritesChanged() => RefreshQuotes();
 
     protected new void RaiseItemsChanged(int totalItems = -1)
         => _itemsChanged?.Invoke(this, new ItemsChangedEventArgs(totalItems));
@@ -94,8 +94,8 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
 
     private async Task LoadQuotes()
     {
-        // The dock shows only favorites — price exactly that subset.
-        _quotes = [.. (await _repository.GetQuotesAsync(WatchlistStore.Instance.Favorites)).Select(UiQuote.From)];
+        // The dock shows only favorites — price exactly that subset (a snapshot of the flow's value).
+        _quotes = [.. (await _repository.GetQuotesAsync(WatchlistStore.Instance.Favorites.Value)).Select(UiQuote.From)];
         IsLoading = false;
         RaiseItemsChanged(0);
     }
