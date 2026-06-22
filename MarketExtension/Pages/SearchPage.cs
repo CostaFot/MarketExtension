@@ -9,9 +9,9 @@ namespace MarketExtension;
 
 // Default entry screen: the Enter-only Finnhub /search flow. Typing never hits the network
 // (free-tier rate limits) — it only changes what the synthetic "Search Finnhub for ..." item will
-// look up. Results are price-less identities; Enter on a result opens its SymbolDetailPage, while
-// adding to the watchlist (Ctrl+Enter — the first MoreCommands context item) or favorites lives in
-// the More menu. The two lists are independent — a result can go on either, both, or neither.
+// look up. Results are price-less identities; Enter on a result opens its SymbolDetailPage, which is
+// the single place to add it to the watchlist or favorites. The subtitle still reflects current
+// membership so the user can see at a glance what a result is already on.
 // Lifted from the search half of the old MarketsPage.
 //
 // Subscribes to the WatchlistStore membership flows while visible (the INotifyItemsChanged add/remove
@@ -129,9 +129,9 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         return [.. items];
     }
 
-    // A price-less search result. Enter opens its detail page; adding to the watchlist (Ctrl+Enter)
-    // or favorites lives in the More menu. The subtitle reflects current membership so the user can
-    // see at a glance what the row is already on.
+    // A price-less search result. Enter opens its detail page (the single place to add it to the
+    // watchlist or favorites). The subtitle reflects current membership so the user can see at a
+    // glance what the row is already on.
     private static ListItem BuildResultItem(DomainInstrument instrument)
     {
         var inWatchlist = WatchlistStore.Instance.IsInWatchlist(instrument.Symbol);
@@ -142,11 +142,6 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             Title = (isFavorite ? "★ " : "") + $"{instrument.Symbol} · {instrument.Name}",
             Subtitle = MembershipSubtitle(inWatchlist, isFavorite),
             Section = "Search results",
-            MoreCommands =
-            [
-                new CommandContextItem(new AddToWatchlistCommand(instrument)),
-                new CommandContextItem(new AddToFavoritesCommand(instrument)),
-            ],
         };
     }
 
@@ -155,7 +150,7 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         (true, true) => "On watchlist · ★ Favorite · Enter for details",
         (true, false) => "On watchlist · Enter for details",
         (false, true) => "★ Favorite · Enter for details",
-        (false, false) => "Enter for details · add to watchlist or favorites from the More menu",
+        (false, false) => "Enter for details",
     };
 
     // Runs the single online /search call for the current SearchText, then re-lists with results.

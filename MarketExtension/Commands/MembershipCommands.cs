@@ -3,12 +3,13 @@ using Microsoft.CommandPalette.Extensions.Toolkit;
 
 namespace MarketExtension;
 
-// The watchlist/favorites membership actions surfaced on list rows. Each one just mutates WatchlistStore
-// for one instrument; the store re-publishes its observable subsets, so every live page and the dock
-// re-list themselves \u2014 no manual refresh callback is threaded through any more. It also pops a
-// confirmation toast ("Added AAPL to watchlist") and keeps the palette open: the silent re-list alone
-// left users unsure the action took, and KeepOpen lets them act on several rows in a row. Adapted from
-// reference/commands/ToggleFavoriteCommand.cs.
+// The watchlist/favorites membership actions. These now live solely on the per-symbol SymbolDetailPage
+// (the single place to manage membership); list rows just navigate into it. Each one just mutates
+// WatchlistStore for one instrument; the store re-publishes its observable subsets, so every live page,
+// the dock, and the detail page's own command bar re-render themselves \u2014 no manual refresh callback is
+// threaded through any more. It also pops a confirmation toast ("Added AAPL to watchlist") and keeps the
+// palette open: the silent re-render alone left users unsure the action took, and KeepOpen lets them keep
+// editing. Adapted from reference/commands/ToggleFavoriteCommand.cs.
 internal abstract partial class MembershipCommand : InvokableCommand
 {
     // Segoe MDL2 glyphs: Add, Delete, FavoriteStar (outline), FavoriteStarFill.
@@ -89,29 +90,5 @@ internal sealed partial class RemoveFromFavoritesCommand : MembershipCommand
     {
         WatchlistStore.Instance.RemoveFromFavorites(Instrument.Symbol);
         return $"Removed {Instrument.Symbol} from favorites";
-    }
-}
-
-// Star/unstar in place — a More-menu action on the Watchlist screen so the user can favorite a
-// tracked instrument without re-searching. Name/icon reflect the current state.
-internal sealed partial class ToggleFavoriteCommand : MembershipCommand
-{
-    public ToggleFavoriteCommand(DomainInstrument instrument) : base(instrument)
-    {
-        var isFavorite = WatchlistStore.Instance.IsFavorite(instrument.Symbol);
-        Name = isFavorite ? "Remove from Favorites" : "Add to Favorites";
-        Icon = new IconInfo(isFavorite ? StarFillGlyph : StarGlyph);
-    }
-
-    protected override string Apply()
-    {
-        if (WatchlistStore.Instance.IsFavorite(Instrument.Symbol))
-        {
-            WatchlistStore.Instance.RemoveFromFavorites(Instrument.Symbol);
-            return $"Removed {Instrument.Symbol} from favorites";
-        }
-
-        WatchlistStore.Instance.AddToFavorites(Instrument);
-        return $"Added {Instrument.Symbol} to favorites";
     }
 }

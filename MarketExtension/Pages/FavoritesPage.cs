@@ -5,9 +5,8 @@ using Microsoft.CommandPalette.Extensions.Toolkit;
 namespace MarketExtension;
 
 // Top-level screen: the curated favorites — the same set the dock band shows — priced live. Enter
-// opens the row's SymbolDetailPage; removing from favorites (Ctrl+Enter — the first MoreCommands
-// context item) lives in the More menu. Removing here leaves the instrument on the watchlist if
-// it's tracked there. This and the Watchlist screen's toggle are the only places that unstar.
+// opens the row's SymbolDetailPage, which is the single place to remove it from favorites (leaving
+// it on the watchlist if it's tracked there). The row carries no context actions.
 internal sealed partial class FavoritesPage : PricedListPage
 {
     public FavoritesPage(MarketRepository repository) : base(repository, WatchlistStore.Instance.Favorites)
@@ -25,11 +24,6 @@ internal sealed partial class FavoritesPage : PricedListPage
         {
             Title = $"★ {q.Symbol} · {q.Name}",
             Subtitle = $"{q.FormatPrice()}   {q.FormatChange()}",
-            MoreCommands =
-            [
-                new CommandContextItem(new RemoveFromFavoritesCommand(instrument)),
-                new CommandContextItem(new CopyTextCommand(q.FormatPrice())) { Title = "Copy price" },
-            ],
         };
     }
 

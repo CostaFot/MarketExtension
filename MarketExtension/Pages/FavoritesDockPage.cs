@@ -8,8 +8,8 @@ using Windows.Foundation;
 namespace MarketExtension;
 
 // Backs a Command Palette Dock band: a strip showing up to MaxDockFavorites favorited
-// instruments as ticker buttons (e.g. "AAPL ▲ +1.20%"). Returned from
-// MarketExtensionCommandsProvider.GetDockBands() wrapped in a CommandItem.
+// instruments as ticker buttons (e.g. "AAPL ▲ +1.20%"); clicking one opens its SymbolDetailPage.
+// Returned from MarketExtensionCommandsProvider.GetDockBands() wrapped in a CommandItem.
 //
 // Because the band's command is an IListPage, the host renders each item from GetItems() as
 // its own button within the one band (see reference/dock-support.md). We use the project's
@@ -73,10 +73,7 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
 
         return favorites
             .Select(q => (IListItem)new ListItem(
-                new CopyTextCommand($"{q.Symbol} {q.FormatPrice()} ({q.FormatChange()})")
-                {
-                    Id = $"com.costafotiadis.market.dock.copy.{q.Symbol}",
-                })
+                new SymbolDetailPage(new DomainInstrument(q.Symbol, q.Name, q.Category)))
             {
                 Title = $"{q.Symbol} {q.FormatChange()}",
                 Subtitle = q.FormatPrice(),

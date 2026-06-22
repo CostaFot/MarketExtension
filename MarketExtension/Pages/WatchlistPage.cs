@@ -5,9 +5,8 @@ using Microsoft.CommandPalette.Extensions.Toolkit;
 namespace MarketExtension;
 
 // Top-level screen: the instruments the user tracks, priced live and grouped by asset class. A ★
-// prefix marks rows that are also favorited. Enter opens the row's SymbolDetailPage; removing from
-// the watchlist (Ctrl+Enter — the first MoreCommands context item) and toggling its favorite mark
-// live in the More menu, so the user can curate the dock without going back to search.
+// prefix marks rows that are also favorited. Enter opens the row's SymbolDetailPage, which is the
+// single place to remove it or toggle its favorite mark. The row carries no context actions.
 internal sealed partial class WatchlistPage : PricedListPage
 {
     public WatchlistPage(MarketRepository repository) : base(repository, WatchlistStore.Instance.Watchlist)
@@ -32,15 +31,6 @@ internal sealed partial class WatchlistPage : PricedListPage
             Title = (isFavorite ? "★ " : "") + $"{q.Symbol} · {q.Name}",
             Subtitle = $"{q.FormatPrice()}   {q.FormatChange()}",
             Section = SectionLabel(q.Category),
-            MoreCommands =
-            [
-                new CommandContextItem(new RemoveFromWatchlistCommand(instrument)),
-                new CommandContextItem(new ToggleFavoriteCommand(instrument))
-                {
-                    Title = isFavorite ? "Remove from Favorites" : "Add to Favorites",
-                },
-                new CommandContextItem(new CopyTextCommand(q.FormatPrice())) { Title = "Copy price" },
-            ],
         };
     }
 

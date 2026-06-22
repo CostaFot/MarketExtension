@@ -155,20 +155,22 @@ list, both, or neither (so "watchlist" and "favorites" are genuinely separate se
 All three command titles share the **`Markets ` prefix** so they group together (and don't pollute the
 namespace) when searching the Command Palette root:
 
-**Enter on any row opens the shared `Pages/SymbolDetailPage.cs`** — the (currently placeholder)
-per-symbol detail screen. The list-management actions are demoted to **context items** (`MoreCommands`;
-**Ctrl+Enter** activates the first one) until the detail page takes them over (per the "Symbol detail +
-live chart" wishlist). The screens:
+**Enter on any row opens the shared `Pages/SymbolDetailPage.cs`** — the per-symbol detail screen
+(`ContentPage`; chart still a placeholder), which is **the single place for list management**. Its
+command bar carries the add/remove-watchlist (**Enter**) and add/remove-favorite (**Ctrl+Enter**)
+actions, labelled for the instrument's current state, and the page **subscribes to the two
+`WatchlistStore` flows** so toggling there (the commands `KeepOpen`) flips the buttons + body in place.
+List rows therefore carry **no context actions at all** — they only navigate into the detail page. The
+screens:
 
 1. **Markets Search** (`Pages/SearchPage.cs`, default entry) — the Enter-only `/search` flow. On a
-   result: **Enter** → open detail page; **More menu** → Add to Watchlist (**Ctrl+Enter**) / Add to
-   Favorites. Empty box links to the other two screens.
+   result: **Enter** → open detail page (where it's added to the watchlist/favorites). The subtitle
+   still reflects current membership. Empty box links to the other two screens.
 2. **Markets Watchlist** (`Pages/WatchlistPage.cs`) — the tracked instruments, priced and grouped by
-   class; a ★ marks favorites. **Enter** → open detail page; **More menu** → Remove from Watchlist
-   (**Ctrl+Enter**) / toggle favorite / copy price.
+   class; a ★ marks favorites. **Enter** → open detail page.
 3. **Markets Favorites** (`Pages/FavoritesPage.cs`) — the curated subset; **only favorites render in
    the dock band** (`FavoritesDockPage` subscribes to `WatchlistStore.Favorites`). **Enter** → open
-   detail page; **More menu** → Remove from Favorites (**Ctrl+Enter**) / copy price. A pinned band now
+   detail page. Each **dock button also opens the detail page** when clicked. A pinned band now
    updates **immediately** when favorites change anywhere (it subscribes to the flow while visible), not
    just on reopen.
 
@@ -326,9 +328,8 @@ mechanism is simpler than it looks:
 ### Asset logos as icons, app-wide (future wishlist)
 
 Every row and dock button should show the instrument's **official logo** (AAPL's apple, BABA's logo,
-BTC's coin) instead of today's generic icon. Right now the dock items use `CopyTextCommand`, so they
-render its **copy glyph** — wrong on both counts: the icon should be the asset logo, and a **left-click
-should open the chart** (the symbol-detail page above), not copy.
+BTC's coin) instead of today's generic github-favicon icon. (Dock buttons already left-click into the
+`SymbolDetailPage`; the remaining gap is purely the icon.)
 
 **Where to get logos:**
 - **Stocks / ETFs — Finnhub `/stock/profile2`** (free tier; reuses our existing key). Returns a hosted
@@ -340,8 +341,7 @@ should open the chart** (the symbol-detail page above), not copy.
   **bundle a static set** (e.g. `spothq/cryptocurrency-icons` SVG/PNG by symbol) under `Assets/` for an
   offline, no-network, AOT-friendly path.
 - **Forex / currency:** deferred (country flags or a currency glyph when FX lands).
-- **Fallback (never the copy icon):** a per-`AssetCategory` Segoe glyph or a first-letter monogram when
-  no logo resolves.
+- **Fallback:** a per-`AssetCategory` Segoe glyph or a first-letter monogram when no logo resolves.
 
 **How to load it** (the toolkit already supports all three):
 - Remote URL → `new IconInfo(logoUrl)` (same as today's github favicon).
@@ -357,9 +357,8 @@ once known), or render a fallback glyph first and `RaiseItemsChanged()` when the
 run it's served from cache instantly.
 
 **Wire it everywhere:** set `ListItem.Icon` to the resolved logo in every row builder — `SearchPage`,
-`WatchlistPage`, `FavoritesPage`, the future `PortfolioPage` — and on the dock items. For the dock, **also
-swap the command from `CopyTextCommand` to the `SymbolDetailPage`** so left-click opens the chart (keep
-"Copy price" as a `MoreCommands` context item). Dock bands still require a non-empty `Command.Id`.
+`WatchlistPage`, `FavoritesPage`, the future `PortfolioPage` — and on the dock items. (The dock command
+is already the `SymbolDetailPage`; dock bands still require a non-empty `Command.Id`, which the page sets.)
 
 ## CommandPalette Toolkit — Quick Reference
 
