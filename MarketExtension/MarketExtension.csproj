@@ -105,20 +105,8 @@
     <SelfContained>true</SelfContained>
   </PropertyGroup>
 
-  <!-- Local secrets, the .NET "local.properties": optional + gitignored. Missing file => empty key. -->
-  <Import Project="secrets.props" Condition="Exists('$(MSBuildProjectDirectory)\secrets.props')" />
-
-  <!-- Bake the key into a generated constant (the .NET equivalent of Android's BuildConfig).
-       Result is a plain `const string`, so it stays AOT/trim-clean. -->
-  <Target Name="GenerateSecrets" BeforeTargets="CoreCompile">
-    <PropertyGroup>
-      <_SecretsCs>$(IntermediateOutputPath)Secrets.g.cs</_SecretsCs>
-    </PropertyGroup>
-    <WriteLinesToFile File="$(_SecretsCs)" Overwrite="true" WriteOnlyWhenDifferent="true"
-        Lines="namespace MarketExtension { internal static class Secrets { public const string FinnhubApiKey = &quot;$(FinnhubApiKey)&quot;%3B } }" />
-    <ItemGroup>
-      <Compile Include="$(_SecretsCs)" />
-    </ItemGroup>
-  </Target>
+  <!-- The Finnhub API key is no longer baked in at build time; it is provided exclusively at
+       runtime via the extension's settings (Settings/MarketSettingsManager.cs). The old
+       secrets.props import + GenerateSecrets BuildConfig-style target were removed. -->
 
 </Project>

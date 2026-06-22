@@ -1,9 +1,6 @@
 # Signing certificate — never commit
 *.pfx
 
-# Local API keys — the .NET "local.properties" (build bakes it into a generated const)
-MarketExtension/secrets.props
-
 # Build output
 bin/
 obj/

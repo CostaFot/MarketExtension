@@ -130,14 +130,18 @@ across multiple `partial` declarations of one context — it emits a colliding h
 ("does not implement … `GetTypeInfo`") onto **every** context in the build. Keep all `[JsonSerializable]`
 for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
 
-## API Key (secrets.props — the .NET "local.properties")
+## API Key (runtime setting — no build-time key)
 
-- The Finnhub key lives in **gitignored** `MarketExtension/secrets.props`. Fresh clone: copy
-  `MarketExtension/secrets.props.template` → `secrets.props` and paste the key.
-- The csproj `GenerateSecrets` target bakes it into a generated `Secrets.FinnhubApiKey` const (the
-  BuildConfig analog); `FinnhubMarketDataProvider` reads that. Missing file → empty key, build still succeeds.
-- Caveat: the key is compiled into the shipped MSIX (extractable). True per-user secrecy = the
-  deferred bring-your-own-key in Command Palette settings.
+- The Finnhub key is provided **exclusively at runtime** via the extension's settings
+  (`Settings/MarketSettingsManager.cs`, exposed as `FinnhubApiKey`/`HasFinnhubApiKey`, persisted to
+  `…/Microsoft.CmdPal/market.settings.json`). There is **no built-in/baked key** — the old
+  `secrets.props` + csproj `GenerateSecrets` + `Secrets.FinnhubApiKey` machinery was removed.
+- `FinnhubMarketDataProvider` reads `MarketSettingsManager.Instance.FinnhubApiKey` on each request
+  (so a key change applies without a reload) and **short-circuits to "no data"** (invalid quotes /
+  empty search / invalid candle series, with a `Log.Warn`) when no key is set, rather than firing
+  keyless requests that would just 401.
+- **Per-provider naming on purpose:** keys are named per provider (`FinnhubApiKey`, not a generic
+  `ApiKey`) because future providers (e.g. a forex source) each get their own key setting here.
 
 ## Logging
 
@@ -151,7 +155,8 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
 ## Current Status / Next Steps
 
 - **Done:** layered data architecture; live Finnhub provider; `MarketRepository` coordinator;
-  `secrets.props` key handling; tagged logging; **Enter-only Finnhub `/search`**; **persistent
+  **runtime API key + refresh-interval settings** (`MarketSettingsManager`; key is settings-only,
+  no baked-in key); tagged logging; **Enter-only Finnhub `/search`**; **persistent
   watchlist + favorites** as two independent flags (`WatchlistStore`); the **three-screen UX**
   (Markets Search / Watchlist / Favorites — see below); and the **observable (StateFlow) data layer** —
   the store exposes `Watchlist`/`Favorites` as `StateFlow`s, all surfaces subscribe and re-render
@@ -323,9 +328,9 @@ through a new provider seam — see the Finnhub candle spec + the candle layer f
   The first fetch fires from the page's "became visible" hook (the `INotifyItemsChanged.add`), so list
   rows building a `SymbolDetailPage` per item never trigger a fetch. Header price/%change reflect the
   **selected range** (last vs. first close), Robinhood-style — derived from the series, no extra `/quote`.
-- **Gating:** candles are premium → on the current free key every chart 403s → the card shows
+- **Gating:** candles are premium → on a free key every chart 403s → the card shows
   "requires a paid Finnhub plan". No code change is needed when a paid key lands (candles read the same
-  `Secrets.FinnhubApiKey`). To preview rendering now, temporarily point the repo at
+  settings `FinnhubApiKey`). To preview rendering now, temporarily point the repo at
   `new MarketRepository(new MockMarketDataProvider())` (don't ship — mock also feeds search).
 
 **State of the two UI issues: flicker FIXED; the Enter/focus bug is UNSOLVED (left as-is, documented).**
@@ -660,5 +665,5 @@ This was scaffolded from AdbExtension. Already changed: COM GUID (`6b38c9aa-bbee
 - **GitHub secrets**: add `SIGNING_CERT_PFX` + `SIGNING_CERT_PASSWORD` (see `MarketExtension/create-signing-cert.ps1`). Template clones do not carry secrets.
 - **Assets**: replace the art in `MarketExtension/Assets/` (still the AdbExtension tiles/logos).
 - **Sentry**: set your own DSN in `Program.cs` or leave it empty to disable.
-- **API key**: create `MarketExtension/secrets.props` from `secrets.props.template` and paste your Finnhub key (gitignored; see the "API Key" section above).
+- **API key**: none needed at build time — each user pastes their own Finnhub key into the extension's settings at runtime (see the "API Key" section above).
 - **Description**: update the placeholder description in `Package.appxmanifest`.

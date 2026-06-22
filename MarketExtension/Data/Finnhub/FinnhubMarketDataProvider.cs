@@ -14,9 +14,11 @@ namespace MarketExtension;
 // different provider can replace it without touching the repository or the UI.
 internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
 {
-    // Loaded from the gitignored secrets.props at build time (see MarketExtension.csproj's
-    // GenerateSecrets target + secrets.props.template). TODO: move to per-user settings / BYO-key.
-    private const string ApiKey = Secrets.FinnhubApiKey;
+    // The Finnhub key, sourced exclusively from the extension's settings (no built-in/baked key).
+    // Read from MarketSettingsManager on each access so a key change applies on the next request
+    // without a reload; empty until the user sets one.
+    private static string ApiKey => MarketSettingsManager.Instance.FinnhubApiKey;
+    private static bool HasApiKey => MarketSettingsManager.Instance.HasFinnhubApiKey;
 
     // Reuse a single client (creating one per request exhausts sockets). AOT-safe.
     private static readonly HttpClient Http = new() { BaseAddress = new Uri("https://finnhub.io/api/v1/") };
@@ -27,6 +29,14 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
     public async Task<IReadOnlyList<DomainQuote>> GetQuotesAsync(
         IReadOnlyList<DomainInstrument> instruments, CancellationToken ct = default)
     {
+        // No key configured (settings is the only source) — return everything as unavailable rather
+        // than firing keyless /quote calls that would just 401.
+        if (!HasApiKey)
+        {
+            Log.Warn("Finnhub", "no API key set — skipping quotes (set one in extension settings)");
+            return instruments.Select(Invalid).ToArray();
+        }
+
         // One /quote call per instrument, fanned out. A handful of symbols stays well under the
         // free-tier 60 calls/minute limit.
         return await Task.WhenAll(instruments.Select(i => FetchQuoteAsync(i, ct))).ConfigureAwait(false);
@@ -41,6 +51,12 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
         query = query?.Trim() ?? string.Empty;
         if (query.Length == 0)
             return [];
+
+        if (!HasApiKey)
+        {
+            Log.Warn("Finnhub", "no API key set — skipping search (set one in extension settings)");
+            return [];
+        }
 
         try
         {
@@ -141,6 +157,12 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
     public async Task<DomainCandleSeries> GetCandlesAsync(
         DomainInstrument instrument, ChartRange range, CancellationToken ct = default)
     {
+        if (!HasApiKey)
+        {
+            Log.Warn("Finnhub", "no API key set — skipping candles (set one in extension settings)");
+            return DomainCandleSeries.Invalid(instrument.Symbol, range);
+        }
+
         var symbol = ToFinnhubSymbol(instrument);
         // Crypto candles come from the parallel /crypto/candle endpoint (same args + response shape).
         var endpoint = instrument.Category == AssetCategory.Crypto ? "crypto/candle" : "stock/candle";

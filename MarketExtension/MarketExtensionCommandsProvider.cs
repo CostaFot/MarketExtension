@@ -19,9 +19,9 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
         DisplayName = "Market Extension";
         Icon = new IconInfo("https://github.com/favicon.ico");
 
-        // To expose extension settings, add a JsonSettingsManager and assign:
-        //   Settings = MySettingsManager.Instance.Settings;
-        // See reference/settings/AdbSettingsManager.cs for an example.
+        // Surface the extension's settings (Finnhub API key + price refresh interval) in the
+        // Command Palette Settings UI. See Settings/MarketSettingsManager.cs.
+        Settings = MarketSettingsManager.Instance.Settings;
 
         // Three top-level screens: search (the default entry), the tracked watchlist, and the
         // curated favorites. All share the one repository; favorites also feed the dock band below.
