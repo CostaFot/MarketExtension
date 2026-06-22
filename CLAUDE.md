@@ -182,8 +182,16 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   fine. The chart's live 1D refresh stays deferred (see below). See "Live price polling (done)".
 - **Deferred:** FX provider (keyless Frankfurter); rate-limit (429) **back-off** + richer error UX
   (the keep-last-good guard is a first step, not the full story); crypto/FX in symbol search; the
-  **symbol-detail chart's live 1D auto-refresh** (still one fetch per tab tap); a poll-timer **debounce**
-  so navigating directly between two priced pages doesn't reset the interval (a pinned dock masks it).
+  **symbol-detail chart's live 1D auto-refresh** (still one fetch per tab tap).
+- **Done (this round): stale-revisit catch-up** — closes the "short visit" gap in live polling. The
+  priced pages are long-lived singletons whose `_priceCache` survives navigation, so revisiting an
+  unchanged set repainted cached prices with **no fetch**, while every revisit restarted the poll timer
+  from a full interval — so visits shorter than the interval never saw a refreshed price (a pinned dock
+  masked it). Now `PricedListPage` stamps a freshness clock (`_lastFullPriceTicks`, set on every
+  whole-set re-price; a partial add doesn't advance it) and, when a fully-cached set becomes visible,
+  fires **one silent catch-up re-price if the prices have aged ≥ one interval** (`RefreshStaleQuotes`).
+  Bounded to one fetch per revisit, only when stale, gated on `AutoRefreshEnabled` — liveness without
+  burning the Finnhub budget. This supersedes the old "poll-timer debounce" deferred item.
 - **Wishlist:** a **portfolio** screen + its own dock band (holdings, total value, daily P&L); a
   **per-symbol detail screen + live chart for any ticker** (drill-in from any list row, clickable from any
   dock item); and **official asset logos as icons app-wide** (replacing today's generic copy/glyph icons).
@@ -262,8 +270,18 @@ configurable** (0 = off). Built as designed, on the StateFlow subscriber-count s
   the full 429 story (back-off + an explicit "rate-limited" state remain deferred).
 - **Shared-source refcount comes free.** `FavoritesPage` (via `PricedListPage`) and `FavoritesDockPage`
   both subscribe to the **one** `PollTicker.Instance`: its refcount keeps the timer alive while *any*
-  priced surface is visible and stops it only when *all* are gone — a pinned dock keeps it warm. (Still
-  open: a small stop-timeout so navigating directly between two priced pages doesn't reset the timer.)
+  priced surface is visible and stops it only when *all* are gone — a pinned dock keeps it warm.
+- **Stale-revisit catch-up (the timer-reset fix).** Because the priced pages are long-lived singletons
+  whose `_priceCache` survives navigation, revisiting an unchanged set repaints cached prices with **no
+  fetch**, and each revisit restarts the `PollTicker` countdown from a full interval (it resets on the
+  0→1 subscriber transition) — so visits shorter than the interval never refreshed (a pinned dock masked
+  it, since it holds the subscriber count above 0). `PricedListPage` now stamps `_lastFullPriceTicks` on
+  every whole-set re-price (a partial add of new symbols does **not** advance it, so the older rows keep
+  aging) and, when a fully-cached set becomes visible, `RefreshStaleQuotes()` fires **one silent catch-up
+  re-price if those prices have aged ≥ one `RefreshInterval`**. One fetch per revisit, only when stale,
+  gated on `AutoRefreshEnabled` (so 0 = off stays off) — maximal liveness without extra API calls. The
+  `FavoritesDockPage` doesn't need this: it refetches on every show (its favorites-flow replay calls
+  `RefreshQuotes`, which clears `_quotes`).
 - **Settings.** `Settings/MarketSettingsManager.cs` (`JsonSettingsManager` singleton,
   `…/market.settings.json`, wired via `Settings = MarketSettingsManager.Instance.Settings;`). The refresh
   interval is a numeric `TextSetting` **in minutes, default 5** (0 = off), surfaced as `RefreshMinutes` /

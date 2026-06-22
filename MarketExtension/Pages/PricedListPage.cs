@@ -38,6 +38,7 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
     private IReadOnlyList<DomainInstrument> _snapshot = [];
     private bool _received; // have we processed the first flow emission yet?
     private int _fetchGeneration; // bumped per fetch so a superseded one's late result is discarded
+    private long _lastFullPriceTicks; // Environment.TickCount64 at the last WHOLE-set re-price; 0 = never priced
 
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
 
@@ -139,6 +140,7 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         {
             IsLoading = false;
             RaiseItemsChanged(0); // removals reflected immediately, no network
+            RefreshStaleQuotes(); // ...but if the cached prices have aged past the interval, quietly re-price
             return;
         }
 
@@ -172,6 +174,28 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         Task.Run(() => LoadQuotes(snapshot, generation, silent: true));
     }
 
+    // Catch-up for the "short visit" gap in live polling. These page instances are long-lived singletons
+    // whose _priceCache survives navigation, so revisiting an UNCHANGED set repaints cached prices and fires
+    // NO fetch (nothing missing) — and every revisit restarts the poll timer from a full interval (PollTicker
+    // resets the countdown on its 0->1 subscriber transition). So a user whose visits are each shorter than
+    // the interval would never see a refreshed price. Fix: when we become visible with a fully-cached set, if
+    // those prices have aged past one refresh interval, kick a single SILENT re-price. Bounded to one fetch
+    // per revisit and only when actually stale — liveness without burning the Finnhub budget. Gated on
+    // AutoRefreshEnabled so "auto-refresh off" (interval 0) stays truly off.
+    private void RefreshStaleQuotes()
+    {
+        var settings = MarketSettingsManager.Instance;
+        if (!settings.AutoRefreshEnabled || _lastFullPriceTicks == 0)
+            return;
+
+        var age = TimeSpan.FromMilliseconds(Environment.TickCount64 - _lastFullPriceTicks);
+        if (age < settings.RefreshInterval)
+            return;
+
+        Log.Info("Poll", $"{Title}: cached prices aged {age.TotalMinutes:F1} min (>= interval) — silent catch-up re-price");
+        PollRefresh();
+    }
+
     // Fetch quotes for the given instruments and merge them into the cache. Tags the fetch with a
     // generation so a full refresh that supersedes it discards this one's late result instead of it
     // clobbering newer data.
@@ -184,18 +208,25 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
             return;
         }
 
+        // A whole-set fetch (initial load or the manual Refresh row) advances the freshness clock; a partial
+        // fetch of only newly-added symbols does NOT, so the older rows keep aging toward a catch-up re-price.
+        bool wholeSet = instruments.Count == _snapshot.Count;
+
         int generation;
         lock (_cacheLock)
             generation = ++_fetchGeneration;
 
         IsLoading = true;
         RaiseItemsChanged(0);
-        Task.Run(() => LoadQuotes(instruments, generation));
+        Task.Run(() => LoadQuotes(instruments, generation, markFresh: wholeSet));
     }
 
     // `silent` = a background poll (no spinner): in that mode, don't let a transient bad result (e.g. a
     // Finnhub 429 mapped to an invalid quote) overwrite a price that was fine a moment ago.
-    private async Task LoadQuotes(IReadOnlyList<DomainInstrument> instruments, int generation, bool silent = false)
+    // `markFresh` = this fetch covered the WHOLE current set, so stamp the freshness clock that
+    // RefreshStaleQuotes reads (a partial add passes false — see Fetch).
+    private async Task LoadQuotes(
+        IReadOnlyList<DomainInstrument> instruments, int generation, bool silent = false, bool markFresh = true)
     {
         var quotes = await Repository.GetQuotesAsync(instruments);
 
@@ -218,6 +249,9 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
                 _priceCache[key] = ui;
             }
         }
+
+        if (markFresh)
+            _lastFullPriceTicks = Environment.TickCount64; // whole set re-priced — reset the staleness clock
 
         IsLoading = false;
         RaiseItemsChanged(0);
