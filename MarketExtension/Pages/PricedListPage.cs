@@ -111,6 +111,7 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
 
         var rows = cached.Where(Matches).Select(BuildRow).ToList();
         rows.Add(new ListItem(new RefreshCommand(this)) { Title = "Refresh 🔄" });
+        rows.Add(AssetIconResolver.AttributionRow()); // Elbstream logo credit (rows above show logos)
         return [.. rows];
     }
 

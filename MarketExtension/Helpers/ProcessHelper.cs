@@ -34,4 +34,9 @@ internal static class ProcessHelper
             ? (string.IsNullOrWhiteSpace(errText) ? $"{fileName} exited with code {process.ExitCode}" : errText.Trim())
             : string.Empty;
     }
+
+    // Opens a URL (or file/protocol) with the OS default handler. Unlike Run, this is a fire-and-forget
+    // shell launch — no output is captured (UseShellExecute can't redirect streams).
+    public static void OpenUrl(string url)
+        => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
 }

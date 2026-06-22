@@ -31,6 +31,7 @@ internal sealed partial class WatchlistPage : PricedListPage
             Title = (isFavorite ? "★ " : "") + $"{q.Symbol} · {q.Name}",
             Subtitle = $"{q.FormatPrice()}   {q.FormatChange()}",
             Section = SectionLabel(q.Category),
+            Icon = AssetIconResolver.Resolve(q),
         };
     }
 

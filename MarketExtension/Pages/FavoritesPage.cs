@@ -24,6 +24,7 @@ internal sealed partial class FavoritesPage : PricedListPage
         {
             Title = $"★ {q.Symbol} · {q.Name}",
             Subtitle = $"{q.FormatPrice()}   {q.FormatChange()}",
+            Icon = AssetIconResolver.Resolve(q),
         };
     }
 

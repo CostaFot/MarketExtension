@@ -42,11 +42,14 @@ the highest-value examples:
 
 - New commands → `MarketExtension/Commands/`, extend `InvokableCommand`
 - New pages → `MarketExtension/Pages/`, extend `ListPage` or `DynamicListPage`
-- All external process execution goes through `ProcessHelper.Run()` — never use `Process` directly in command files
+- All external process execution goes through `ProcessHelper` (`Run()` for captured CLI calls; `OpenUrl()` to launch a URL/file in the OS default handler) — never use `Process` directly in command files
 - Error toasts use `CommandResult.KeepOpen()` so the user can read them; one-shot success toasts use the
   default `Dismiss()`. Exception: in-place list mutations (watchlist/favorites add/remove — see
   `Commands/MembershipCommands.cs`) toast **and** `KeepOpen()`, so the user gets explicit confirmation and can keep editing
-- Icons: `new IconInfo("https://github.com/favicon.ico")` per project preference
+- Icons: **instrument** rows / dock buttons / the detail header show the real asset logo via
+  `AssetIconResolver.Resolve(...)` (Elbstream CDN — see "Asset logos (done)"), with a per-category Segoe
+  glyph fallback; page **chrome** icons (list/search headers) still use
+  `new IconInfo("https://github.com/favicon.ico")` per project preference
 
 ## Market Data Architecture (the core of this app)
 
@@ -90,6 +93,7 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Models/DomainCandleSeries.cs` | Domain history: `Symbol`, `Range`, ordered `CandlePoint`s (`Time`+`Close`), `IsValid`; `Invalid(...)` factory + `First/LastClose`. No formatting. |
 | `Models/UiCandleSeries.cs` | Ui projection of a `DomainCandleSeries`: `IsUp`, `FormatPrice`, `FormatRangeChange` (Robinhood-style net change over the selected range), `ChartImageUrl()`. The ONLY place chart formatting/SVG live. |
 | `Helpers/ChartHelper.cs` | Ports Perf Monitor's **SVG-sparkline-as-`data:`-URI** (pure `System.Xml.Linq`, AOT-safe), generalized to plot N points + normalize Y to the series min/max, recolored green/red. Only caller: `UiCandleSeries`. |
+| `Helpers/AssetIconResolver.cs` | Instrument identity → row/dock `IconInfo`. Builds **Elbstream** logo URLs by category (`/logos/symbol/{t}`, `/logos/crypto/{c}`, `?format=png`); Segoe-glyph fallback for Currency/unknown. **Zero API calls** (the host fetches the URL). Also the shared `AttributionRow()` factory (the required Elbstream credit). See "Asset logos (done)". |
 | `Pages/SymbolDetailPage.cs` | Shared per-symbol screen: nested `SymbolChartForm : FormContent` (adaptive-card chart + range tabs) + the list-management command bar. Flicker on range switch is fixed; ⚠️ the Enter-steals-focus bug is an **open known limitation** — see the chart section. |
 
 **To add a provider** (e.g. forex): implement `IMarketDataProvider` (`Supports`, `GetQuotesAsync`,
@@ -192,10 +196,17 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   fires **one silent catch-up re-price if the prices have aged ≥ one interval** (`RefreshStaleQuotes`).
   Bounded to one fetch per revisit, only when stale, gated on `AutoRefreshEnabled` — liveness without
   burning the Finnhub budget. This supersedes the old "poll-timer debounce" deferred item.
-- **Wishlist:** a **portfolio** screen + its own dock band (holdings, total value, daily P&L); a
+- **Done (this round): asset logos as row/dock icons** — every instrument surface (Markets Search results,
+  Watchlist, Favorites, the Favorites dock band, and the `SymbolDetailPage` header) now shows the
+  instrument's **real logo** instead of the generic favicon. Logos come from **Elbstream's keyless CDN**
+  addressed directly by symbol (`Helpers/AssetIconResolver.cs`) — **zero API calls / no cache / no DTO**
+  (the host fetches the URL). Elbstream is free **with attribution**, so a "Logos provided by Elbstream"
+  credit (clickable via the new `Commands/OpenUrlCommand.cs` + `ProcessHelper.OpenUrl`) appears on every
+  logo-bearing page; the dock band is an accepted gray area. Per-category Segoe glyph fallback for
+  Currency/unknown. See "Asset logos (done)".
+- **Wishlist:** a **portfolio** screen + its own dock band (holdings, total value, daily P&L); and a
   **per-symbol detail screen + live chart for any ticker** (drill-in from any list row, clickable from any
-  dock item); and **official asset logos as icons app-wide** (replacing today's generic copy/glyph icons).
-  All designed below.
+  dock item). All designed below.
 
 ### Three-screen UX (done)
 
@@ -455,40 +466,53 @@ For reference, the Perf Monitor source this chart was ported from
   `FormContent` (reusing the chart's generation guard).
 - Not yet wired to a future `PortfolioPage` (doesn't exist yet).
 
-### Asset logos as icons, app-wide (future wishlist)
+### Asset logos as icons, app-wide (done)
 
-Every row and dock button should show the instrument's **official logo** (AAPL's apple, BABA's logo,
-BTC's coin) instead of today's generic github-favicon icon. (Dock buttons already left-click into the
-`SymbolDetailPage`; the remaining gap is purely the icon.)
+Every instrument row, dock button, and the `SymbolDetailPage` header shows the instrument's **real logo**
+(AAPL's apple, BTC's coin) instead of the generic github-favicon. Page **chrome** icons (list/search page
+headers) still use the favicon.
 
-**Where to get logos:**
-- **Stocks / ETFs — Finnhub `/stock/profile2`** (free tier; reuses our existing key). Returns a hosted
-  `logo` URL (plus `weburl`, `name`, …) — docs: <https://finnhub.io/docs/api/company-profile2>. One call
-  per symbol, and **logos are immutable, so cache the URL to disk forever and fetch each symbol at most
-  once** (profile2 counts against the ~60/min, ~300/day budget). Fallback: Clearbit
-  `https://logo.clearbit.com/{weburl-domain}` (caveat: Clearbit is now HubSpot — verify it still serves).
-- **Crypto — CoinGecko** (keyless): `image` URLs from `/coins/markets?vs_currency=usd&symbols=btc`, or
-  **bundle a static set** (e.g. `spothq/cryptocurrency-icons` SVG/PNG by symbol) under `Assets/` for an
-  offline, no-network, AOT-friendly path.
-- **Forex / currency:** deferred (country flags or a currency glyph when FX lands).
-- **Fallback:** a per-`AssetCategory` Segoe glyph or a first-letter monogram when no logo resolves.
+**Shipped approach — Elbstream CDN, addressed by symbol (zero API calls).** Because `new IconInfo(url)`
+makes the **CmdPal host** fetch the image, the logo URL is built *directly from the symbol* — so there is
+**no API call, no caching layer, and no DTO**. `Helpers/AssetIconResolver.cs` is the single place the
+convention lives:
+- `Stock → https://api.elbstream.com/logos/symbol/{ticker}?format=png`
+- `Crypto → https://api.elbstream.com/logos/crypto/{sym}?format=png`
+- `Currency`/unknown → a per-category Segoe MDL2 glyph (no FX logo source wired yet).
 
-**How to load it** (the toolkit already supports all three):
-- Remote URL → `new IconInfo(logoUrl)` (same as today's github favicon).
-- Bundled asset → `IconHelpers.FromRelativePath("Assets\\crypto\\btc.png")`.
-- Inline → a `data:` URI (same trick as the chart SVG).
+Our neutral `DomainInstrument.Symbol` matches Elbstream's identifiers directly (`AAPL`, `BTC`), so no
+provider-specific symbol translation is needed. `format` ∈ svg/png/webp/jpg (default svg, PNG auto-fallback
+when no SVG); `size` defaults to 100px. A **miss returns HTTP 404** (verified — not a placeholder image), so
+an off-catalog/obscure symbol shows the host's empty-icon slot; the glyph fallback only covers whole
+categories, **not** per-symbol misses (a true glyph-on-miss would need a per-symbol HEAD probe +
+swap-on-arrival — deferred to keep the zero-call simplicity).
 
-**Architecture:** the logo source is provider-specific, so it fits the existing seam — add an optional
-`Task<string?> GetLogoUrlAsync(DomainInstrument)` to `IMarketDataProvider` (default `null`), routed by
-`MarketRepository` exactly like quotes (Finnhub serves stocks; a crypto provider serves coins). Wrap it in
-a shared, **disk-persisted** `Helpers/AssetIconResolver.cs` (symbol → `IconInfo`, cached forever). Since
-`GetItems()` is synchronous, resolve logo URLs **as part of the async price load** (set `ListItem.Icon`
-once known), or render a fallback glyph first and `RaiseItemsChanged()` when the logo arrives; after first
-run it's served from cache instantly.
+**Attribution (required).** Elbstream is free **with attribution**: a clearly-visible link back, min 12pt,
+on any page where a logo shows — `<a href="https://elbstream.com">Logos provided by Elbstream</a>`. Placed as:
+- a trailing clickable "Logos provided by Elbstream" row on the priced list pages (`PricedListPage.GetItems`,
+  beside Refresh) and on Search results (`SearchPage.SearchItems`, only when results are present);
+- a subtle `TextBlock` line **inside** the `SymbolDetailPage` adaptive-card template (deliberately NOT a 2nd
+  `IContent` item — that would re-trigger the `OnlyControlOnPage` auto-focus bug);
+- the **dock band is an accepted gray area** (no room for a link; arguably a "band," not a "page"). Strict-
+  compliance escape if ever needed: keep the dock's generic icon so no un-attributed logo surface exists.
 
-**Wire it everywhere:** set `ListItem.Icon` to the resolved logo in every row builder — `SearchPage`,
-`WatchlistPage`, `FavoritesPage`, the future `PortfolioPage` — and on the dock items. (The dock command
-is already the `SymbolDetailPage`; dock bands still require a non-empty `Command.Id`, which the page sets.)
+The credit row is clickable via `Commands/OpenUrlCommand.cs` → `ProcessHelper.OpenUrl(url)` (a shell launch,
+not a captured `Run`). The shared row factory is `AssetIconResolver.AttributionRow()`.
+
+**Wired in:** `SearchPage.BuildResultItem`, `WatchlistPage.BuildRow`, `FavoritesPage.BuildRow`,
+`FavoritesDockPage.GetItems`, and the `SymbolDetailPage` ctor all set `Icon = AssetIconResolver.Resolve(...)`.
+
+**Alternatives considered (why not):** Finnhub `/stock/profile2` (official `logo` URL, reuses our key, no
+attribution) — but stocks-only and spends the tight ~300/day budget (one call per symbol, even with a
+forever cache). Logo.dev (Clearbit's official successor, 500K/mo free) — needs a token → a new settings
+field. Bundled static assets (e.g. `spothq/cryptocurrency-icons`) — offline/AOT-safe but only covers what
+you ship. ⚠️ **Clearbit's free logo API was permanently sunset Dec 2025 — do not use it.** Elbstream won as
+the only keyless, symbol-addressable source covering stocks + crypto + forex from one place; its attribution
+requirement was the accepted trade-off.
+
+**Future polish:** logos on a `PortfolioPage` when it lands (same `Resolve(...)` call); an FX/currency logo
+source (Elbstream `/logos/country/{CC}` flags) once forex is wired; a glyph-on-miss probe if blank slots on
+obscure symbols become annoying.
 
 ## CommandPalette Toolkit — Quick Reference
 
@@ -664,6 +688,10 @@ internal sealed partial class MyCommand : InvokableCommand
 // Run any external process. Reads BOTH stdout and stderr before WaitForExit (prevents
 // pipe deadlocks). stderr is non-empty only on failure (non-zero exit).
 ProcessHelper.Run(string fileName, string arguments, out string stdout, out string stderr);
+
+// Launch a URL / file / protocol with the OS default handler (UseShellExecute=true). Fire-and-forget;
+// no output captured. Used by Commands/OpenUrlCommand.cs (the Elbstream attribution row).
+ProcessHelper.OpenUrl(string url);
 ```
 
 For richer process handling (output parsing into records, etc.) see `reference/helpers/AdbHelper.cs`.

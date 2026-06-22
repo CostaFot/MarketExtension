@@ -70,7 +70,7 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
         // Stable, unique per symbol — also lets this page stand in as a Dock band item's command,
         // where a non-empty Id is required.
         Id = $"com.costafotiadis.market.detail.{instrument.Symbol}";
-        Icon = new IconInfo("https://github.com/favicon.ico");
+        Icon = AssetIconResolver.Resolve(instrument);
         Title = $"{instrument.Symbol} · {instrument.Name}";
         Name = "View details";
         Commands = BuildCommands(); // initial bar; refreshed again on subscribe and on every change
@@ -279,7 +279,8 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
                 { "type": "Action.Submit", "title": "1Y", "data": { "range": "1Y" } },
                 { "type": "Action.Submit", "title": "5Y", "data": { "range": "5Y" } }
               ]
-            }
+            },
+            { "type": "TextBlock", "text": "Logos provided by Elbstream", "isSubtle": true, "wrap": true, "spacing": "Medium" }
           ]
         }
         """;

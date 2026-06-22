@@ -124,6 +124,9 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
 
             foreach (var instrument in _searchResults)
                 items.Add(BuildResultItem(instrument));
+
+            if (_searchResults.Count > 0)
+                items.Add(AssetIconResolver.AttributionRow()); // Elbstream logo credit (results show logos)
         }
 
         return [.. items];
@@ -142,6 +145,7 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             Title = (isFavorite ? "★ " : "") + $"{instrument.Symbol} · {instrument.Name}",
             Subtitle = MembershipSubtitle(inWatchlist, isFavorite),
             Section = "Search results",
+            Icon = AssetIconResolver.Resolve(instrument),
         };
     }
 

@@ -83,6 +83,7 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
             {
                 Title = $"{q.Symbol} {q.FormatChange()}",
                 Subtitle = q.FormatPrice(),
+                Icon = AssetIconResolver.Resolve(q),
             })
             .ToArray();
     }
