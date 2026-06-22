@@ -56,20 +56,26 @@ naming for new code.**
 ```
 ApiFinnhubQuoteDto ─(provider maps)→ DomainQuote ─(repository routes+merges)→ IReadOnlyList<DomainQuote>
                                                           └─(page maps via UiQuote.From)→ UiQuote (rendered)
+
+ApiFinnhubCandleDto ─(provider maps)→ DomainCandleSeries ─(repository routes)→ DomainCandleSeries
+                                                          └─(page maps via UiCandleSeries.From)→ UiCandleSeries (SVG chart)
 ```
+
+The **candle/chart history** flow (added for the symbol-detail chart) mirrors the quote flow through
+the same three layers and the same provider seam — see the "Symbol detail + live chart" section.
 
 **Naming convention:**
 - `Api*` — raw provider DTOs (provider-specific), e.g. `ApiFinnhubQuoteDto`.
-- `Domain*` — provider-agnostic, **no formatting**; what every provider AND the repository return (`DomainQuote`, `DomainInstrument`).
-- `Ui*` — presentation; the ONLY place `FormatPrice()`/`FormatChange()` live (`UiQuote`).
-- `AssetCategory` (enum) stays **unprefixed** — shared vocabulary across all layers.
+- `Domain*` — provider-agnostic, **no formatting**; what every provider AND the repository return (`DomainQuote`, `DomainInstrument`, `DomainCandleSeries`).
+- `Ui*` — presentation; the ONLY place `FormatPrice()`/`FormatChange()`/SVG live (`UiQuote`, `UiCandleSeries`).
+- `AssetCategory`, `ChartRange`, `CandleInterval` (enums) stay **unprefixed** — shared vocabulary across all layers.
 
 **File map:**
 
 | File | Role |
 |---|---|
-| `Data/MarketRepository.cs` | **The coordinator the UI depends on.** Routes each `DomainInstrument` to the first `IMarketDataProvider` whose `Supports(AssetCategory)` matches, fans out concurrently, merges into one order-preserving list. Also `SearchAsync(query)` — fans out the free-text lookup to every provider and merges/dedupes by symbol. No provider for a category → `IsValid:false` placeholder. |
-| `Data/IMarketDataProvider.cs` | ONE data source: `bool Supports(AssetCategory)` + `GetQuotesAsync(instruments, ct)` + `SearchAsync(query, ct)` (free-text symbol lookup → `DomainInstrument`s, **identity only, no prices**; a provider that can't search returns `[]`). |
+| `Data/MarketRepository.cs` | **The coordinator the UI depends on.** Routes each `DomainInstrument` to the first `IMarketDataProvider` whose `Supports(AssetCategory)` matches, fans out concurrently, merges into one order-preserving list. Also `SearchAsync(query)` — fans out the free-text lookup to every provider and merges/dedupes by symbol — and `GetCandlesAsync(instrument, range)` — routes the chart history to the first supporting provider (no fan-out; one instrument). No provider for a category → `IsValid:false` quote / invalid candle series. |
+| `Data/IMarketDataProvider.cs` | ONE data source: `bool Supports(AssetCategory)` + `GetQuotesAsync(instruments, ct)` + `SearchAsync(query, ct)` (free-text symbol lookup → `DomainInstrument`s, **identity only, no prices**; a provider that can't search returns `[]`) + `GetCandlesAsync(instrument, ChartRange, ct)` (price history for the detail chart; **default interface method** returns an invalid series, so non-candle providers opt out for free). |
 | `Data/Finnhub/FinnhubMarketDataProvider.cs` | Active provider (`Supports` Stock+Crypto). Maps `ApiFinnhubQuoteDto` → `DomainQuote`; `SearchAsync` calls `/search` (US equities only — see Finnhub specifics). |
 | `Data/MockMarketDataProvider.cs` | Offline fallback (`Supports` all). `SearchAsync` filters its seed keys. |
 | `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults — the **first-run seed** for `WatchlistStore` (no longer always-shown; removable once seeded). |
@@ -77,12 +83,22 @@ ApiFinnhubQuoteDto ─(provider maps)→ DomainQuote ─(repository routes+merge
 | `Helpers/StateFlow.cs` | A tiny **Kotlin-StateFlow analog** (hand-rolled, no System.Reactive — keeps the AOT/trim build clean): `StateFlow<T>` (read-only `Value` + `Subscribe` with **replay-on-subscribe** + distinct-until-changed) and writable `MutableStateFlow<T>` (`Update`). Has **subscriber-count hooks** `OnActive`/`OnInactive` (0↔1 transitions = the WhileSubscribed / Rx `RefCount()` seam) for the future ticker poll loop. Plus `InstrumentListComparer` (symbol-sequence dedup for the store's two flows). |
 | `Data/Finnhub/ApiFinnhubQuoteDto.cs` | Raw `/quote` DTO + the **single** `FinnhubJsonContext` (all `[JsonSerializable]` live here — see AOT/trim gotcha). |
 | `Data/Finnhub/ApiFinnhubSearchDto.cs` | Raw `/search` DTOs (`ApiFinnhubSearchDto` / `...ResultDto`); registered on `FinnhubJsonContext` in the quote file. |
-| `Models/{AssetCategory,DomainInstrument,DomainQuote,UiQuote}.cs` | the model layers |
+| `Data/Finnhub/ApiFinnhubCandleDto.cs` | Raw `/stock/candle` + `/crypto/candle` DTO (parallel `c/h/l/o/t/v` arrays + `s` status); registered on `FinnhubJsonContext` in the quote file. **Premium** (free key → 403). |
+| `Models/{AssetCategory,DomainInstrument,DomainQuote,UiQuote}.cs` | the quote model layers |
+| `Models/ChartRange.cs` | `ChartRange` (1D/1W/1M/1Y/5Y) **+ `CandleInterval`** enums + neutral helpers (`Label`/`Lookback`/`Interval`/`FromLabel`). Provider-agnostic — **no resolution tokens here** (those live in the provider). |
+| `Models/DomainCandleSeries.cs` | Domain history: `Symbol`, `Range`, ordered `CandlePoint`s (`Time`+`Close`), `IsValid`; `Invalid(...)` factory + `First/LastClose`. No formatting. |
+| `Models/UiCandleSeries.cs` | Ui projection of a `DomainCandleSeries`: `IsUp`, `FormatPrice`, `FormatRangeChange` (Robinhood-style net change over the selected range), `ChartImageUrl()`. The ONLY place chart formatting/SVG live. |
+| `Helpers/ChartHelper.cs` | Ports Perf Monitor's **SVG-sparkline-as-`data:`-URI** (pure `System.Xml.Linq`, AOT-safe), generalized to plot N points + normalize Y to the series min/max, recolored green/red. Only caller: `UiCandleSeries`. |
+| `Pages/SymbolDetailPage.cs` | Shared per-symbol screen: nested `SymbolChartForm : FormContent` (adaptive-card chart + range tabs) + the list-management command bar. ⚠️ See the open focus issue in the chart section. |
 
 **To add a provider** (e.g. forex): implement `IMarketDataProvider` (`Supports`, `GetQuotesAsync`,
-and `SearchAsync` — return `[]` if it can't search), map its `Api*` DTO → `DomainQuote`, and register
-it in `MarketExtensionCommandsProvider`:
-`new MarketRepository(new FinnhubMarketDataProvider(), new YourProvider())`. **Zero UI changes.**
+and `SearchAsync` — return `[]` if it can't search; optionally **override `GetCandlesAsync`** to serve
+chart history, else the default invalid-series opt-out applies), map its `Api*` DTO → `DomainQuote`
+(and → `DomainCandleSeries` for candles), and register it in `MarketExtensionCommandsProvider`:
+`new MarketRepository(new FinnhubMarketDataProvider(), new YourProvider())`. **Zero UI changes.** For
+candles, the provider also translates the neutral `ChartRange.Interval`/`Lookback` into its own API
+tokens — Finnhub's `ToFinnhubResolution` (`5/30/60/D/W`) is the model; a Twelve Data provider would
+map the same `CandleInterval` to `5min/30min/1h/1day/1week`.
 
 **Finnhub specifics:**
 - Base `https://finnhub.io/api/v1`, endpoint `/quote`. Free tier ~60 calls/min, ~300/day.
@@ -90,6 +106,13 @@ it in `MarketExtensionCommandsProvider`:
   re-add via a paid plan or a keyless FX provider (e.g. Frankfurter) behind the same seam.
 - Symbol formats: stock = bare (`AAPL`), crypto = `BINANCE:{SYM}USDT`, FX = `OANDA:{BASE}_{QUOTE}`.
 - An all-zero `/quote` response = invalid/unknown symbol → map to `IsValid:false`.
+- **Candles (OHLCV) — PREMIUM** (free key → 403): `GET /stock/candle?symbol=&resolution=&from=&to=`
+  (crypto: `/crypto/candle`, same shape). `resolution` ∈ `1,5,15,30,60,D,W,M`; `from`/`to` are **UNIX
+  seconds**. Response = parallel arrays `c/h/l/o/t/v` + `s` (`ok`|`no_data`). Daily is split-adjusted;
+  intraday is unadjusted and **only ~1 month per call**. `FinnhubMarketDataProvider.GetCandlesAsync`
+  maps each `ChartRange`: 1D→`5`/1d, 1W→`30`/7d, 1M→`60`/31d, 1Y→`D`/365d, 5Y→`W`/5y (keeping
+  1D/1W/1M inside the intraday cap). 403/429/`no_data` → invalid series → the chart shows an
+  "unavailable" message rather than blanking.
 - **Symbol search** `/search?q=&exchange=US` (free tier): returns identity only (`symbol`/`description`/
   `type`), **no prices**. `symbol` is the canonical id for `/quote`; `displaySymbol` is for UI. Scoped to
   **US equities** and mapped to `AssetCategory.Stock` — Finnhub's canonical `symbol` only round-trips
@@ -135,6 +158,13 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   themselves, the membership commands no longer thread a manual refresh callback, and **dock refresh on
   favorites change is now live** (push, not poll). Priced pages **reconcile locally** on membership
   change (drop removed rows free, fetch only new symbols). See `Helpers/StateFlow.cs`.
+- **Done (this round):** the **symbol-detail price chart with 1D / 1W / 1M / 1Y / 5Y range tabs** — real
+  Finnhub candle history behind a provider-agnostic seam (`GetCandlesAsync`, `ChartRange` + `CandleInterval`,
+  `DomainCandleSeries` / `UiCandleSeries`, ported `Helpers/ChartHelper.cs`, `ApiFinnhubCandleDto`). The
+  endpoint is **premium-gated**, so real charts need a paid key (free key → "requires paid plan"; the mock
+  provider draws synthetic candles for offline preview). ⚠️ **Two known UI issues remain** — Enter steals
+  focus to the "1D" tab, and the chart flickers on range switch — both diagnosed with fixes sketched in the
+  "Symbol detail + live chart" section. The user reverted the attempted Enter fix to rethink it.
   ⚠️ Working tree is **uncommitted** (on `repo`).
 - **Next up:** **live price polling** — auto-refresh prices on a timer while a surface is visible,
   **default 60 s, configurable in settings**. The `StateFlow` subscriber-count hooks (`OnActive`/
@@ -156,7 +186,8 @@ All three command titles share the **`Markets ` prefix** so they group together 
 namespace) when searching the Command Palette root:
 
 **Enter on any row opens the shared `Pages/SymbolDetailPage.cs`** — the per-symbol detail screen
-(`ContentPage`; chart still a placeholder), which is **the single place for list management**. Its
+(`ContentPage`; **now renders a live price chart with range tabs** — see the chart section), which is
+**the single place for list management**. Its
 command bar carries the add/remove-watchlist (**Enter**) and add/remove-favorite (**Ctrl+Enter**)
 actions, labelled for the instrument's current state, and the page **subscribes to the two
 `WatchlistStore` flows** so toggling there (the commands `KeepOpen`) flips the buttons + body in place.
@@ -273,15 +304,48 @@ and inherits the same live-refresh story as the favorites band (the polling + pu
 **Caveats:** assumes a single quote currency (USD); mixed-currency holdings need FX conversion (deferred —
 ties to the FX-provider item). Exclude `IsValid:false` quotes from totals (or show them as unpriced).
 
-### Symbol detail + live chart — for ANY instrument (future wishlist)
+### Symbol detail + live chart — for ANY instrument (CHART DONE; 2 open UI issues)
 
-**App-wide, not portfolio-specific.** Every instrument — from search results, the watchlist, favorites,
-**and** portfolio rows, plus **every dock band** — should open a per-symbol **detail screen with a small
-live line chart** of its price (the way Performance Monitor's bands open a CPU/RAM graph). **One** shared
-`SymbolDetailPage` backs both the **drill-in (Enter, or a context item, on any row)** and the
-**dock-item click**. Investigated against its on-disk source
-(`C:\Users\jarla\code\PowerToys\src\modules\cmdpal\ext\Microsoft.CmdPal.Ext.PerformanceMonitor\`) — the
-mechanism is simpler than it looks:
+**App-wide, not portfolio-specific.** The shared `Pages/SymbolDetailPage.cs` opens from any row (Enter)
+and every dock-button click, and **now renders a real price chart with Robinhood-style range tabs
+(1D / 1W / 1M / 1Y / 5Y)**.
+
+**What was built (and how it differs from the original plan):** the original sketch sampled the live
+price into a rolling buffer (Perf Monitor's model). That can't produce *retrospective* 1W/1Y/5Y history,
+so we instead fetch **real candle history** from Finnhub's premium `/stock/candle` (+ `/crypto/candle`)
+through a new provider seam — see the Finnhub candle spec + the candle layer files above. Concretely:
+- `ChartRange` + `CandleInterval` (neutral), `DomainCandleSeries`/`CandlePoint`, `UiCandleSeries`,
+  `Helpers/ChartHelper.cs` (ported SVG sparkline), `ApiFinnhubCandleDto`, and
+  `IMarketDataProvider.GetCandlesAsync` → `MarketRepository.GetCandlesAsync` →
+  `FinnhubMarketDataProvider.GetCandlesAsync` (+ `MockMarketDataProvider` synthetic series).
+- The page body is a nested `SymbolChartForm : FormContent`: an adaptive card binding the SVG chart as
+  an `Image`, with the 5 range tabs as `Action.Submit` buttons → `SubmitForm` switches range, fetches
+  (per-range in-memory cache + a generation guard against fast taps), and updates `DataJson` to repaint.
+  The first fetch fires from the page's "became visible" hook (the `INotifyItemsChanged.add`), so list
+  rows building a `SymbolDetailPage` per item never trigger a fetch. Header price/%change reflect the
+  **selected range** (last vs. first close), Robinhood-style — derived from the series, no extra `/quote`.
+- **Gating:** candles are premium → on the current free key every chart 403s → the card shows
+  "requires a paid Finnhub plan". No code change is needed when a paid key lands (candles read the same
+  `Secrets.FinnhubApiKey`). To preview rendering now, temporarily point the repo at
+  `new MarketRepository(new MockMarketDataProvider())` (don't ship — mock also feeds search).
+
+**⚠️ Two open UI issues (why we paused — `SymbolDetailPage` is currently the single-content version):**
+1. **Enter activates "1D" instead of add-to-watchlist.** With a single `FormContent`, CmdPal sets
+   `OnlyControlOnPage = true` and **programmatically focuses the card's first focusable element** on
+   load — the 1D `Action.Submit` — so Enter hits it. (See `ContentPageViewModel` setting
+   `OnlyControlOnPage = (content.Count == 1)`, and `ContentFormControl.OnFrameworkElementLoaded` →
+   `FindFirstFocusableElement().Focus()`.) **Attempted fix (reverted as "a bit glitchy"):** return a
+   *second* content item (a membership/hint `MarkdownContent`) so `OnlyControlOnPage` is false → the
+   host skips the auto-focus → focus stays in the search box → Enter = page primary command.
+2. **Flicker when switching ranges.** Every `DataJson` write rebuilds the whole card
+   (`ContentFormViewModel.RenderCard` → `AdaptiveCard.FromJsonString`; `ContentFormControl.DisplayCard`
+   clears + re-adds children). `Load()` writes `DataJson` **twice** per tap (a "Loading…" state, then
+   the result), so you get a double teardown/rebuild — a visible flash, worst with the near-instant mock
+   provider. **Fix idea:** drop the intermediate loading write on tab switches (only show "Loading" on
+   the very first load when no chart exists yet) and keep the prior chart visible during the swap.
+
+For reference, the Perf Monitor source this chart was ported from
+(`C:\Users\jarla\code\PowerToys\src\modules\cmdpal\ext\Microsoft.CmdPal.Ext.PerformanceMonitor\`):
 
 **How Performance Monitor does it (the pattern to copy):**
 - A band button's `Command` is itself an **`IContentPage`** (`WidgetPage : OnLoadContentPage`), so
@@ -313,17 +377,18 @@ mechanism is simpler than it looks:
   `${…graphUrl}` image; copy the shape.
 - MediaControls `…/Pages/DockHeadItem.cs` — the event-driven content-band variant.
 
-**For market data specifically:**
-- Data source = **sample the price into a rolling per-symbol buffer each poll tick** (exactly Perf
-  Monitor's model — it samples a live metric, it does not fetch history). So this **depends on the live
-  polling work above**; a paid `/stock/candle` (premium-gated on the free tier) could backfill real history
-  later. Keep the buffer where the cache/sampler lives (repository-side).
-- Add **one** `Pages/SymbolDetailPage.cs` (`IContentPage`) that renders the SVG sparkline (plus
-  open/high/low/prev-close, already in `/quote`) for any `DomainInstrument`, recolored green/red by day
-  direction. Wire **every** surface to it: **Enter or a context item on rows** in Search, Watchlist,
-  Favorites, and Portfolio, **and the click target of every dock button** (favorites dock + portfolio
-  dock). It is the single symbol-detail screen, shared everywhere — explicitly not a portfolio feature.
-- Port `ChartHelper` mostly as-is (already pure-string SVG); feed it our `UiQuote`/price series.
+**Refinements still open (beyond the 2 UI issues above):**
+- **Active-tab highlight:** the tabs don't visually mark the selected range (adaptive cards can't easily
+  restyle a button by bound data); the header caption names it instead.
+- **Keyboard range switching:** you must Tab into the card to reach the tabs — no arrow-key switch from
+  the search box. (This is the flip side of fixing issue #1 by keeping focus in the search box.)
+- **Hover/scrub readout is NOT possible** on this surface: CmdPal extensions are out-of-process and the
+  chart is a static image — no pointer/hover events cross the boundary (Perf Monitor's graph has the same
+  ceiling; the content types are all declarative: Markdown / PlainText / Image / Form / Tree). Closest
+  approximation = bake High/Low/Open/Close text + on-chart min/max labels (the `o/h/l/v` arrays are
+  already parsed in `ApiFinnhubCandleDto`, just not yet promoted past `Close` into `CandlePoint`).
+- **Live 1D auto-refresh** ties into the pending price-polling work; v1 fetches once per tab tap.
+- Not yet wired to a future `PortfolioPage` (doesn't exist yet).
 
 ### Asset logos as icons, app-wide (future wishlist)
 
@@ -427,6 +492,12 @@ internal sealed partial class MyPage : ListPage, INotifyItemsChanged
 ```
 
 Do **not** call `IsLoading = true` + `Task.Run(Load)` from the constructor — the event fires before the framework subscribes and the signal is lost.
+
+> **`ContentPage` focus gotcha:** if `GetContent()` returns a **single** `FormContent`, the host marks it
+> `OnlyControlOnPage = true` and **auto-focuses the card's first focusable element** (e.g. the first
+> `Action.Submit`) on load — so Enter activates that card button instead of the page's primary (Enter)
+> command. Return **≥2 content items** to suppress the auto-focus. (Hit by the symbol-detail chart — full
+> trace in the "Symbol detail + live chart" section.)
 
 ### DynamicListPage Pattern
 
