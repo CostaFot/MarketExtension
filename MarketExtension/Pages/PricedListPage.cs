@@ -51,6 +51,12 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
             // Secondary flows: a change just re-renders (e.g. the Watchlist's ★ when favorites change).
             foreach (var trigger in RelistTriggers)
                 _subscriptions.Add(trigger.Subscribe(_ => RaiseItemsChanged(0)));
+            // Live polling: while visible, each tick silently re-prices the set in place. replay:false so
+            // opening the page doesn't double-fetch (the membership replay above already did the first
+            // load); the ticker runs its timer only while a surface is subscribed.
+            _subscriptions.Add(PollTicker.Instance.Subscribe(_ => PollRefresh(), replayOnSubscribe: false));
+            Log.Info("Poll", $"{Title}: started polling [{string.Join(", ", _snapshot.Select(i => i.Symbol))}] " +
+                             $"(every {MarketSettingsManager.Instance.RefreshMinutes} min, 0=off)");
         }
         remove
         {
@@ -58,6 +64,7 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
             foreach (var subscription in _subscriptions)
                 subscription.Dispose();
             _subscriptions.Clear();
+            Log.Info("Poll", $"{Title}: stopped polling [{string.Join(", ", _snapshot.Select(i => i.Symbol))}]");
         }
     }
 
@@ -139,12 +146,30 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         Fetch(missing);
     }
 
-    // Full re-price of the current set — the Refresh row and (later) the poll timer. Clears the cache so
-    // every symbol is re-fetched.
+    // Full re-price of the current set — the manual Refresh row. Clears the cache so every symbol is
+    // re-fetched, showing a spinner while it loads.
     internal void RefreshQuotes()
     {
         lock (_cacheLock) _priceCache.Clear();
         Fetch(_snapshot);
+    }
+
+    // Live-poll re-price: re-fetch the CURRENT set without clearing the cache or showing a spinner, so the
+    // prices on screen stay put and are swapped in place once the new quotes land (no flicker). Reuses the
+    // generation guard so a membership change still wins; `silent` also keeps a transient bad poll from
+    // blanking a good price (see LoadQuotes).
+    internal void PollRefresh()
+    {
+        var snapshot = _snapshot;
+        if (!_received || snapshot.Count == 0)
+            return;
+
+        int generation;
+        lock (_cacheLock)
+            generation = ++_fetchGeneration;
+
+        Log.Info("Poll", $"{Title}: re-pricing [{string.Join(", ", snapshot.Select(i => i.Symbol))}]");
+        Task.Run(() => LoadQuotes(snapshot, generation, silent: true));
     }
 
     // Fetch quotes for the given instruments and merge them into the cache. Tags the fetch with a
@@ -168,7 +193,9 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         Task.Run(() => LoadQuotes(instruments, generation));
     }
 
-    private async Task LoadQuotes(IReadOnlyList<DomainInstrument> instruments, int generation)
+    // `silent` = a background poll (no spinner): in that mode, don't let a transient bad result (e.g. a
+    // Finnhub 429 mapped to an invalid quote) overwrite a price that was fine a moment ago.
+    private async Task LoadQuotes(IReadOnlyList<DomainInstrument> instruments, int generation, bool silent = false)
     {
         var quotes = await Repository.GetQuotesAsync(instruments);
 
@@ -182,8 +209,13 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
             foreach (var quote in quotes)
             {
                 var key = WatchlistStore.Normalize(quote.Symbol);
-                if (keep.Contains(key))
-                    _priceCache[key] = UiQuote.From(quote);
+                if (!keep.Contains(key))
+                    continue;
+
+                var ui = UiQuote.From(quote);
+                if (silent && !ui.IsValid && _priceCache.TryGetValue(key, out var prev) && prev.IsValid)
+                    continue; // keep the last good price through a transient bad poll
+                _priceCache[key] = ui;
             }
         }
 

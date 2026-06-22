@@ -80,7 +80,8 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Data/MockMarketDataProvider.cs` | Offline fallback (`Supports` all). `SearchAsync` filters its seed keys. |
 | `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults — the **first-run seed** for `WatchlistStore` (no longer always-shown; removable once seeded). |
 | `Settings/WatchlistStore.cs` | JSON-persisted tracked instruments, each carrying **two independent flags** `InWatchlist`/`IsFavorite` (favorites = the dock subset). Stores **full `DomainInstrument` identity** so searched non-catalog symbols re-price; an entry with both flags false is dropped. Source-gen `WatchlistItem`/`WatchlistJsonContext` → `market_watchlist.json`; seeds `InstrumentCatalog` on first run, else migrates the legacy `market_favorites.json` (old pins → watchlisted **and** favorited). Exposes its `Watchlist`/`Favorites` subsets as **observable `StateFlow`s** (each mutation calls `PublishState()` → re-publishes both); pages and the dock **subscribe** and re-render themselves. Replaces the old `FavoritesStore` + `Watchlist.cs`. |
-| `Helpers/StateFlow.cs` | A tiny **Kotlin-StateFlow analog** (hand-rolled, no System.Reactive — keeps the AOT/trim build clean): `StateFlow<T>` (read-only `Value` + `Subscribe` with **replay-on-subscribe** + distinct-until-changed) and writable `MutableStateFlow<T>` (`Update`). Has **subscriber-count hooks** `OnActive`/`OnInactive` (0↔1 transitions = the WhileSubscribed / Rx `RefCount()` seam) for the future ticker poll loop. Plus `InstrumentListComparer` (symbol-sequence dedup for the store's two flows). |
+| `Helpers/StateFlow.cs` | A tiny **Kotlin-StateFlow analog** (hand-rolled, no System.Reactive — keeps the AOT/trim build clean): `StateFlow<T>` (read-only `Value` + `Subscribe` with **replay-on-subscribe** + distinct-until-changed; a `Subscribe(onNext, replayOnSubscribe:false)` overload opts out of the replay — used by the poll ticker) and writable `MutableStateFlow<T>` (`Update`). Has **subscriber-count hooks** `OnActive`/`OnInactive` (0↔1 transitions = the WhileSubscribed / Rx `RefCount()` seam) driving the ticker poll loop. Plus `InstrumentListComparer` (symbol-sequence dedup for the store's two flows). |
+| `Helpers/PollTicker.cs` | The **live-price poll ticker** — the concrete `PolledStateFlow` the `OnActive`/`OnInactive` seam was built for. A process-wide singleton `StateFlow<long>` that emits an incrementing tick on a `Task.Delay` loop **while any priced surface is subscribed** (timer starts in `OnActive`, cancels via CTS in `OnInactive`). Re-reads `MarketSettingsManager` each iteration (interval change applies without reload; `0` = off idles on a 30 s re-check). Priced surfaces subscribe with `replayOnSubscribe:false` and silently re-price on each tick. |
 | `Data/Finnhub/ApiFinnhubQuoteDto.cs` | Raw `/quote` DTO + the **single** `FinnhubJsonContext` (all `[JsonSerializable]` live here — see AOT/trim gotcha). |
 | `Data/Finnhub/ApiFinnhubSearchDto.cs` | Raw `/search` DTOs (`ApiFinnhubSearchDto` / `...ResultDto`); registered on `FinnhubJsonContext` in the quote file. |
 | `Data/Finnhub/ApiFinnhubCandleDto.cs` | Raw `/stock/candle` + `/crypto/candle` DTO (parallel `c/h/l/o/t/v` arrays + `s` status); registered on `FinnhubJsonContext` in the quote file. **Premium** (free key → 403). |
@@ -170,12 +171,19 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   provider draws synthetic candles for offline preview). The **range-switch flicker is fixed**; the
   **Enter-steals-focus bug is UNSOLVED** and left as a documented known limitation (two fixes tried and
   abandoned — see the "Symbol detail + live chart" section). ⚠️ Working tree is **uncommitted** (on `repo`).
-- **Next up:** **live price polling** — auto-refresh prices on a timer while a surface is visible. The
-  **refresh-interval setting is already built** (`MarketSettingsManager`, in minutes, default 5, 0 = off);
-  what remains is the poll loop itself. The `StateFlow` subscriber-count hooks (`OnActive`/`OnInactive`)
-  are already in place as the WhileSubscribed/`RefCount()` seam for a `PolledStateFlow<T>` (designed below).
-- **Deferred:** FX provider (keyless Frankfurter); rate-limit (429) + richer error UX; crypto/FX in
-  symbol search.
+- **Done (this round):** **live price polling** — prices now auto-refresh on a timer while a priced
+  surface is visible (Markets Watchlist / Favorites + the Favorites dock band). Realized via
+  `Helpers/PollTicker.cs` (a singleton `StateFlow<long>` ticker using the `OnActive`/`OnInactive`
+  subscriber-count seam), the new `Subscribe(replayOnSubscribe:false)` overload, and per-surface
+  **silent** `PollRefresh()` methods that re-price in place with **no spinner/flicker** (cache not
+  cleared, prices swap when the fetch lands). Honors the existing interval setting (default 5 min,
+  `0` = off, applied without reload). A **keep-last-good guard** in `PricedListPage.LoadQuotes(silent)`
+  stops a transient bad poll (e.g. a 429 mapped to an invalid quote) from blanking a price that was
+  fine. The chart's live 1D refresh stays deferred (see below). See "Live price polling (done)".
+- **Deferred:** FX provider (keyless Frankfurter); rate-limit (429) **back-off** + richer error UX
+  (the keep-last-good guard is a first step, not the full story); crypto/FX in symbol search; the
+  **symbol-detail chart's live 1D auto-refresh** (still one fetch per tab tap); a poll-timer **debounce**
+  so navigating directly between two priced pages doesn't reset the interval (a pinned dock masks it).
 - **Wishlist:** a **portfolio** screen + its own dock band (holdings, total value, daily P&L); a
   **per-symbol detail screen + live chart for any ticker** (drill-in from any list row, clickable from any
   dock item); and **official asset logos as icons app-wide** (replacing today's generic copy/glyph icons).
@@ -221,43 +229,55 @@ just **mutates the store** (no manual UI callback: the flows re-render every liv
 **shows a confirmation toast** (e.g. "Added AAPL to watchlist") while **keeping the palette open** so
 the user gets explicit feedback and can keep editing.
 
-### Live price polling (next — designed, not built)
+### Live price polling (done)
 
-Today every priced surface fetches **once** when it becomes visible (the StateFlow replay-on-subscribe
-that drives the first price load). The next iteration auto-refreshes on a timer while a surface is
-visible: **default 5 min, configurable in settings** (0 = off). The setting itself is already built (see
-the Settings bullet below); only the poll loop remains.
+Priced surfaces used to fetch **once** when they became visible (the StateFlow replay-on-subscribe that
+drives the first load). They now also auto-refresh on a timer while visible: **default 5 min, settings-
+configurable** (0 = off). Built as designed, on the StateFlow subscriber-count seam.
 
-- **Where:** `Pages/PricedListPage.cs` (covers Markets Watchlist + Markets Favorites) and
-  `Pages/FavoritesDockPage.cs`. `SearchPage` is exempt — its results are identity-only, no prices.
-- **Lifecycle = the StateFlow subscriber-count seam (already built).** `Helpers/StateFlow.cs` already
-  fires `OnActive()` on the 0→1 subscriber transition and `OnInactive()` on 1→0 — Kotlin's
-  WhileSubscribed / Rx `RefCount()`. Subclass it as `PolledStateFlow<T> : StateFlow<T>` that **starts a
-  poll loop in `OnActive` and cancels it in `OnInactive`**, so polling runs only while something is
-  watching. (Surfaces already Subscribe/Dispose on the `INotifyItemsChanged` add/remove lifecycle, so
-  the refcount tracks visibility for free.)
-- **Mechanism:** a `PeriodicTimer` in an async loop guarded by a `CancellationTokenSource` created in
-  `OnActive` and cancelled/disposed in `OnInactive`. Re-read the interval from settings each tick (so
-  changes apply without a reload); the loop is naturally non-overlapping (linear `await` per tick). An
-  immediate first fetch covers the initial paint; the timer drives the rest.
-- **Shared-source refcount comes free.** Point both `FavoritesPage` and `FavoritesDockPage` at **one**
-  favorites `PolledStateFlow`: the refcount keeps it polling while *either* is visible and stops only
-  when *both* are gone — no manual coordination. (Refinements to add then: a small stop-timeout so
-  bouncing between pages doesn't thrash the loop, and a generation token guarding rapid resubscribe.)
-- **Settings (BUILT).** `Settings/MarketSettingsManager.cs` is a `JsonSettingsManager` singleton
-  (`FilePath` = `…/market.settings.json`), wired in `MarketExtensionCommandsProvider` via
-  `Settings = MarketSettingsManager.Instance.Settings;`. The refresh interval is a numeric `TextSetting`
-  **in minutes, default 5** (0 = off), surfaced as `RefreshMinutes` / `RefreshInterval` (TimeSpan) /
-  `AutoRefreshEnabled`. The poll loop should read `MarketSettingsManager.Instance.RefreshInterval` each
-  tick. (The same manager also holds the Finnhub API key — see the "API Key" section.)
-- ⚠️ **Rate-limit tension (design around this):** Finnhub free tier is **~60 calls/min AND ~300/day**,
-  and `GetQuotesAsync` issues **one `/quote` call per instrument**. Polling N instruments at interval T:
-  at a low T this burns the budget fast — e.g. 6 favorites every 60 s = 360 calls/hour, which
-  **exhausts the ~300/day budget in under an hour**. The **5-min default is much gentler** (6 favorites =
-  ~72 calls/hour), but a user can still set a low interval. Mitigations: the configurable interval + an
-  **Off** (0) escape, polling **only while visible** (the lifecycle guarantees this), and real
-  **429 handling** (back off; surface a "rate-limited" state rather than blanking prices). A
-  batched-quote provider or cheaper data source would relax this later.
+- **Where (in scope):** `Pages/PricedListPage.cs` (Markets Watchlist + Markets Favorites) and
+  `Pages/FavoritesDockPage.cs`. `SearchPage` is exempt (identity-only results, no prices). The
+  **symbol-detail chart is NOT polled** — it still fetches once per tab tap (deferred).
+- **The ticker = `Helpers/PollTicker.cs`.** A process-wide singleton `PollTicker : StateFlow<long>` that
+  emits an incrementing tick on a `Task.Delay` loop. The loop **starts in `OnActive`** (the 0→1
+  subscriber transition) and is **cancelled via a `CancellationTokenSource` in `OnInactive`** (1→0), so
+  polling runs only while something is watching. (We used `StateFlow<long>` + a tick counter rather than
+  a generic `PolledStateFlow<T>` carrying data, because re-emitting the membership list would be
+  swallowed by the flows' distinct-until-changed; an incrementing `long` always gets through.) The loop
+  re-reads `MarketSettingsManager` each iteration (interval/on-off applies without a reload); when off it
+  idles on a 30 s re-check so toggling it back on resumes. The CTS is swapped under a lock so a rapid
+  inactive→active bounce can't leave two loops running.
+- **No double-fetch on open.** Surfaces subscribe with `Subscribe(_ => PollRefresh(), replayOnSubscribe:
+  false)` — the new overload skips the replay, so opening a page doesn't fire an extra fetch (the
+  membership flow's replay already paints the initial prices); the ticker only drives *subsequent*
+  refreshes.
+- **Silent, flicker-free refresh.** Each surface's `PollRefresh()` re-prices **without** clearing its
+  cache or setting `IsLoading`, so the on-screen prices stay put and are swapped in place once the new
+  quotes land (contrast the manual "Refresh 🔄" row, which still clears + spins). `PricedListPage`
+  reuses its existing `LoadQuotes` + `_fetchGeneration` guard (so a membership change still wins);
+  `FavoritesDockPage` just re-runs `LoadQuotes` (which assigns `_quotes` without a pre-clear).
+- **Keep-last-good guard.** `PricedListPage.LoadQuotes(…, silent: true)` won't overwrite a **valid**
+  cached `UiQuote` with an **invalid** poll result, so a transient bad poll (e.g. a 429 mapped to an
+  invalid quote) degrades gracefully instead of blanking a price that was fine. This is a first step, not
+  the full 429 story (back-off + an explicit "rate-limited" state remain deferred).
+- **Shared-source refcount comes free.** `FavoritesPage` (via `PricedListPage`) and `FavoritesDockPage`
+  both subscribe to the **one** `PollTicker.Instance`: its refcount keeps the timer alive while *any*
+  priced surface is visible and stops it only when *all* are gone — a pinned dock keeps it warm. (Still
+  open: a small stop-timeout so navigating directly between two priced pages doesn't reset the timer.)
+- **Settings.** `Settings/MarketSettingsManager.cs` (`JsonSettingsManager` singleton,
+  `…/market.settings.json`, wired via `Settings = MarketSettingsManager.Instance.Settings;`). The refresh
+  interval is a numeric `TextSetting` **in minutes, default 5** (0 = off), surfaced as `RefreshMinutes` /
+  `RefreshInterval` (TimeSpan) / `AutoRefreshEnabled`; the ticker reads these each tick. (Same manager
+  also holds the Finnhub API key — see the "API Key" section.)
+- ⚠️ **Rate-limit tension (still real):** Finnhub free tier is **~60 calls/min AND ~300/day**, and
+  `GetQuotesAsync` issues **one `/quote` call per instrument**. Polling N instruments at interval T burns
+  the budget fast at a low T — e.g. 6 favorites every 60 s = 360 calls/hour, **exhausting ~300/day in
+  under an hour**. The **5-min default is gentler** (6 favorites = ~72 calls/hour). In place today: the
+  configurable interval + **Off** (0) escape, polling **only while visible**, and the keep-last-good
+  guard. Still deferred: real **429 back-off** + a "rate-limited" UI state; a batched-quote provider
+  would relax this further. ⚠️ Note: each visible surface polls independently, so a pinned favorites
+  dock **and** an open favorites page both fetch favorites each tick (no shared-fetch dedup — that needs
+  the larger "flow owns the quotes" refactor).
 
 ### Dock refresh on favorites change (done)
 
@@ -411,7 +431,10 @@ For reference, the Perf Monitor source this chart was ported from
   ceiling; the content types are all declarative: Markdown / PlainText / Image / Form / Tree). Closest
   approximation = bake High/Low/Open/Close text + on-chart min/max labels (the `o/h/l/v` arrays are
   already parsed in `ApiFinnhubCandleDto`, just not yet promoted past `Close` into `CandlePoint`).
-- **Live 1D auto-refresh** ties into the pending price-polling work; v1 fetches once per tab tap.
+- **Live 1D auto-refresh** is deferred: live price polling now exists (`Helpers/PollTicker.cs`, see "Live
+  price polling (done)") but the chart was kept **out of scope** — it still fetches once per tab tap.
+  Wiring it in would mean re-fetching the selected range's candles on each tick and repainting the
+  `FormContent` (reusing the chart's generation guard).
 - Not yet wired to a future `PortfolioPage` (doesn't exist yet).
 
 ### Asset logos as icons, app-wide (future wishlist)

@@ -39,7 +39,13 @@ internal partial class StateFlow<T>
     // Subscribe and immediately receive the current value (StateFlow replay). Dispose to unsubscribe;
     // disposal is idempotent. Handlers run on whatever thread mutates the value — the toolkit marshals
     // the RaiseItemsChanged that handlers ultimately call.
-    public IDisposable Subscribe(Action<T> onNext)
+    public IDisposable Subscribe(Action<T> onNext) => Subscribe(onNext, replayOnSubscribe: true);
+
+    // As above, but pass replayOnSubscribe:false to suppress the initial replay and only receive
+    // *future* values. The poll ticker uses this: a page's first price load is already driven by its
+    // membership flow's replay, so a replayed tick would just double-fetch on every open. OnActive still
+    // fires on the 0 -> 1 transition regardless (so the producer starts), only the replay is skipped.
+    public IDisposable Subscribe(Action<T> onNext, bool replayOnSubscribe)
     {
         ArgumentNullException.ThrowIfNull(onNext);
 
@@ -52,8 +58,8 @@ internal partial class StateFlow<T>
             current = _value;
         }
 
-        if (becameActive) OnActive(); // wake any producer before the first replay
-        onNext(current);              // replay the current value
+        if (becameActive) OnActive();          // wake any producer before the first replay
+        if (replayOnSubscribe) onNext(current); // replay the current value
         return new Subscription(this, onNext);
     }
 

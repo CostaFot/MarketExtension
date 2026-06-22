@@ -25,6 +25,7 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
 
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
     private IDisposable? _subscription;
+    private IDisposable? _pollSubscription;
 
     event TypedEventHandler<object, IItemsChangedEventArgs> INotifyItemsChanged.ItemsChanged
     {
@@ -35,12 +36,19 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
             // it opens, and any later star/unstar from a palette page refreshes it at once (no waiting
             // for a reopen). Disposed in `remove` so a hidden band does no work and doesn't leak.
             _subscription = WatchlistStore.Instance.Favorites.Subscribe(_ => RefreshQuotes());
+            // Live polling: each tick silently re-prices favorites in place (no spinner). replay:false so
+            // becoming visible doesn't double-fetch — the favorites subscription above already paints.
+            _pollSubscription = PollTicker.Instance.Subscribe(_ => PollRefresh(), replayOnSubscribe: false);
+            Log.Info("Poll", $"Dock: started polling [{string.Join(", ", WatchlistStore.Instance.Favorites.Value.Select(i => i.Symbol))}]");
         }
         remove
         {
             _itemsChanged -= value;
             _subscription?.Dispose();
             _subscription = null;
+            _pollSubscription?.Dispose();
+            _pollSubscription = null;
+            Log.Info("Poll", "Dock: stopped polling");
         }
     }
 
@@ -86,6 +94,17 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
         _quotes = null;
         IsLoading = true;
         RaiseItemsChanged(0);
+        Task.Run(LoadQuotes);
+    }
+
+    // Live-poll refresh: re-price favorites WITHOUT clearing _quotes or showing a spinner, so the current
+    // prices stay on the band until LoadQuotes swaps the new ones in (no flicker). Skips work before the
+    // first paint — the favorites subscription already has a load in flight then.
+    internal void PollRefresh()
+    {
+        if (_quotes is null)
+            return;
+        Log.Info("Poll", $"Dock: re-pricing favorites [{string.Join(", ", WatchlistStore.Instance.Favorites.Value.Select(i => i.Symbol))}]");
         Task.Run(LoadQuotes);
     }
 
