@@ -132,12 +132,12 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
     // A price-less search result. Enter opens its detail page (the single place to add it to the
     // watchlist or favorites). The subtitle reflects current membership so the user can see at a
     // glance what the row is already on.
-    private static ListItem BuildResultItem(DomainInstrument instrument)
+    private ListItem BuildResultItem(DomainInstrument instrument)
     {
         var inWatchlist = WatchlistStore.Instance.IsInWatchlist(instrument.Symbol);
         var isFavorite = WatchlistStore.Instance.IsFavorite(instrument.Symbol);
 
-        return new ListItem(new SymbolDetailPage(instrument))
+        return new ListItem(new SymbolDetailPage(instrument, _repository))
         {
             Title = (isFavorite ? "★ " : "") + $"{instrument.Symbol} · {instrument.Name}",
             Subtitle = MembershipSubtitle(inWatchlist, isFavorite),

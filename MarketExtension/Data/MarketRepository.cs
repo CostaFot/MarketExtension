@@ -70,4 +70,23 @@ internal sealed class MarketRepository(params IMarketDataProvider[] providers)
         Log.Info("Repository", $"search '{query}' -> {merged.Count} merged result(s)");
         return merged;
     }
+
+    // Historical candles for one instrument over a ChartRange — routed to the first provider that
+    // supports its asset class (mirrors GetQuotesAsync). No provider → an invalid series so the chart
+    // renders an "unavailable" state rather than throwing.
+    public async Task<DomainCandleSeries> GetCandlesAsync(
+        DomainInstrument instrument, ChartRange range, CancellationToken ct = default)
+    {
+        var provider = providers.FirstOrDefault(p => p.Supports(instrument.Category));
+        if (provider is null)
+        {
+            Log.Info("Repository", $"candles {instrument.Symbol} {range}: no provider for {instrument.Category}");
+            return DomainCandleSeries.Invalid(instrument.Symbol, range);
+        }
+
+        var series = await provider.GetCandlesAsync(instrument, range, ct).ConfigureAwait(false);
+        Log.Info("Repository",
+            $"candles {instrument.Symbol} {range} -> {(series.HasData ? $"{series.Points.Count} pts" : "no data")}");
+        return series;
+    }
 }

@@ -20,7 +20,7 @@ internal sealed partial class FavoritesPage : PricedListPage
     {
         var instrument = new DomainInstrument(q.Symbol, q.Name, q.Category);
 
-        return new ListItem(new SymbolDetailPage(instrument))
+        return new ListItem(new SymbolDetailPage(instrument, Repository))
         {
             Title = $"★ {q.Symbol} · {q.Name}",
             Subtitle = $"{q.FormatPrice()}   {q.FormatChange()}",

@@ -26,7 +26,7 @@ internal sealed partial class WatchlistPage : PricedListPage
         var instrument = new DomainInstrument(q.Symbol, q.Name, q.Category);
         var isFavorite = WatchlistStore.Instance.IsFavorite(q.Symbol);
 
-        return new ListItem(new SymbolDetailPage(instrument))
+        return new ListItem(new SymbolDetailPage(instrument, Repository))
         {
             Title = (isFavorite ? "★ " : "") + $"{q.Symbol} · {q.Name}",
             Subtitle = $"{q.FormatPrice()}   {q.FormatChange()}",

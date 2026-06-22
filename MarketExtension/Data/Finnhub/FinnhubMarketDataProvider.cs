@@ -138,8 +138,75 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
         }
     }
 
+    public async Task<DomainCandleSeries> GetCandlesAsync(
+        DomainInstrument instrument, ChartRange range, CancellationToken ct = default)
+    {
+        var symbol = ToFinnhubSymbol(instrument);
+        // Crypto candles come from the parallel /crypto/candle endpoint (same args + response shape).
+        var endpoint = instrument.Category == AssetCategory.Crypto ? "crypto/candle" : "stock/candle";
+        var resolution = ToFinnhubResolution(range.Interval());
+        var to = DateTimeOffset.UtcNow;
+        var fromUnix = (to - range.Lookback()).ToUnixTimeSeconds();
+        var toUnix = to.ToUnixTimeSeconds();
+
+        try
+        {
+            // NEVER log the full URL — it carries the API token. Log symbol/resolution/range only.
+            Log.Info("Finnhub", $"GET /{endpoint} symbol={symbol} resolution={resolution} range={range}");
+            using var response = await Http.GetAsync(
+                $"{endpoint}?symbol={Uri.EscapeDataString(symbol)}&resolution={resolution}" +
+                $"&from={fromUnix}&to={toUnix}&token={ApiKey}", ct).ConfigureAwait(false);
+
+            var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            Log.Info("Finnhub", $"{symbol} candles <- {(int)response.StatusCode} {response.StatusCode}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                // 403 = premium-gated (candles are a paid endpoint), 429 = rate-limited, ...
+                Log.Warn("Finnhub", $"{symbol} candles: non-success status {(int)response.StatusCode} — no chart data");
+                return DomainCandleSeries.Invalid(instrument.Symbol, range);
+            }
+
+            var dto = JsonSerializer.Deserialize(json, FinnhubJsonContext.Default.ApiFinnhubCandleDto);
+            if (dto is not { Status: "ok" } ||
+                dto.Close is not { Count: > 0 } closes ||
+                dto.Timestamps is not { Count: > 0 } times)
+            {
+                Log.Warn("Finnhub", $"{symbol} candles: status={dto?.Status ?? "null"} — no chart data");
+                return DomainCandleSeries.Invalid(instrument.Symbol, range);
+            }
+
+            // The c/t arrays are parallel by index; guard against a ragged response.
+            var count = Math.Min(closes.Count, times.Count);
+            var points = new List<CandlePoint>(count);
+            for (var i = 0; i < count; i++)
+                points.Add(new CandlePoint(DateTimeOffset.FromUnixTimeSeconds(times[i]), closes[i]));
+
+            Log.Info("Finnhub", $"{symbol} candles -> {points.Count} pts");
+            return new DomainCandleSeries(instrument.Symbol, range, points, IsValid: true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Error("Finnhub", $"{symbol} candles: request failed", ex);
+            return DomainCandleSeries.Invalid(instrument.Symbol, range);
+        }
+    }
+
     private static DomainQuote Invalid(DomainInstrument i) =>
         new(i.Symbol, i.Name, i.Category, 0m, 0m, 0m, IsValid: false);
+
+    // Neutral CandleInterval -> Finnhub's resolution token. The candle analog of ToFinnhubSymbol —
+    // the ONLY place these provider-specific tokens live. A different provider maps the same
+    // CandleInterval to its own vocabulary (e.g. Twelve Data: 5min/30min/1h/1day/1week).
+    private static string ToFinnhubResolution(CandleInterval interval) => interval switch
+    {
+        CandleInterval.FiveMin   => "5",
+        CandleInterval.ThirtyMin => "30",
+        CandleInterval.Hourly    => "60",
+        CandleInterval.Daily     => "D",
+        CandleInterval.Weekly    => "W",
+        _ => "D",
+    };
 
     // Neutral ticker -> Finnhub symbol syntax. Keeps InstrumentCatalog provider-agnostic.
     //   Stock    AAPL    -> AAPL

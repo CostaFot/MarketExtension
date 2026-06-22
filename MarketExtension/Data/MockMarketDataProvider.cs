@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -47,5 +48,37 @@ internal sealed class MockMarketDataProvider : IMarketDataProvider
                 : new DomainQuote(i.Symbol, i.Name, i.Category, 0m, 0m, 0m, IsValid: false)),
         ];
         return Task.FromResult(quotes);
+    }
+
+    public Task<DomainCandleSeries> GetCandlesAsync(
+        DomainInstrument instrument, ChartRange range, CancellationToken ct = default)
+    {
+        // A deterministic random walk anchored on the seed price (or a default) so the chart renders
+        // offline / on a free key. Point count varies by range for a believable shape; seeded by
+        // (symbol, range) so the same chart is stable across re-fetches.
+        var basePrice = Seed.TryGetValue(instrument.Symbol, out var s) && s.Price > 0 ? s.Price : 100m;
+        var count = range switch
+        {
+            ChartRange.OneDay => 78,
+            ChartRange.OneWeek => 65,
+            ChartRange.OneMonth => 120,
+            ChartRange.OneYear => 252,
+            ChartRange.FiveYear => 260,
+            _ => 100,
+        };
+
+        var rng = new Random(HashCode.Combine(instrument.Symbol, range));
+        var step = range.Lookback() / count;
+        var now = DateTimeOffset.UtcNow;
+        var price = (double)basePrice * 0.92; // start below the seed so the walk trends toward it
+        var points = new List<CandlePoint>(count);
+        for (var i = 0; i < count; i++)
+        {
+            price *= 1 + ((rng.NextDouble() - 0.48) * 0.02); // small per-step move, slight upward drift
+            points.Add(new CandlePoint(now - (step * (count - i)), (decimal)price));
+        }
+
+        IReadOnlyList<CandlePoint> pts = points;
+        return Task.FromResult(new DomainCandleSeries(instrument.Symbol, range, pts, IsValid: true));
     }
 }

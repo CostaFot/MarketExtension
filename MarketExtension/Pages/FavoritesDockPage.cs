@@ -73,7 +73,7 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
 
         return favorites
             .Select(q => (IListItem)new ListItem(
-                new SymbolDetailPage(new DomainInstrument(q.Symbol, q.Name, q.Category)))
+                new SymbolDetailPage(new DomainInstrument(q.Symbol, q.Name, q.Category), _repository))
             {
                 Title = $"{q.Symbol} {q.FormatChange()}",
                 Subtitle = q.FormatPrice(),
