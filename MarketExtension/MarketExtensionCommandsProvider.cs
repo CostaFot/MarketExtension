@@ -6,9 +6,11 @@ namespace MarketExtension;
 public partial class MarketExtensionCommandsProvider : CommandProvider
 {
     // The repository coordinates all market-data providers; both the palette page and the dock
-    // band share this one instance. Add a provider here to extend coverage (e.g. a forex source);
+    // band share this one instance. Routing is by asset class: Finnhub serves stocks + crypto,
+    // Frankfurter serves forex (keyless ECB rates). Add a provider here to extend coverage;
     // MockMarketDataProvider is the offline fallback.
-    private readonly MarketRepository _repository = new(new FinnhubMarketDataProvider());
+    private readonly MarketRepository _repository =
+        new(new FinnhubMarketDataProvider(), new FrankfurterMarketDataProvider());
 
     private readonly ICommandItem[] _commands;
     private readonly ICommandItem[] _dockBands;

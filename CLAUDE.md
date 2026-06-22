@@ -80,6 +80,8 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Data/MarketRepository.cs` | **The coordinator the UI depends on.** Routes each `DomainInstrument` to the first `IMarketDataProvider` whose `Supports(AssetCategory)` matches, fans out concurrently, merges into one order-preserving list. Also `SearchAsync(query)` — fans out the free-text lookup to every provider and merges/dedupes by symbol — and `GetCandlesAsync(instrument, range)` — routes the chart history to the first supporting provider (no fan-out; one instrument). No provider for a category → `IsValid:false` quote / invalid candle series. |
 | `Data/IMarketDataProvider.cs` | ONE data source: `bool Supports(AssetCategory)` + `GetQuotesAsync(instruments, ct)` + `SearchAsync(query, ct)` (free-text symbol lookup → `DomainInstrument`s, **identity only, no prices**; a provider that can't search returns `[]`) + `GetCandlesAsync(instrument, ChartRange, ct)` (price history for the detail chart; **default interface method** returns an invalid series, so non-candle providers opt out for free). |
 | `Data/Finnhub/FinnhubMarketDataProvider.cs` | Active provider (`Supports` Stock+Crypto). Maps `ApiFinnhubQuoteDto` → `DomainQuote`; `SearchAsync` calls `/search` (US equities only — see Finnhub specifics). |
+| `Data/Frankfurter/FrankfurterMarketDataProvider.cs` | FX provider (`Supports` Currency). **Keyless** ECB daily rates via Frankfurter (`https://api.frankfurter.dev/v1/`). Splits a 6-letter pair (`EURUSD` → base `EUR`/quote `USD`), calls the time-series endpoint for both quotes (latest vs previous fixing = **day-over-day** change) and candles (daily closes). `SearchAsync` = local filter over the catalog's FX pairs (no Frankfurter free-text endpoint exists). See Frankfurter specifics. |
+| `Data/Frankfurter/ApiFrankfurterDto.cs` | Raw time-series DTO (`ApiFrankfurterSeriesDto`: `rates` = date→{currency→rate}) + its own source-gen `FrankfurterJsonContext`. |
 | `Data/MockMarketDataProvider.cs` | Offline fallback (`Supports` all). `SearchAsync` filters its seed keys. |
 | `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults — the **first-run seed** for `WatchlistStore` (no longer always-shown; removable once seeded). |
 | `Settings/WatchlistStore.cs` | JSON-persisted tracked instruments, each carrying **two independent flags** `InWatchlist`/`IsFavorite` (favorites = the dock subset). Stores **full `DomainInstrument` identity** so searched non-catalog symbols re-price; an entry with both flags false is dropped. Source-gen `WatchlistItem`/`WatchlistJsonContext` → `market_watchlist.json`; seeds `InstrumentCatalog` on first run, else migrates the legacy `market_favorites.json` (old pins → watchlisted **and** favorited). Exposes its `Watchlist`/`Favorites` subsets as **observable `StateFlow`s** (each mutation calls `PublishState()` → re-publishes both); pages and the dock **subscribe** and re-render themselves. Replaces the old `FavoritesStore` + `Watchlist.cs`. |
@@ -93,7 +95,7 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Models/DomainCandleSeries.cs` | Domain history: `Symbol`, `Range`, ordered `CandlePoint`s (`Time`+`Close`), `IsValid`; `Invalid(...)` factory + `First/LastClose`. No formatting. |
 | `Models/UiCandleSeries.cs` | Ui projection of a `DomainCandleSeries`: `IsUp`, `FormatPrice`, `FormatRangeChange` (Robinhood-style net change over the selected range), `ChartImageUrl()`. The ONLY place chart formatting/SVG live. |
 | `Helpers/ChartHelper.cs` | Ports Perf Monitor's **SVG-sparkline-as-`data:`-URI** (pure `System.Xml.Linq`, AOT-safe), generalized to plot N points + normalize Y to the series min/max, recolored green/red. Only caller: `UiCandleSeries`. |
-| `Helpers/AssetIconResolver.cs` | Instrument identity → row/dock `IconInfo`. Builds **Elbstream** logo URLs by category (`/logos/symbol/{t}`, `/logos/crypto/{c}`, `?format=png`); Segoe-glyph fallback for Currency/unknown. **Zero API calls** (the host fetches the URL). Also the shared `AttributionRow()` factory (the required Elbstream credit). See "Asset logos (done)". |
+| `Helpers/AssetIconResolver.cs` | Instrument identity → row/dock `IconInfo`. Builds **Elbstream** logo URLs by category (`/logos/symbol/{t}`, `/logos/crypto/{c}`, FX pair → base currency's flag `/logos/country/{iso2}` via a currency→country map, `?format=png`); Segoe-glyph fallback for unmapped currencies/unknown. **Zero API calls** (the host fetches the URL). Also the shared `AttributionRow()` factory (the required Elbstream credit). See "Asset logos (done)". |
 | `Pages/SymbolDetailPage.cs` | Shared per-symbol screen: nested `SymbolChartForm : FormContent` (adaptive-card chart + range tabs) + the list-management command bar. Flicker on range switch is fixed; ⚠️ the Enter-steals-focus bug is an **open known limitation** — see the chart section. |
 
 **To add a provider** (e.g. forex): implement `IMarketDataProvider` (`Supports`, `GetQuotesAsync`,
@@ -103,12 +105,14 @@ chart history, else the default invalid-series opt-out applies), map its `Api*` 
 `new MarketRepository(new FinnhubMarketDataProvider(), new YourProvider())`. **Zero UI changes.** For
 candles, the provider also translates the neutral `ChartRange.Interval`/`Lookback` into its own API
 tokens — Finnhub's `ToFinnhubResolution` (`5/30/60/D/W`) is the model; a Twelve Data provider would
-map the same `CandleInterval` to `5min/30min/1h/1day/1week`.
+map the same `CandleInterval` to `5min/30min/1h/1day/1week`. **Worked example:**
+`FrankfurterMarketDataProvider` is exactly this — a keyless FX source added behind the seam with zero
+UI/repository changes (`Supports(Currency)` + a time-series fetch for both quotes and candles).
 
 **Finnhub specifics:**
 - Base `https://finnhub.io/api/v1`, endpoint `/quote`. Free tier ~60 calls/min, ~300/day.
-- **No forex on the free tier** — `OANDA:*` returns 403. FX is omitted from `InstrumentCatalog`;
-  re-add via a paid plan or a keyless FX provider (e.g. Frankfurter) behind the same seam.
+- **No forex on the free tier** — `OANDA:*` returns 403. FX is therefore routed to the keyless
+  `FrankfurterMarketDataProvider` (ECB rates) rather than Finnhub; see Frankfurter specifics below.
 - Symbol formats: stock = bare (`AAPL`), crypto = `BINANCE:{SYM}USDT`, FX = `OANDA:{BASE}_{QUOTE}`.
 - An all-zero `/quote` response = invalid/unknown symbol → map to `IsValid:false`.
 - **Candles (OHLCV) — PREMIUM** (free key → 403): `GET /stock/candle?symbol=&resolution=&from=&to=`
@@ -124,6 +128,23 @@ map the same `CandleInterval` to `5min/30min/1h/1day/1week`.
   through `ToFinnhubSymbol(Stock)` for plain US tickers; crypto/FX search needs symbol-format
   reconciliation (deferred). UI is **Enter-only** (the synthetic "Search Finnhub for …" item), never
   per-keystroke, to protect the rate limit. A name can list across exchanges → dedupe by symbol.
+
+**Frankfurter specifics (FX):**
+- Base `https://api.frankfurter.dev/v1/` (the old `api.frankfurter.app` 301-redirects here). **Keyless,
+  no documented rate limit** → no key short-circuit, no `Has…Key` gate.
+- Wraps the **ECB daily reference rates**, so data is **daily only** (one fixing per business day, ~16:00
+  CET). Implications baked into the provider: a quote's **change is day-over-day** (latest vs previous
+  fixing — the FX analog of Finnhub's `d`), and charts plot **daily closes** (the 1D/1W tabs show recent
+  daily fixings, not intraday bars — the candle lookback is floored at 7 days so short ranges still draw).
+- **One endpoint for both flows** — the time series `GET /{from}..{to}?base={BASE}&symbols={QUOTE}` →
+  `{ "rates": { "2024-06-03": { "USD": 1.0842 }, … } }`. Quotes fetch a ~10-day window (≥2 fixings across
+  weekends) and take the last two points; candles fetch the range's lookback. Any base works (`base=USD`
+  for USDJPY is fine — Frankfurter cross-converts via EUR).
+- Pairs are the neutral **6-letter `BASE+QUOTE`** (`EURUSD`); the provider splits 3+3. `SearchAsync` is a
+  **local filter over `InstrumentCatalog`'s FX pairs** (Frankfurter has no symbol-search endpoint), so the
+  catalog is the single source of truth for which pairs are seeded *and* searchable.
+- Icons: an FX pair shows its **base currency's country flag** (Elbstream `/logos/country/{iso2}`, EUR→`eu`)
+  via the `AssetIconResolver` currency→country map; unmapped currencies fall back to the bank glyph.
 
 **AOT/trim:** project is AOT/trim-enabled; `EnableTrimAnalyzer` is on **in Debug** (so IL2026/IL3050
 surface every build) and `ILLinkTreatWarningsAsErrors` is set, so all JSON must go through a source-gen
@@ -184,9 +205,19 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   `0` = off, applied without reload). A **keep-last-good guard** in `PricedListPage.LoadQuotes(silent)`
   stops a transient bad poll (e.g. a 429 mapped to an invalid quote) from blanking a price that was
   fine. The chart's live 1D refresh stays deferred (see below). See "Live price polling (done)".
-- **Deferred:** FX provider (keyless Frankfurter); rate-limit (429) **back-off** + richer error UX
-  (the keep-last-good guard is a first step, not the full story); crypto/FX in symbol search; the
-  **symbol-detail chart's live 1D auto-refresh** (still one fetch per tab tap).
+- **Done (this round): FX provider (keyless Frankfurter)** — forex is now live behind the existing
+  `IMarketDataProvider` seam with **zero UI/repository changes**. `Data/Frankfurter/FrankfurterMarketDataProvider.cs`
+  (`Supports(Currency)`) wraps the ECB daily reference rates via Frankfurter (`api.frankfurter.dev`, **no
+  key**): it splits a 6-letter pair, uses one time-series endpoint for both quotes (latest vs previous
+  fixing → **day-over-day** change) and candles (daily closes). `InstrumentCatalog` re-adds `EURUSD` /
+  `GBPUSD` / `USDJPY`; the provider is registered alongside Finnhub in `MarketExtensionCommandsProvider`;
+  `AssetIconResolver` now shows the base currency's **country flag** (EUR→`eu`). FX "search" is a local
+  filter over the catalog's pairs (Frankfurter has no symbol endpoint). Verified end-to-end against the
+  live API. See "Frankfurter specifics (FX)". (Caveats: ECB is **daily-only** — no intraday FX bars; FX
+  pairs reach existing installs via the catalog seed / local search, since Finnhub `/search` is US-equity.)
+- **Deferred:** rate-limit (429) **back-off** + richer error UX (the keep-last-good guard is a first
+  step, not the full story); crypto/Finnhub-side FX in symbol search; the **symbol-detail chart's live 1D
+  auto-refresh** (still one fetch per tab tap).
 - **Done (this round): stale-revisit catch-up** — closes the "short visit" gap in live polling. The
   priced pages are long-lived singletons whose `_priceCache` survives navigation, so revisiting an
   unchanged set repainted cached prices with **no fetch**, while every revisit restarted the poll timer
@@ -478,7 +509,9 @@ makes the **CmdPal host** fetch the image, the logo URL is built *directly from 
 convention lives:
 - `Stock → https://api.elbstream.com/logos/symbol/{ticker}?format=png`
 - `Crypto → https://api.elbstream.com/logos/crypto/{sym}?format=png`
-- `Currency`/unknown → a per-category Segoe MDL2 glyph (no FX logo source wired yet).
+- `Currency → https://api.elbstream.com/logos/country/{iso2}?format=png` — an FX pair shows its **base
+  currency's country flag** (a small currency→ISO-3166 map, `EUR→eu`/`USD→us`/`JPY→jp`/…; the `eu` flag
+  covers the Euro). Unmapped currencies and unknown categories fall back to a Segoe MDL2 glyph.
 
 Our neutral `DomainInstrument.Symbol` matches Elbstream's identifiers directly (`AAPL`, `BTC`), so no
 provider-specific symbol translation is needed. `format` ∈ svg/png/webp/jpg (default svg, PNG auto-fallback
@@ -510,9 +543,9 @@ you ship. ⚠️ **Clearbit's free logo API was permanently sunset Dec 2025 — 
 the only keyless, symbol-addressable source covering stocks + crypto + forex from one place; its attribution
 requirement was the accepted trade-off.
 
-**Future polish:** logos on a `PortfolioPage` when it lands (same `Resolve(...)` call); an FX/currency logo
-source (Elbstream `/logos/country/{CC}` flags) once forex is wired; a glyph-on-miss probe if blank slots on
-obscure symbols become annoying.
+**Future polish:** logos on a `PortfolioPage` when it lands (same `Resolve(...)` call); a glyph-on-miss probe
+if blank slots on obscure symbols become annoying. (FX flags are now wired — Elbstream `/logos/country/{iso2}`
+keyed off the base currency.)
 
 ## CommandPalette Toolkit — Quick Reference
 
