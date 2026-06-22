@@ -89,7 +89,7 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Models/DomainCandleSeries.cs` | Domain history: `Symbol`, `Range`, ordered `CandlePoint`s (`Time`+`Close`), `IsValid`; `Invalid(...)` factory + `First/LastClose`. No formatting. |
 | `Models/UiCandleSeries.cs` | Ui projection of a `DomainCandleSeries`: `IsUp`, `FormatPrice`, `FormatRangeChange` (Robinhood-style net change over the selected range), `ChartImageUrl()`. The ONLY place chart formatting/SVG live. |
 | `Helpers/ChartHelper.cs` | Ports Perf Monitor's **SVG-sparkline-as-`data:`-URI** (pure `System.Xml.Linq`, AOT-safe), generalized to plot N points + normalize Y to the series min/max, recolored green/red. Only caller: `UiCandleSeries`. |
-| `Pages/SymbolDetailPage.cs` | Shared per-symbol screen: nested `SymbolChartForm : FormContent` (adaptive-card chart + range tabs) + the list-management command bar. ⚠️ See the open focus issue in the chart section. |
+| `Pages/SymbolDetailPage.cs` | Shared per-symbol screen: nested `SymbolChartForm : FormContent` (adaptive-card chart + range tabs) + the list-management command bar. Flicker on range switch is fixed; ⚠️ the Enter-steals-focus bug is an **open known limitation** — see the chart section. |
 
 **To add a provider** (e.g. forex): implement `IMarketDataProvider` (`Supports`, `GetQuotesAsync`,
 and `SearchAsync` — return `[]` if it can't search; optionally **override `GetCandlesAsync`** to serve
@@ -162,10 +162,9 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   Finnhub candle history behind a provider-agnostic seam (`GetCandlesAsync`, `ChartRange` + `CandleInterval`,
   `DomainCandleSeries` / `UiCandleSeries`, ported `Helpers/ChartHelper.cs`, `ApiFinnhubCandleDto`). The
   endpoint is **premium-gated**, so real charts need a paid key (free key → "requires paid plan"; the mock
-  provider draws synthetic candles for offline preview). ⚠️ **Two known UI issues remain** — Enter steals
-  focus to the "1D" tab, and the chart flickers on range switch — both diagnosed with fixes sketched in the
-  "Symbol detail + live chart" section. The user reverted the attempted Enter fix to rethink it.
-  ⚠️ Working tree is **uncommitted** (on `repo`).
+  provider draws synthetic candles for offline preview). The **range-switch flicker is fixed**; the
+  **Enter-steals-focus bug is UNSOLVED** and left as a documented known limitation (two fixes tried and
+  abandoned — see the "Symbol detail + live chart" section). ⚠️ Working tree is **uncommitted** (on `repo`).
 - **Next up:** **live price polling** — auto-refresh prices on a timer while a surface is visible,
   **default 60 s, configurable in settings**. The `StateFlow` subscriber-count hooks (`OnActive`/
   `OnInactive`) are already in place as the WhileSubscribed/`RefCount()` seam for a `PolledStateFlow<T>`
@@ -304,7 +303,7 @@ and inherits the same live-refresh story as the favorites band (the polling + pu
 **Caveats:** assumes a single quote currency (USD); mixed-currency holdings need FX conversion (deferred —
 ties to the FX-provider item). Exclude `IsValid:false` quotes from totals (or show them as unpriced).
 
-### Symbol detail + live chart — for ANY instrument (CHART DONE; 2 open UI issues)
+### Symbol detail + live chart — for ANY instrument (CHART DONE; flicker fixed, Enter/focus bug open)
 
 **App-wide, not portfolio-specific.** The shared `Pages/SymbolDetailPage.cs` opens from any row (Enter)
 and every dock-button click, and **now renders a real price chart with Robinhood-style range tabs
@@ -329,20 +328,37 @@ through a new provider seam — see the Finnhub candle spec + the candle layer f
   `Secrets.FinnhubApiKey`). To preview rendering now, temporarily point the repo at
   `new MarketRepository(new MockMarketDataProvider())` (don't ship — mock also feeds search).
 
-**⚠️ Two open UI issues (why we paused — `SymbolDetailPage` is currently the single-content version):**
-1. **Enter activates "1D" instead of add-to-watchlist.** With a single `FormContent`, CmdPal sets
-   `OnlyControlOnPage = true` and **programmatically focuses the card's first focusable element** on
-   load — the 1D `Action.Submit` — so Enter hits it. (See `ContentPageViewModel` setting
-   `OnlyControlOnPage = (content.Count == 1)`, and `ContentFormControl.OnFrameworkElementLoaded` →
-   `FindFirstFocusableElement().Focus()`.) **Attempted fix (reverted as "a bit glitchy"):** return a
-   *second* content item (a membership/hint `MarkdownContent`) so `OnlyControlOnPage` is false → the
-   host skips the auto-focus → focus stays in the search box → Enter = page primary command.
-2. **Flicker when switching ranges.** Every `DataJson` write rebuilds the whole card
+**State of the two UI issues: flicker FIXED; the Enter/focus bug is UNSOLVED (left as-is, documented).**
+
+1. **Flicker on range switch — ✅ FIXED.** Each `DataJson` write rebuilds the whole card
    (`ContentFormViewModel.RenderCard` → `AdaptiveCard.FromJsonString`; `ContentFormControl.DisplayCard`
-   clears + re-adds children). `Load()` writes `DataJson` **twice** per tap (a "Loading…" state, then
-   the result), so you get a double teardown/rebuild — a visible flash, worst with the near-instant mock
-   provider. **Fix idea:** drop the intermediate loading write on tab switches (only show "Loading" on
-   the very first load when no chart exists yet) and keep the prior chart visible during the swap.
+   clears + re-adds children), and `Load()` used to write `DataJson` **twice** per tap (a "Loading…"
+   state, then the result) → a double teardown/rebuild flash. **Fix:** `Load()` now only paints the
+   "Loading…" card when **no chart is on screen yet** (the very first load); on later range switches it
+   leaves the prior chart up and swaps it in place once the fetch lands. Tracked via `_displaySeries`
+   (the currently-painted series; a real chart present ⇒ skip the loading write). Cached ranges already
+   single-write.
+
+2. **Enter activates "1D" instead of the primary command — ❌ UNSOLVED.** Root cause: with a single
+   `FormContent`, CmdPal sets `OnlyControlOnPage = true` (`ContentPageViewModel`, `= (content.Count == 1)`)
+   and **programmatically focuses the card's first focusable element** on load (`ContentFormControl.
+   OnFrameworkElementLoaded` → `FindFirstFocusableElement().Focus()`) — the 1D `Action.Submit`. So Enter
+   hits that tab, and with focus trapped in the card **Ctrl+Enter can't reach the secondary command
+   either**. There is **no host API to suppress the auto-focus** — content count is the only documented
+   lever. **Two fixes were tried and abandoned:**
+   - **Option A — return a 2nd content item** (a hint-caption `MarkdownContent`) so `content.Count == 2`
+     → `OnlyControlOnPage` should be false → focus should stay in the search box. The CmdPal **source
+     reads this way**, but **in practice it did NOT help**: focus still landed on the card's first action
+     (Enter still activated a tab) **and Ctrl+Enter stopped working too** — strictly worse. Why the
+     observed behavior diverges from the source reading is unexplained (a lead for future investigation;
+     not chased now). Reverted.
+   - **Option C — lead the card with membership `Action.Submit` buttons** so the auto-focused first
+     element is the watchlist toggle (Enter then add/removes). It worked but was rejected as too hacky and
+     it splits list management away from the command bar (inconsistent with every other surface).
+   **Current state:** back to the post-flicker-fix single-content card; membership stays on the command
+   bar; the focus bug is **accepted as a known limitation**. Possible real fixes if revisited: a host API
+   to set/suppress the focused element (doesn't exist today — would need an upstream CmdPal change), or
+   moving range switching onto the command bar so the card has no focusable element at all.
 
 For reference, the Perf Monitor source this chart was ported from
 (`C:\Users\jarla\code\PowerToys\src\modules\cmdpal\ext\Microsoft.CmdPal.Ext.PerformanceMonitor\`):
@@ -377,11 +393,12 @@ For reference, the Perf Monitor source this chart was ported from
   `${…graphUrl}` image; copy the shape.
 - MediaControls `…/Pages/DockHeadItem.cs` — the event-driven content-band variant.
 
-**Refinements still open (beyond the 2 UI issues above):**
+**Refinements still open (flicker is fixed; the Enter/focus bug above is still open):**
 - **Active-tab highlight:** the tabs don't visually mark the selected range (adaptive cards can't easily
   restyle a button by bound data); the header caption names it instead.
 - **Keyboard range switching:** you must Tab into the card to reach the tabs — no arrow-key switch from
-  the search box. (This is the flip side of fixing issue #1 by keeping focus in the search box.)
+  the search box. Entangled with the open Enter/focus bug: any real fix there (e.g. moving range
+  switching onto the command bar, or host support for the focused element) would address this too.
 - **Hover/scrub readout is NOT possible** on this surface: CmdPal extensions are out-of-process and the
   chart is a static image — no pointer/hover events cross the boundary (Perf Monitor's graph has the same
   ceiling; the content types are all declarative: Markdown / PlainText / Image / Form / Tree). Closest
@@ -496,8 +513,14 @@ Do **not** call `IsLoading = true` + `Task.Run(Load)` from the constructor — t
 > **`ContentPage` focus gotcha:** if `GetContent()` returns a **single** `FormContent`, the host marks it
 > `OnlyControlOnPage = true` and **auto-focuses the card's first focusable element** (e.g. the first
 > `Action.Submit`) on load — so Enter activates that card button instead of the page's primary (Enter)
-> command. Return **≥2 content items** to suppress the auto-focus. (Hit by the symbol-detail chart — full
-> trace in the "Symbol detail + live chart" section.)
+> command — and with focus trapped in the card, Ctrl+Enter can't reach the secondary command either.
+> Content count is the **only** documented lever (no host API suppresses the auto-focus). In theory:
+> (a) return **≥2 content items** so `OnlyControlOnPage` is false and focus stays in the search box; or
+> (b) **make the first focusable element the action you WANT Enter to fire** by ordering the card so that
+> button comes first. ⚠️ The symbol-detail chart tried **both and neither shipped** — (a) did **not**
+> actually keep focus in the search box in practice (Enter still hit a tab, Ctrl+Enter broke), and (b)
+> was too hacky. It currently ships with the bug **unfixed**; full trace in the "Symbol detail + live
+> chart" section of this file. Treat (a) as suspect until someone reproduces it working.
 
 ### DynamicListPage Pattern
 

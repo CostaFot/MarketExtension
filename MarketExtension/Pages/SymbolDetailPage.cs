@@ -14,14 +14,22 @@ namespace MarketExtension;
 // Watchlist, Favorites) and by clicking any dock button. The body is a live price chart with
 // Robinhood-style range tabs (1D / 1W / 1M / 1Y / 5Y): an adaptive-card FormContent whose Action.Submit
 // tab buttons call back into SymbolChartForm.SubmitForm to switch range, refetch candles, and repaint.
-// List management still lives here too: the page's command bar carries the add/remove-watchlist (Enter)
-// and add/remove-favorite (Ctrl+Enter) actions, labelled for the instrument's current state.
+//
+// List management lives on the page's command bar: the add/remove-watchlist action is the primary
+// command (Enter) and add/remove-favorite the secondary (Ctrl+Enter), labelled for current state.
+//
+// ⚠️ KNOWN ISSUE (unsolved — see the "Symbol detail + live chart" section of CLAUDE.md): with a single
+// FormContent the host marks it OnlyControlOnPage and auto-focuses the card's first Action.Submit (the
+// 1D tab), so Enter activates that tab instead of the primary command — and with focus trapped in the
+// card, Ctrl+Enter doesn't reach the secondary either. Both attempted fixes were rejected (a 2nd content
+// item to drop OnlyControlOnPage did NOT keep focus in the search box in practice; leading the card with
+// membership buttons was too hacky). Left as-is for now.
 //
 // Reactive like the rest of the app (see Helpers/StateFlow.cs + the "prefer observable data flow"
 // convention): it subscribes to WatchlistStore's two membership flows while visible — the
-// INotifyItemsChanged add/remove lifecycle, the same seam the list pages use — and rebuilds its
-// Commands on every change. That same "page became visible" hook starts the chart's first load, so
-// candles are fetched only when the page is actually opened (not when a list builds a row per item).
+// INotifyItemsChanged add/remove lifecycle, the same seam the list pages use — and rebuilds its Commands
+// on every change. That same "page became visible" hook starts the chart's first load, so candles are
+// fetched only when the page is actually opened (not when a list builds a row per item).
 internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChanged
 {
     private readonly DomainInstrument _instrument;
@@ -74,8 +82,8 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
     // Commands raises the property change the host watches, so the add/remove buttons flip in place.
     private void RefreshCommands() => Commands = BuildCommands();
 
-    // The two list-management actions, labelled add/remove for the instrument's current state. The
-    // first is the page's primary command (Enter), the second the secondary (Ctrl+Enter).
+    // The two list-management actions, labelled add/remove for the instrument's current state. The first
+    // is the page's primary command (Enter), the second the secondary (Ctrl+Enter).
     private IContextItem[] BuildCommands()
     {
         var inWatchlist = WatchlistStore.Instance.IsInWatchlist(_instrument.Symbol);
@@ -104,13 +112,14 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
         private ChartRange _range = ChartRange.OneDay;
         private int _generation; // bumped per fetch so a superseded tab tap's late result is dropped
         private bool _started;
+        private DomainCandleSeries? _displaySeries; // what's currently painted (null = a "Loading…" card)
 
         public SymbolChartForm(DomainInstrument instrument, MarketRepository repository)
         {
             _instrument = instrument;
             _repository = repository;
             TemplateJson = Template;
-            DataJson = LoadingData(_range); // placeholder until the first fetch lands
+            DataJson = BuildData(series: null, _range); // a "Loading…" card until the first fetch lands
         }
 
         // Called from the page's visible hook — fetch the default range exactly once.
@@ -127,7 +136,8 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
         }
 
         // A range tab was tapped. The selected range rides in the Action.Submit `data` ({ "range": "1W" });
-        // fall back to the form inputs just in case the host merges them.
+        // fall back to the form inputs just in case the host merges them. Membership lives on the page's
+        // command bar (Enter / Ctrl+Enter), not the card — so the card only switches range.
         public override ICommandResult SubmitForm(string inputs, string data)
         {
             var range = ParseRange(data) ?? ParseRange(inputs) ?? _range;
@@ -140,8 +150,12 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
             _range = range;
 
             DomainCandleSeries? cached;
+            bool hasChart;
             lock (_gate)
+            {
                 _cache.TryGetValue(range, out cached);
+                hasChart = _displaySeries?.HasData == true;
+            }
 
             if (cached is not null)
             {
@@ -153,7 +167,12 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
             lock (_gate)
                 generation = ++_generation;
 
-            DataJson = LoadingData(range); // show a loading state for the newly selected range
+            // Only blank to a "Loading…" card when no chart is on screen yet (the very first load). On
+            // later range switches we leave the prior chart visible and swap it in place once the fetch
+            // lands — each DataJson write rebuilds the whole card, so a Loading→result pair flashes.
+            if (!hasChart)
+                DataJson = BuildData(series: null, range);
+
             Task.Run(async () =>
             {
                 var series = await _repository.GetCandlesAsync(_instrument, range);
@@ -169,7 +188,15 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
             });
         }
 
-        private void Render(DomainCandleSeries series) => DataJson = BuildData(UiCandleSeries.From(series));
+        private void Render(DomainCandleSeries series)
+        {
+            // Remember what's on screen — drives the flicker guard: a real chart present means a later
+            // range switch keeps it up instead of flashing "Loading" (see Load).
+            lock (_gate)
+                _displaySeries = series;
+
+            DataJson = BuildData(series, series.Range);
+        }
 
         private static ChartRange? ParseRange(string? json)
         {
@@ -192,36 +219,40 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
             return null;
         }
 
-        private string LoadingData(ChartRange range) => new JsonObject
+        // Build the card payload for the current display state. A null series paints the "Loading…"
+        // placeholder for `range`; otherwise the chart (or the premium-gated "no data" message).
+        private string BuildData(DomainCandleSeries? series, ChartRange range)
         {
-            ["symbol"] = _instrument.Symbol,
-            ["name"] = _instrument.Name,
-            ["price"] = "—",
-            ["change"] = string.Empty,
-            ["changeColor"] = "Default",
-            ["chartUrl"] = string.Empty,
-            ["hasChart"] = false,
-            ["showStatus"] = true,
-            ["statusText"] = $"Loading {range.Label()} chart…",
-        }.ToJsonString();
-
-        private string BuildData(UiCandleSeries ui)
-        {
-            var hasChart = ui.HasData;
-            return new JsonObject
+            var data = new JsonObject
             {
                 ["symbol"] = _instrument.Symbol,
                 ["name"] = _instrument.Name,
-                ["price"] = ui.FormatPrice(),
-                ["change"] = ui.FormatRangeChange(),
-                ["changeColor"] = !hasChart ? "Default" : ui.IsUp ? "Good" : "Attention",
-                ["chartUrl"] = ui.ChartImageUrl(),
-                ["hasChart"] = hasChart,
-                ["showStatus"] = !hasChart,
-                ["statusText"] = hasChart
-                    ? string.Empty
-                    : "No chart data — historical candles require a paid Finnhub plan.",
-            }.ToJsonString();
+            };
+
+            if (series is null)
+            {
+                data["price"] = "—";
+                data["change"] = string.Empty;
+                data["changeColor"] = "Default";
+                data["chartUrl"] = string.Empty;
+                data["hasChart"] = false;
+                data["showStatus"] = true;
+                data["statusText"] = $"Loading {range.Label()} chart…";
+                return data.ToJsonString();
+            }
+
+            var ui = UiCandleSeries.From(series);
+            var hasChart = ui.HasData;
+            data["price"] = ui.FormatPrice();
+            data["change"] = ui.FormatRangeChange();
+            data["changeColor"] = !hasChart ? "Default" : ui.IsUp ? "Good" : "Attention";
+            data["chartUrl"] = ui.ChartImageUrl();
+            data["hasChart"] = hasChart;
+            data["showStatus"] = !hasChart;
+            data["statusText"] = hasChart
+                ? string.Empty
+                : "No chart data — historical candles require a paid Finnhub plan.";
+            return data.ToJsonString();
         }
 
         // Static card structure; values bind from DataJson. The five Action.Submit buttons each carry
