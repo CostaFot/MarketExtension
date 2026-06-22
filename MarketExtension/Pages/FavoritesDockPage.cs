@@ -7,8 +7,8 @@ using Windows.Foundation;
 
 namespace MarketExtension;
 
-// Backs a Command Palette Dock band: a strip showing up to MaxDockFavorites favorited
-// instruments as ticker buttons (e.g. "AAPL ▲ +1.20%"); clicking one opens its SymbolDetailPage.
+// Backs a Command Palette Dock band: a strip showing every favorited
+// instrument as ticker buttons (e.g. "AAPL ▲ +1.20%"); clicking one opens its SymbolDetailPage.
 // Returned from MarketExtensionCommandsProvider.GetDockBands() wrapped in a CommandItem.
 //
 // Because the band's command is an IListPage, the host renders each item from GetItems() as
@@ -18,8 +18,6 @@ namespace MarketExtension;
 // API phase — see reference/dock-support.md for the OnLoad lifecycle to add then.
 internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
 {
-    private const int MaxDockFavorites = 3;
-
     private readonly MarketRepository _repository;
     private UiQuote[]? _quotes;
 
@@ -68,7 +66,7 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
         if (_quotes is null)
             return [];
 
-        var favorites = _quotes.Take(MaxDockFavorites).ToArray();
+        var favorites = _quotes;
 
         if (favorites.Length == 0)
         {
