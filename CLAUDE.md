@@ -170,12 +170,12 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   provider draws synthetic candles for offline preview). The **range-switch flicker is fixed**; the
   **Enter-steals-focus bug is UNSOLVED** and left as a documented known limitation (two fixes tried and
   abandoned — see the "Symbol detail + live chart" section). ⚠️ Working tree is **uncommitted** (on `repo`).
-- **Next up:** **live price polling** — auto-refresh prices on a timer while a surface is visible,
-  **default 60 s, configurable in settings**. The `StateFlow` subscriber-count hooks (`OnActive`/
-  `OnInactive`) are already in place as the WhileSubscribed/`RefCount()` seam for a `PolledStateFlow<T>`
-  (designed below).
-- **Deferred:** FX provider (keyless Frankfurter); settings UI for bring-your-own-key; rate-limit (429)
-  + richer error UX; crypto/FX in symbol search.
+- **Next up:** **live price polling** — auto-refresh prices on a timer while a surface is visible. The
+  **refresh-interval setting is already built** (`MarketSettingsManager`, in minutes, default 5, 0 = off);
+  what remains is the poll loop itself. The `StateFlow` subscriber-count hooks (`OnActive`/`OnInactive`)
+  are already in place as the WhileSubscribed/`RefCount()` seam for a `PolledStateFlow<T>` (designed below).
+- **Deferred:** FX provider (keyless Frankfurter); rate-limit (429) + richer error UX; crypto/FX in
+  symbol search.
 - **Wishlist:** a **portfolio** screen + its own dock band (holdings, total value, daily P&L); a
   **per-symbol detail screen + live chart for any ticker** (drill-in from any list row, clickable from any
   dock item); and **official asset logos as icons app-wide** (replacing today's generic copy/glyph icons).
@@ -225,7 +225,8 @@ the user gets explicit feedback and can keep editing.
 
 Today every priced surface fetches **once** when it becomes visible (the StateFlow replay-on-subscribe
 that drives the first price load). The next iteration auto-refreshes on a timer while a surface is
-visible: **default 60 s, configurable in settings** (including an "Off" choice).
+visible: **default 5 min, configurable in settings** (0 = off). The setting itself is already built (see
+the Settings bullet below); only the poll loop remains.
 
 - **Where:** `Pages/PricedListPage.cs` (covers Markets Watchlist + Markets Favorites) and
   `Pages/FavoritesDockPage.cs`. `SearchPage` is exempt — its results are identity-only, no prices.
@@ -243,17 +244,18 @@ visible: **default 60 s, configurable in settings** (including an "Off" choice).
   favorites `PolledStateFlow`: the refcount keeps it polling while *either* is visible and stops only
   when *both* are gone — no manual coordination. (Refinements to add then: a small stop-timeout so
   bouncing between pages doesn't thrash the loop, and a generation token guarding rapid resubscribe.)
-- **Settings:** add `Settings/MarketSettingsManager.cs` — a `JsonSettingsManager` singleton modeled on
-  `reference/settings/AdbSettingsManager.cs` (`FilePath` = `…/market.settings.json`, `Settings.Add(...)`,
-  `LoadSettings()`, `Settings.SettingsChanged += SaveSettings`). Expose a refresh-interval setting (a
-  `ChoiceSetSetting` of presets — `Off / 30 s / 60 s / 5 m` — or a numeric `TextSetting` defaulting to
-  `60`). Wire it in `MarketExtensionCommandsProvider` via `Settings = MarketSettingsManager.Instance.Settings;`
-  (the commented-out hook is already there). The poll loop reads `MarketSettingsManager.Instance.RefreshIntervalSeconds`.
+- **Settings (BUILT).** `Settings/MarketSettingsManager.cs` is a `JsonSettingsManager` singleton
+  (`FilePath` = `…/market.settings.json`), wired in `MarketExtensionCommandsProvider` via
+  `Settings = MarketSettingsManager.Instance.Settings;`. The refresh interval is a numeric `TextSetting`
+  **in minutes, default 5** (0 = off), surfaced as `RefreshMinutes` / `RefreshInterval` (TimeSpan) /
+  `AutoRefreshEnabled`. The poll loop should read `MarketSettingsManager.Instance.RefreshInterval` each
+  tick. (The same manager also holds the Finnhub API key — see the "API Key" section.)
 - ⚠️ **Rate-limit tension (design around this):** Finnhub free tier is **~60 calls/min AND ~300/day**,
-  and `GetQuotesAsync` issues **one `/quote` call per instrument**. Polling N instruments every 60 s = N
-  calls/min — e.g. 6 favorites = 360 calls/hour, which **exhausts the ~300/day budget in under an hour**.
-  60 s is fine for short sessions but not sustained use. Mitigations to ship alongside: the configurable
-  interval + an **Off** escape, polling **only while visible** (the lifecycle guarantees this), and real
+  and `GetQuotesAsync` issues **one `/quote` call per instrument**. Polling N instruments at interval T:
+  at a low T this burns the budget fast — e.g. 6 favorites every 60 s = 360 calls/hour, which
+  **exhausts the ~300/day budget in under an hour**. The **5-min default is much gentler** (6 favorites =
+  ~72 calls/hour), but a user can still set a low interval. Mitigations: the configurable interval + an
+  **Off** (0) escape, polling **only while visible** (the lifecycle guarantees this), and real
   **429 handling** (back off; surface a "rate-limited" state rather than blanking prices). A
   batched-quote provider or cheaper data source would relax this later.
 
