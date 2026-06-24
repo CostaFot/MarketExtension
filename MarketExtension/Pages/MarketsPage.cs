@@ -50,7 +50,7 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
         }
     }
 
-    protected new void RaiseItemsChanged(int totalItems = -1)
+    private new void RaiseItemsChanged(int totalItems = -1)
         => _itemsChanged?.Invoke(this, new ItemsChangedEventArgs(totalItems));
 
     public MarketsPage(MarketRepository repository)

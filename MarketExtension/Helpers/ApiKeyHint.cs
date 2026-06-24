@@ -12,6 +12,10 @@ internal static class ApiKeyHint
 {
     private const string WarningGlyph = "\uE7BA"; // Segoe MDL2 Warning
 
+    // Windows "attention" red \u2014 used for the warning tag so the row reads as a problem, not a normal item.
+    // A ListItem has no per-row text-color lever; a colored Tag (pill) is the only way to tint a row.
+    private static OptionalColor WarningRed => ColorHelpers.FromRgb(0xD1, 0x34, 0x38);
+
     // Built once and reused: the toolkit's navigable settings form over our settings singleton. The
     // missing-key row points its Enter command at this, so the user lands directly on the key fields.
     private static IContentPage? _settingsPage;
@@ -36,5 +40,10 @@ internal static class ApiKeyHint
                 Title = "No API key set — functionality is limited",
                 Subtitle = "Add an API key in Settings (press Enter)",
                 Icon = new IconInfo(WarningGlyph),
+                Tags = [new Tag("Action required")
+                {
+                    Foreground = WarningRed,
+                    ToolTip = "No API key set — functionality is limited",
+                }],
             };
 }

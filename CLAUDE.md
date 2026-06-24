@@ -171,18 +171,23 @@ UI/repository changes (only a registration line + a settings key).
 - Icons: an FX pair shows its **base currency's country flag** (Elbstream `/logos/country/{iso2}`, EUR→`eu`)
   via the `AssetIconResolver` currency→country map; unmapped currencies fall back to the bank glyph.
 
-**AOT/trim:** project is AOT/trim-enabled; `EnableTrimAnalyzer` is on **in Debug** (so IL2026/IL3050
-surface every build) and `ILLinkTreatWarningsAsErrors` is set, so all JSON must go through a source-gen
-`JsonSerializerContext` (never reflection-based `JsonSerializer`). The source-gen contexts:
+**AOT/trim (intentionally OFF):** this is a hobby project that does **not** trim or Native-AOT compile —
+it ships **self-contained single-file JIT** (see `MarketExtension.csproj`; same shape AdbExtension
+publishes to the Store), and enabling AOT/trim is a **deliberate non-goal**. The trim/AOT analyzers + the
+CsWinRT AOT optimizer were **removed**, so reflection-based code (e.g. `System.Reactive`, reflection-based
+`JsonSerializer`) now builds **warning-free** — there is no `IL2026`/`IL3050` enforcement anymore. (To
+revive AOT readiness, restore `<IsAotCompatible>true` + the CsWinRT optimizer lines from git history.)
+The existing source-gen `JsonSerializerContext`s are kept as a **convention, not a build requirement**:
 `FinnhubJsonContext` (quotes + search + candles), `FrankfurterJsonContext` (FX time-series),
 `TwelveDataJsonContext` (quotes + candles + search; `NumberHandling=AllowReadingFromString` for TD's
 string-encoded numbers, and the keyed `Dictionary<string,…>` batch response is registered too), and
-`WatchlistJsonContext` (watchlist items + legacy migration).
-⚠️ **Gotcha:** the JSON source generator does **not** support `[JsonSerializable]` attributes split
-across multiple `partial` declarations of one context — it emits a colliding hintName (e.g.
-`FinnhubJsonContext.Decimal.g.cs`) and the *whole* generator silently fails, cascading CS0534
-("does not implement … `GetTypeInfo`") onto **every** context in the build. Keep all `[JsonSerializable]`
-for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
+`WatchlistJsonContext` (watchlist items + legacy migration) all still work and **don't need changing** —
+new JSON may use either source-gen or plain reflection.
+⚠️ **Gotcha (only while a context stays source-gen):** the JSON source generator does **not** support
+`[JsonSerializable]` attributes split across multiple `partial` declarations of one context — it emits a
+colliding hintName (e.g. `FinnhubJsonContext.Decimal.g.cs`) and the *whole* generator silently fails,
+cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context in the build. Keep all
+`[JsonSerializable]` for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
 
 ## API Key (runtime setting — no build-time key)
 
@@ -276,7 +281,8 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   premium-gated, so a free Finnhub key just re-fetches a 403 each tick; with **Twelve Data** primary its
   free-tier candles refresh for real.
 - **Deferred:** rate-limit (429) **back-off** + richer error UX (the keep-last-good guard is a first
-  step, not the full story); crypto/Finnhub-side FX in symbol search.
+  step, not the full story — `Retry`/`RetryWhen` is a natural fit if the Rx migration below happens);
+  crypto/Finnhub-side FX in symbol search.
 - **Done (this round): stale-revisit catch-up** — closes the "short visit" gap in live polling. The
   priced pages are long-lived singletons whose `_priceCache` survives navigation, so revisiting an
   unchanged set repainted cached prices with **no fetch**, while every revisit restarted the poll timer
@@ -297,6 +303,21 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
 - **Wishlist:** a **portfolio** screen + its own dock band (holdings, total value, daily P&L); and a
   **per-symbol detail screen + live chart for any ticker** (drill-in from any list row, clickable from any
   dock item). All designed below.
+- **Wishlist — migrate the hand-rolled StateFlow to Rx.NET (`System.Reactive`):** the original blocker is
+  **gone** now that AOT/trim is **off** (the trim/AOT analyzers were removed — see the AOT/trim note), so
+  `System.Reactive` can be taken as a dependency **warning-free**. `Helpers/StateFlow.cs` is effectively a
+  hand-rolled `BehaviorSubject<T>` (current value + replay-on-subscribe + distinct-until-changed), and the
+  `OnActive`/`OnInactive` refcount in `Helpers/PollTicker.cs` is Rx's `Publish().RefCount()` /
+  `WhileSubscribed` — so the swap is largely 1:1. **Not worth doing for the swap alone** (StateFlow works
+  today); the payoff is Rx's **operator library** for the **deferred** work: 429 **back-off**
+  (`Retry`/`RetryWhen` + exponential delay), the poll loop (`Observable.Timer`/`Interval`), **debounced**
+  search-as-you-type (`Throttle` — would let `SearchPage` drop its Enter-only rate-limit guard), and
+  multi-provider **merge** in `MarketRepository` (`CombineLatest`/`Merge`). **Plan:** pull
+  `System.Reactive`; reimplement `StateFlow`/`MutableStateFlow` as thin wrappers over `BehaviorSubject<T>`
+  keeping the **same public API** (so the pages, dock, and `PollTicker` don't change); then adopt operators
+  where the deferred features land. **Caveat:** Rx schedulers are mostly moot here (the CmdPal host already
+  marshals `RaiseItemsChanged`), so this buys **operators, not threading** — do it when the
+  polling/back-off/search work makes the operators pay for themselves, not before.
 
 ### Three-screen UX (done)
 
@@ -523,7 +544,8 @@ For reference, the Perf Monitor source this chart was ported from
 - **The chart is an inline SVG embedded as a data URI** — `ChartHelper.CreateImageUrl(values, type)`
   returns `"data:image/svg+xml;utf8," + <svg>…</svg>`, where the `<svg>` is just two `<polyline>`s (the
   line + a gradient-fill loop) and a border `<rect>`, built with `System.Xml.Linq`. **No
-  System.Drawing/SkiaSharp** → AOT/trim-safe (this project requires that — see the AOT section). The card
+  System.Drawing/SkiaSharp** → a dependency-free, reflection-free SVG (now just good hygiene, not a hard
+  requirement since AOT/trim is off — see the AOT/trim note). The card
   template binds that data-URI as an `Image`. `MaxChartValues = 34` is a rolling window of the last 34 samples.
 - Live update reuses the same Loaded/Unloaded lifecycle as our pages: `OnLoadBasePage` turns the
   `ItemsChanged` add/remove into `Loaded()`/`Unloaded()`; each data tick re-renders `DataJson` and calls

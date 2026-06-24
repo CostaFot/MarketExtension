@@ -19,7 +19,7 @@ public class Program
         // Optional crash/usage telemetry. Leave the DSN empty to disable Sentry, or set
         // your own DSN (do NOT reuse another project's DSN). Remove this block entirely
         // if you don't want Sentry.
-        using var _ = SentrySdk.Init(options =>
+        using var sentry = SentrySdk.Init(options =>
         {
             options.Dsn = ""; // <-- your Sentry DSN here (empty = disabled)
             options.AutoSessionTracking = true;
@@ -51,7 +51,7 @@ public class Program
         }
         else
         {
-            MessageBox(
+            _ = MessageBox(
                 IntPtr.Zero,
                 "Market Extension is a background extension.\n\nTo use it, open PowerToys Command Palette and search for \"Market\".",
                 "Market Extension",

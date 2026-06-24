@@ -75,33 +75,21 @@
     <HasPackageAndPublishMenu>true</HasPackageAndPublishMenu>
   </PropertyGroup>
 
+  <!--
+    This extension intentionally does NOT trim or Native-AOT compile. It ships as a self-contained,
+    single-file, JIT package (the same shape AdbExtension publishes to the Store), and enabling
+    trimming/AOT is a deliberate non-goal. The trim/AOT analyzers + the CsWinRT AOT optimizer were
+    therefore removed: for a build that never trims, their warnings (IL2026/IL3050/CsWinRT####) are
+    pure noise, and turning them off lets us freely use reflection-based code (e.g. System.Reactive,
+    reflection-based JsonSerializer) with a clean build. (To revive AOT readiness, restore
+    <IsAotCompatible>true</IsAotCompatible> + the CsWinRT optimizer lines from git history.)
+  -->
   <PropertyGroup>
     <PublishSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</PublishSingleFile>
-    <IsAotCompatible>true</IsAotCompatible>
-
-    <CsWinRTAotOptimizerEnabled>true</CsWinRTAotOptimizerEnabled>
-    <CsWinRTAotWarningLevel>2</CsWinRTAotWarningLevel>
-    <!-- Suppress DynamicallyAccessedMemberTypes.PublicParameterlessConstructor in fallback code path of Windows SDK projection -->
-    <WarningsNotAsErrors>IL2081;$(WarningsNotAsErrors)</WarningsNotAsErrors>
-
-    <!-- When publishing trimmed, make sure to treat trimming warnings as build errors -->
-    <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
-
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
-    <!-- In Debug builds, trimming is disabled by default, but all the trim & 
-         AOT warnings are enabled. This gives debug builds a tighter inner loop,
-         while at least warning about future trim violations -->
     <PublishTrimmed>false</PublishTrimmed>
-    
-    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
-    <EnableAotAnalyzer>true</EnableAotAnalyzer>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'!='Debug'">
-    <PublishTrimmed>false</PublishTrimmed>
     <SelfContained>true</SelfContained>
   </PropertyGroup>
 
