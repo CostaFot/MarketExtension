@@ -336,8 +336,11 @@ configurable** (0 = off). Built as designed, on the StateFlow subscriber-count s
   configurable interval + **Off** (0) escape, polling **only while visible**, and the keep-last-good
   guard. Still deferred: real **429 back-off** + a "rate-limited" UI state; a batched-quote provider
   would relax this further. ⚠️ Note: each visible surface polls independently, so a pinned favorites
-  dock **and** an open favorites page both fetch favorites each tick (no shared-fetch dedup — that needs
-  the larger "flow owns the quotes" refactor).
+  dock **and** an open favorites page both fetch favorites each tick (no shared-fetch dedup). This is an
+  **accepted trade-off, not a todo** — at most three priced surfaces exist (Watchlist / Favorites page /
+  Favorites dock) and the only real overlap is dock + Favorites page on one small set, so the worst case
+  is ~2–3× on a handful of symbols. A repository-level in-flight coalescing cache would close it cheaply
+  if it ever matters, but it's deliberately **not** planned.
 
 ### Dock refresh on favorites change (done)
 
