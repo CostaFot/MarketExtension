@@ -25,14 +25,12 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
         // Command Palette Settings UI. See Settings/MarketSettingsManager.cs.
         Settings = MarketSettingsManager.Instance.Settings;
 
-        // Three top-level screens: search (the default entry), the tracked watchlist, and the
-        // curated favorites. All share the one repository; favorites also feed the dock band below.
-        // All three titles share the "Markets " prefix so they group together (and don't pollute the
-        // global namespace) when the user searches the Command Palette root.
+        // A single top-level "Markets" command that opens the MarketsPage hub. From there the user
+        // funnels into the three screens — Search, Watchlist, Favorites — which are otherwise
+        // unchanged. This keeps the Command Palette root to one entry instead of three. Favorites
+        // also feed the dock band below.
         _commands = [
-            new CommandItem(new SearchPage(_repository)) { Title = "Markets Search" },
-            new CommandItem(new WatchlistPage(_repository)) { Title = "Markets Watchlist" },
-            new CommandItem(new FavoritesPage(_repository)) { Title = "Markets Favorites" },
+            new CommandItem(new MarketsPage(_repository)) { Title = "Markets" },
         ];
 
         // Dock band: a ticker strip of up to 3 favorited instruments. Pinned from the Dock.
