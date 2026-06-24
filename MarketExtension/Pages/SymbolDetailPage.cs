@@ -296,7 +296,7 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
             data["showStatus"] = !hasChart;
             data["statusText"] = hasChart
                 ? string.Empty
-                : "No chart data — historical candles require a paid Finnhub plan.";
+                : "No chart data available for this range.";
             return data.ToJsonString();
         }
 

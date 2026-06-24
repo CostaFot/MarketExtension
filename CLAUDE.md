@@ -79,7 +79,8 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 |---|---|
 | `Data/MarketRepository.cs` | **The coordinator the UI depends on.** Routes each `DomainInstrument` to the first `IMarketDataProvider` whose `Supports(AssetCategory)` matches, fans out concurrently, merges into one order-preserving list. Also `SearchAsync(query)` — fans out the free-text lookup to every provider and merges/dedupes by symbol — and `GetCandlesAsync(instrument, range)` — routes the chart history to the first supporting provider (no fan-out; one instrument). No provider for a category → `IsValid:false` quote / invalid candle series. |
 | `Data/IMarketDataProvider.cs` | ONE data source: `bool Supports(AssetCategory)` + `GetQuotesAsync(instruments, ct)` + `SearchAsync(query, ct)` (free-text symbol lookup → `DomainInstrument`s, **identity only, no prices**; a provider that can't search returns `[]`) + `GetCandlesAsync(instrument, ChartRange, ct)` (price history for the detail chart; **default interface method** returns an invalid series, so non-candle providers opt out for free). |
-| `Data/Finnhub/FinnhubMarketDataProvider.cs` | Active provider (`Supports` Stock+Crypto). Maps `ApiFinnhubQuoteDto` → `DomainQuote`; `SearchAsync` calls `/search` (US equities only — see Finnhub specifics). |
+| `Data/TwelveData/TwelveDataMarketDataProvider.cs` | **Primary provider when its key is set** (`Supports` Stock+Crypto+Currency, **gated on `HasTwelveDataApiKey`** → first-match routing falls back to Finnhub/Frankfurter when unset). One API for all three classes; **`/time_series` candles are free-tier**, so charts render on a free key. `GetQuotesAsync` **batches all symbols into one `/quote`** call (tight 8/min limit); `SearchAsync` = `/symbol_search` (results normalized back to neutral symbols). See Twelve Data specifics. |
+| `Data/Finnhub/FinnhubMarketDataProvider.cs` | Stock+Crypto provider (`Supports` Stock+Crypto), used when no Twelve Data key is set. Maps `ApiFinnhubQuoteDto` → `DomainQuote`; `SearchAsync` calls `/search` (US equities only — see Finnhub specifics). |
 | `Data/Frankfurter/FrankfurterMarketDataProvider.cs` | FX provider (`Supports` Currency). **Keyless** ECB daily rates via Frankfurter (`https://api.frankfurter.dev/v1/`). Splits a 6-letter pair (`EURUSD` → base `EUR`/quote `USD`), calls the time-series endpoint for both quotes (latest vs previous fixing = **day-over-day** change) and candles (daily closes). `SearchAsync` = local filter over the catalog's FX pairs (no Frankfurter free-text endpoint exists). See Frankfurter specifics. |
 | `Data/Frankfurter/ApiFrankfurterDto.cs` | Raw time-series DTO (`ApiFrankfurterSeriesDto`: `rates` = date→{currency→rate}) + its own source-gen `FrankfurterJsonContext`. |
 | `Data/MockMarketDataProvider.cs` | Offline fallback (`Supports` all). `SearchAsync` filters its seed keys. |
@@ -90,6 +91,9 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Data/Finnhub/ApiFinnhubQuoteDto.cs` | Raw `/quote` DTO + the **single** `FinnhubJsonContext` (all `[JsonSerializable]` live here — see AOT/trim gotcha). |
 | `Data/Finnhub/ApiFinnhubSearchDto.cs` | Raw `/search` DTOs (`ApiFinnhubSearchDto` / `...ResultDto`); registered on `FinnhubJsonContext` in the quote file. |
 | `Data/Finnhub/ApiFinnhubCandleDto.cs` | Raw `/stock/candle` + `/crypto/candle` DTO (parallel `c/h/l/o/t/v` arrays + `s` status); registered on `FinnhubJsonContext` in the quote file. **Premium** (free key → 403). |
+| `Data/TwelveData/ApiTwelveDataQuoteDto.cs` | Raw `/quote` DTO + the **single** `TwelveDataJsonContext` (all `[JsonSerializable]` here, incl. the keyed `Dictionary<string,…>` batch response; `NumberHandling=AllowReadingFromString` since TD encodes numbers as JSON strings). |
+| `Data/TwelveData/ApiTwelveDataCandleDto.cs` | Raw `/time_series` DTOs (`ApiTwelveDataTimeSeriesDto` + per-bar `ApiTwelveDataValueDto`, **newest-first** — provider reverses to oldest-first); registered on `TwelveDataJsonContext`. **Free tier** (unlike Finnhub candles). |
+| `Data/TwelveData/ApiTwelveDataSearchDto.cs` | Raw `/symbol_search` DTOs (`data[]` of symbol/instrument_name/instrument_type); registered on `TwelveDataJsonContext`. |
 | `Models/{AssetCategory,DomainInstrument,DomainQuote,UiQuote}.cs` | the quote model layers |
 | `Models/ChartRange.cs` | `ChartRange` (1D/1W/1M/1Y/5Y) **+ `CandleInterval`** enums + neutral helpers (`Label`/`Lookback`/`Interval`/`FromLabel`). Provider-agnostic — **no resolution tokens here** (those live in the provider). |
 | `Models/DomainCandleSeries.cs` | Domain history: `Symbol`, `Range`, ordered `CandlePoint`s (`Time`+`Close`), `IsValid`; `Invalid(...)` factory + `First/LastClose`. No formatting. |
@@ -104,10 +108,31 @@ chart history, else the default invalid-series opt-out applies), map its `Api*` 
 (and → `DomainCandleSeries` for candles), and register it in `MarketExtensionCommandsProvider`:
 `new MarketRepository(new FinnhubMarketDataProvider(), new YourProvider())`. **Zero UI changes.** For
 candles, the provider also translates the neutral `ChartRange.Interval`/`Lookback` into its own API
-tokens — Finnhub's `ToFinnhubResolution` (`5/30/60/D/W`) is the model; a Twelve Data provider would
-map the same `CandleInterval` to `5min/30min/1h/1day/1week`. **Worked example:**
-`FrankfurterMarketDataProvider` is exactly this — a keyless FX source added behind the seam with zero
-UI/repository changes (`Supports(Currency)` + a time-series fetch for both quotes and candles).
+tokens — Finnhub's `ToFinnhubResolution` (`5/30/60/D/W`) is the model; `TwelveDataMarketDataProvider`
+maps the same `CandleInterval` to `5min/30min/1h/1day/1week`. **Worked examples:**
+`FrankfurterMarketDataProvider` (keyless FX) and `TwelveDataMarketDataProvider` (an all-three-classes
+source, primary when its key is set) are both exactly this — added behind the seam with zero
+UI/repository changes (only a registration line + a settings key).
+
+**Twelve Data specifics (primary provider):**
+- Base `https://api.twelvedata.com/`, key via `apikey=` query param (per-provider setting
+  `TwelveDataApiKey` — see API Key). **One source for stocks + crypto + forex.** Registered FIRST so it's
+  primary, but `Supports()` is **gated on the key** → a no-key install falls through to Finnhub/Frankfurter.
+- Free tier **~8 credits/min, ~800/day** (1 credit/symbol) — tighter per-minute than Finnhub. So
+  `GetQuotesAsync` **batches every instrument into ONE `/quote` call** (comma-joined). Response shape
+  differs by count: **>1 symbol** → object keyed by symbol (`Dictionary<string, ApiTwelveDataQuoteDto>`);
+  **1 symbol** → a bare quote object. A global error (bad key/429) can come back as a bare
+  `{"status":"error"}` even on HTTP 200 → the parse degrades to all-invalid (kept off the Sentry path).
+- Symbol formats: stock `AAPL`, crypto `BTC/USD`, FX `EUR/USD`. `ToTwelveDataSymbol` maps our neutral
+  symbols (bare ticker / bare coin `BTC`→`BTC/USD` / 6-letter `EURUSD`→`EUR/USD`); `SearchAsync`
+  normalizes results **back** (crypto → base coin, FX → 6-letter) so they round-trip and match the icon
+  resolver + watchlist storage.
+- **Candles are FREE-tier** — the headline win: `GET /time_series?symbol=&interval=&outputsize=` renders
+  the symbol-detail chart on a free key (Finnhub's candles are premium → 403). `interval` via
+  `ToTwelveDataInterval`; `outputsize` sized per range. Values arrive **newest-first** → the provider
+  reverses to oldest-first. Numbers are JSON **strings** → `NumberHandling=AllowReadingFromString`.
+- **Search** `/symbol_search?symbol=` returns identity only across all three classes; `instrument_type`
+  → `AssetCategory` (equity-ish → Stock, "Digital Currency" → Crypto, "Physical Currency" → Currency).
 
 **Finnhub specifics:**
 - Base `https://finnhub.io/api/v1`, endpoint `/quote`. Free tier ~60 calls/min, ~300/day.
@@ -148,8 +173,11 @@ UI/repository changes (`Supports(Currency)` + a time-series fetch for both quote
 
 **AOT/trim:** project is AOT/trim-enabled; `EnableTrimAnalyzer` is on **in Debug** (so IL2026/IL3050
 surface every build) and `ILLinkTreatWarningsAsErrors` is set, so all JSON must go through a source-gen
-`JsonSerializerContext` (never reflection-based `JsonSerializer`). Both contexts are source-gen:
-`FinnhubJsonContext` (quotes + search) and `WatchlistJsonContext` (watchlist items + legacy migration).
+`JsonSerializerContext` (never reflection-based `JsonSerializer`). The source-gen contexts:
+`FinnhubJsonContext` (quotes + search + candles), `FrankfurterJsonContext` (FX time-series),
+`TwelveDataJsonContext` (quotes + candles + search; `NumberHandling=AllowReadingFromString` for TD's
+string-encoded numbers, and the keyed `Dictionary<string,…>` batch response is registered too), and
+`WatchlistJsonContext` (watchlist items + legacy migration).
 ⚠️ **Gotcha:** the JSON source generator does **not** support `[JsonSerializable]` attributes split
 across multiple `partial` declarations of one context — it emits a colliding hintName (e.g.
 `FinnhubJsonContext.Decimal.g.cs`) and the *whole* generator silently fails, cascading CS0534
@@ -158,6 +186,13 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
 
 ## API Key (runtime setting — no build-time key)
 
+- **Twelve Data key (primary provider)** — `TwelveDataApiKey`/`HasTwelveDataApiKey`, same
+  `market.settings.json`. When set, Twelve Data serves stocks/crypto/FX **and free charts**; its
+  `Supports()` is gated on the key, so an unset key **falls back** to Finnhub/Frankfurter (no
+  regression). Read per request (a key change applies without a reload); `SearchAsync` returns `[]` and
+  quote/candle fetches short-circuit to "no data" when unset. Having **both** TD and Finnhub keys set is
+  harmless but redundant: TD (registered first) wins all pricing/candles; Finnhub then only contributes
+  extra `/search` hits (search fans out to every provider and dedupes by symbol).
 - The Finnhub key is provided **exclusively at runtime** via the extension's settings
   (`Settings/MarketSettingsManager.cs`, exposed as `FinnhubApiKey`/`HasFinnhubApiKey`, persisted to
   `…/Microsoft.CmdPal/market.settings.json`). There is **no built-in/baked key** — the old
@@ -180,6 +215,17 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
 
 ## Current Status / Next Steps
 
+- **Done (this round): Twelve Data provider — now the primary source.** Added
+  `Data/TwelveData/TwelveDataMarketDataProvider.cs` behind the existing `IMarketDataProvider` seam with
+  **zero UI/repository changes** — one API covering **stocks + crypto + forex**, registered FIRST and
+  **gated on its key** so it's primary when set and **falls back** to Finnhub/Frankfurter when not. The
+  headline win: **`/time_series` candles are free-tier**, so the symbol-detail chart now renders real
+  history on a **free** key (Finnhub's candles are premium → 403). `GetQuotesAsync` **batches** all
+  symbols into one `/quote` call (tight ~8/min free limit); `GetCandlesAsync` reverses TD's newest-first
+  values; `SearchAsync` via `/symbol_search`, normalizing results back to neutral symbols. New
+  `TwelveDataApiKey` setting + source-gen `TwelveDataJsonContext` (`AllowReadingFromString`). Build is
+  clean (AOT/trim). ⚠️ Verified to **compile**; live end-to-end verification with a real key is pending.
+  See "Twelve Data specifics". ⚠️ Working tree is **uncommitted** (on `repo`).
 - **Done:** layered data architecture; live Finnhub provider; `MarketRepository` coordinator;
   **runtime API key + refresh-interval settings** (`MarketSettingsManager`; key is settings-only,
   no baked-in key); tagged logging; **Enter-only Finnhub `/search`**; **persistent
@@ -192,8 +238,11 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
 - **Done (this round):** the **symbol-detail price chart with 1D / 1W / 1M / 1Y / 5Y range tabs** — real
   Finnhub candle history behind a provider-agnostic seam (`GetCandlesAsync`, `ChartRange` + `CandleInterval`,
   `DomainCandleSeries` / `UiCandleSeries`, ported `Helpers/ChartHelper.cs`, `ApiFinnhubCandleDto`). The
-  endpoint is **premium-gated**, so real charts need a paid key (free key → "requires paid plan"; the mock
-  provider draws synthetic candles for offline preview). The **range-switch flicker is fixed**; the
+  Finnhub candle endpoint is **premium-gated**, so on the Finnhub path real charts need a paid key (free
+  key → "requires paid plan"; the mock provider draws synthetic candles for offline preview). **Update:
+  the Twelve Data provider (now primary) serves candles on the FREE tier**, so a free Twelve Data key
+  renders real charts — the premium gate now applies only to the Finnhub fallback path. The
+  **range-switch flicker is fixed**; the
   **Enter-steals-focus bug is UNSOLVED** and left as a documented known limitation (two fixes tried and
   abandoned — see the "Symbol detail + live chart" section). ⚠️ Working tree is **uncommitted** (on `repo`).
 - **Done (this round):** **live price polling** — prices now auto-refresh on a timer while a priced
@@ -223,8 +272,9 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   re-prices in place: **silent** (no "Loading…" write, so no flicker), **bypasses the per-range cache** so
   the on-screen range actually refreshes (then refreshes that cache entry), **reuses the generation guard**
   so a concurrent tab tap still wins, and **keeps the last good chart** if a poll returns empty (the chart's
-  analog of `PricedListPage`'s keep-last-good). Caveat: candles are premium-gated, so on a **free key** each
-  tick just re-fetches a 403 (correct but invisible until a paid key lands).
+  analog of `PricedListPage`'s keep-last-good). Caveat: on the **Finnhub fallback** path candles are
+  premium-gated, so a free Finnhub key just re-fetches a 403 each tick; with **Twelve Data** primary its
+  free-tier candles refresh for real.
 - **Deferred:** rate-limit (429) **back-off** + richer error UX (the keep-last-good guard is a first
   step, not the full story); crypto/Finnhub-side FX in symbol search.
 - **Done (this round): stale-revisit catch-up** — closes the "short visit" gap in live polling. The
@@ -423,10 +473,11 @@ through a new provider seam — see the Finnhub candle spec + the candle layer f
   The first fetch fires from the page's "became visible" hook (the `INotifyItemsChanged.add`), so list
   rows building a `SymbolDetailPage` per item never trigger a fetch. Header price/%change reflect the
   **selected range** (last vs. first close), Robinhood-style — derived from the series, no extra `/quote`.
-- **Gating:** candles are premium → on a free key every chart 403s → the card shows
-  "requires a paid Finnhub plan". No code change is needed when a paid key lands (candles read the same
-  settings `FinnhubApiKey`). To preview rendering now, temporarily point the repo at
-  `new MarketRepository(new MockMarketDataProvider())` (don't ship — mock also feeds search).
+- **Gating:** this premium limit is **Finnhub-only**. With **Twelve Data** primary (its `/time_series`
+  candles are free-tier), a free Twelve Data key renders real charts; only the **Finnhub fallback** path
+  403s on a free key → the card shows "requires a paid Finnhub plan". To preview rendering with no key at
+  all, temporarily point the repo at `new MarketRepository(new MockMarketDataProvider())` (don't ship —
+  mock also feeds search).
 
 **State of the two UI issues: flicker FIXED; the Enter/focus bug is UNSOLVED (left as-is, documented).**
 
@@ -510,8 +561,9 @@ For reference, the Perf Monitor source this chart was ported from
   visible-lifecycle hook (`replayOnSubscribe:false` — no double-fetch on open) and `SymbolChartForm.
   PollRefresh()` does the silent re-price: bypasses the per-range cache so the on-screen range actually
   refreshes, reuses the generation guard so a tab tap still wins, and keeps the last good chart on a
-  transient empty poll. Premium-gated, so a free key just re-fetches a 403 each tick (invisible until a
-  paid key). See the "Done (this round): symbol-detail chart live refresh" bullet in Current Status.
+  transient empty poll. On the Finnhub fallback path candles are premium-gated (a free key re-fetches a
+  403 each tick); with Twelve Data primary its free-tier candles refresh for real. See the "Done (this
+  round): symbol-detail chart live refresh" bullet in Current Status.
 - Not yet wired to a future `PortfolioPage` (doesn't exist yet).
 
 ### Asset logos as icons, app-wide (done)

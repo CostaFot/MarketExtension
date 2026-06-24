@@ -59,7 +59,7 @@ internal sealed partial class MarketsPage : ListPage
         new ListItem(_settingsPage)
         {
             Title = "Settings",
-            Subtitle = "Finnhub API key and price refresh interval",
+            Subtitle = "API keys and price refresh interval",
             Icon = new IconInfo(SettingsGlyph),
         },
     ];

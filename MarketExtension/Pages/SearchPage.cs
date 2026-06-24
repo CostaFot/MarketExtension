@@ -7,9 +7,10 @@ using Windows.Foundation;
 
 namespace MarketExtension;
 
-// Default entry screen: the Enter-only Finnhub /search flow. Typing never hits the network
-// (free-tier rate limits) — it only changes what the synthetic "Search Finnhub for ..." item will
-// look up. Results are price-less identities; Enter on a result opens its SymbolDetailPage, which is
+// Default entry screen: the Enter-only online symbol-search flow. Typing never hits the network
+// (free-tier rate limits) — it only changes what the synthetic "Search markets for ..." item will
+// look up. The query fans out to every provider via MarketRepository.SearchAsync (provider-agnostic).
+// Results are price-less identities; Enter on a result opens its SymbolDetailPage, which is
 // the single place to add it to the watchlist or favorites. The subtitle still reflects current
 // membership so the user can see at a glance what a result is already on.
 // Lifted from the search half of the old MarketsPage.
@@ -104,7 +105,7 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             // First item → pressing Enter runs the one /search call (see RunSearchCommand).
             new ListItem(new RunSearchCommand(this))
             {
-                Title = $"Search Finnhub for \"{SearchText}\"",
+                Title = $"Search markets for \"{SearchText}\"",
                 Subtitle = "Press Enter to look up symbols online",
                 Icon = new IconInfo(SearchGlyph),
             },
