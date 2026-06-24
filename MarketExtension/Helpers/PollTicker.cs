@@ -78,10 +78,22 @@ internal sealed class PollTicker : StateFlow<long>
 
                 await Task.Delay(delay, ct).ConfigureAwait(false);
 
-                if (settings.AutoRefreshEnabled)
+                if (!settings.AutoRefreshEnabled)
+                    continue;
+
+                try
                 {
                     SetValue(Value + 1); // emit a tick -> every visible priced surface re-prices in place
                     Log.Info("Poll", $"Tick #{Value} — signalling visible surfaces to refresh");
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // A subscriber's tick handler threw on this (the poll-loop) thread. Swallow it so one bad
+                    // tick can't kill the whole loop: SetValue notifies subscribers synchronously, and a
+                    // pinned dock keeps the subscriber count >= 1, so OnActive (which restarts the loop on a
+                    // 0 -> 1 transition) would never fire again — polling would stay dead until an extension
+                    // reload. Report to Sentry (Log.Error survives Release) and keep ticking.
+                    Log.Error("Poll", "tick handler threw — continuing poll loop", ex);
                 }
             }
         }

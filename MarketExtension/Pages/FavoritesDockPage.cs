@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CommandPalette.Extensions;
@@ -93,24 +94,44 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
         _quotes = null;
         IsLoading = true;
         RaiseItemsChanged(0);
-        Task.Run(LoadQuotes);
+        Task.Run(() => LoadQuotes(silent: false));
     }
 
     // Live-poll refresh: re-price favorites WITHOUT clearing _quotes or showing a spinner, so the current
     // prices stay on the band until LoadQuotes swaps the new ones in (no flicker). Skips work before the
-    // first paint — the favorites subscription already has a load in flight then.
+    // first paint — the favorites subscription already has a load in flight then. `silent: true` also keeps
+    // a transient bad poll from blanking a good price (see LoadQuotes).
     internal void PollRefresh()
     {
         if (_quotes is null)
             return;
         Log.Info("Poll", $"Dock: re-pricing favorites [{string.Join(", ", WatchlistStore.Instance.Favorites.Value.Select(i => i.Symbol))}]");
-        Task.Run(LoadQuotes);
+        Task.Run(() => LoadQuotes(silent: true));
     }
 
-    private async Task LoadQuotes()
+    // `silent` = a background poll (no spinner): in that mode, don't let a transient bad result (e.g. a
+    // Finnhub 429 mapped to an invalid quote) overwrite a price that was fine a moment ago. This mirrors
+    // PricedListPage.LoadQuotes' keep-last-good guard — without it a single failed poll would replace every
+    // UiQuote with an invalid one and the band would blank (symbol-only buttons) until the extension is
+    // reloaded, because a pinned dock never re-fetches except on a poll tick.
+    private async Task LoadQuotes(bool silent)
     {
         // The dock shows only favorites — price exactly that subset (a snapshot of the flow's value).
-        _quotes = [.. (await _repository.GetQuotesAsync(WatchlistStore.Instance.Favorites.Value)).Select(UiQuote.From)];
+        var prior = _quotes; // on-screen prices, for the keep-last-good merge
+        IEnumerable<UiQuote> fetched =
+            (await _repository.GetQuotesAsync(WatchlistStore.Instance.Favorites.Value)).Select(UiQuote.From);
+
+        if (silent && prior is not null)
+        {
+            var lastGood = prior
+                .Where(q => q.IsValid)
+                .GroupBy(q => q.Symbol, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            fetched = fetched.Select(q =>
+                !q.IsValid && lastGood.TryGetValue(q.Symbol, out var good) ? good : q);
+        }
+
+        _quotes = [.. fetched];
         IsLoading = false;
         RaiseItemsChanged(0);
     }
