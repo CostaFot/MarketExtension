@@ -49,6 +49,12 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
         Placeholder = DefaultRefreshMinutes.ToString(CultureInfo.InvariantCulture),
     };
 
+    // Observable "is any pricing key configured" flag, driven by SettingsChanged (below). UI surfaces
+    // (the missing-key hint) subscribe and re-render the instant the user adds/removes a key, instead of
+    // re-querying on each GetItems. Distinct-until-changed means it emits only when the bool actually
+    // flips. The providers do NOT use this — they read the key values pull-style on each request.
+    private readonly MutableStateFlow<bool> _hasAnyApiKey = new(false);
+
     // The key the Twelve Data provider should use — the user's setting, or empty when unset. Read as a
     // property (not cached) so a key change applies on the next request without a reload.
     public string TwelveDataApiKey => _twelveDataApiKey.Value?.Trim() ?? string.Empty;
@@ -65,6 +71,11 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     // Whether a Finnhub key has been configured. The provider short-circuits to "no data" when false
     // rather than firing keyless requests that would just 401.
     public bool HasFinnhubApiKey => FinnhubApiKey.Length > 0;
+
+    // Observable form of "is at least one pricing-provider key set" (Twelve Data OR Finnhub). Frankfurter
+    // FX is keyless, but stocks/crypto need a key — so this drives the missing-key hint. Read .Value for a
+    // snapshot, or Subscribe to re-render when it flips. Updated by the SettingsChanged handler in the ctor.
+    public StateFlow<bool> HasAnyApiKey => _hasAnyApiKey;
 
     // Auto-refresh cadence in minutes; 0 means off. Bad/negative input falls back to the default.
     public int RefreshMinutes =>
@@ -85,6 +96,13 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
         Settings.Add(_finnhubApiKey);
         Settings.Add(_refreshMinutes);
         LoadSettings();
-        Settings.SettingsChanged += (_, _) => SaveSettings();
+        _hasAnyApiKey.Update(HasTwelveDataApiKey || HasFinnhubApiKey); // seed from persisted keys (no subscribers yet)
+        Settings.SettingsChanged += (_, _) =>
+        {
+            SaveSettings();
+            // Publish the key-presence flag so the missing-key hint reacts immediately. Distinct-until-
+            // changed swallows this unless a key was just added or cleared.
+            _hasAnyApiKey.Update(HasTwelveDataApiKey || HasFinnhubApiKey);
+        };
     }
 }

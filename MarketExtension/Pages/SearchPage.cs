@@ -48,6 +48,10 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             // replaces the old explicit fire-on-subscribe.
             _subscriptions.Add(WatchlistStore.Instance.Watchlist.Subscribe(_ => RaiseItemsChanged(0)));
             _subscriptions.Add(WatchlistStore.Instance.Favorites.Subscribe(_ => RaiseItemsChanged(0)));
+            // Re-render when a key is added/cleared so the missing-key hint appears/disappears at once.
+            // replay:false — the membership replay above already paints the initial list.
+            _subscriptions.Add(MarketSettingsManager.Instance.HasAnyApiKey
+                .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
         }
         remove
         {
@@ -80,21 +84,29 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         => string.IsNullOrWhiteSpace(SearchText) ? HomeItems() : SearchItems();
 
     // Empty box: quick links into the other two screens (also top-level commands).
-    private IListItem[] HomeItems() =>
-    [
-        new ListItem(_watchlistPage)
+    private IListItem[] HomeItems()
+    {
+        var items = new List<IListItem>
         {
-            Title = "Watchlist",
-            Subtitle = "The instruments you track",
-            Icon = new IconInfo(ListGlyph),
-        },
-        new ListItem(_favoritesPage)
-        {
-            Title = "Favorites",
-            Subtitle = "Your starred instruments — shown on the dock",
-            Icon = new IconInfo(StarFillGlyph),
-        },
-    ];
+            new ListItem(_watchlistPage)
+            {
+                Title = "Watchlist",
+                Subtitle = "The instruments you track",
+                Icon = new IconInfo(ListGlyph),
+            },
+            new ListItem(_favoritesPage)
+            {
+                Title = "Favorites",
+                Subtitle = "Your starred instruments — shown on the dock",
+                Icon = new IconInfo(StarFillGlyph),
+            },
+        };
+
+        if (ApiKeyHint.MissingKeyRow() is { } hint) // no key → nudge the user to add one
+            items.Add(hint);
+
+        return [.. items];
+    }
 
     // Non-empty box: the Enter-to-search action, then the last online search's results (if they
     // still belong to the current query).
@@ -129,6 +141,9 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             if (_searchResults.Count > 0)
                 items.Add(AssetIconResolver.AttributionRow()); // Elbstream logo credit (results show logos)
         }
+
+        if (ApiKeyHint.MissingKeyRow() is { } hint) // no key → explain why stock/crypto search is empty
+            items.Add(hint);
 
         return [.. items];
     }

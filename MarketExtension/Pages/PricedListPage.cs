@@ -56,6 +56,10 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
             // opening the page doesn't double-fetch (the membership replay above already did the first
             // load); the ticker runs its timer only while a surface is subscribed.
             _subscriptions.Add(PollTicker.Instance.Subscribe(_ => PollRefresh(), replayOnSubscribe: false));
+            // Re-render when a key is added/cleared so the missing-key hint appears/disappears at once.
+            // replay:false — the membership flow above already drives the initial paint.
+            _subscriptions.Add(MarketSettingsManager.Instance.HasAnyApiKey
+                .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
             Log.Info("Poll", $"{Title}: started polling [{string.Join(", ", _snapshot.Select(i => i.Symbol))}] " +
                              $"(every {MarketSettingsManager.Instance.RefreshMinutes} min, 0=off)");
         }
@@ -98,7 +102,7 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
             return []; // framework's pre-subscribe fetch — nothing to show yet
 
         if (_snapshot.Count == 0)
-            return EmptyState();
+            return ApiKeyHint.MissingKeyRow() is { } emptyHint ? [.. EmptyState(), emptyHint] : EmptyState();
 
         UiQuote[] cached;
         lock (_cacheLock)
@@ -112,6 +116,8 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         var rows = cached.Where(Matches).Select(BuildRow).ToList();
         rows.Add(new ListItem(new RefreshCommand(this)) { Title = "Refresh 🔄" });
         rows.Add(AssetIconResolver.AttributionRow()); // Elbstream logo credit (rows above show logos)
+        if (ApiKeyHint.MissingKeyRow() is { } hint) // no key → explain why prices are blank
+            rows.Add(hint);
         return [.. rows];
     }
 
