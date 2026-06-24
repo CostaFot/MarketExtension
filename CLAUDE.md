@@ -229,8 +229,8 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   symbols into one `/quote` call (tight ~8/min free limit); `GetCandlesAsync` reverses TD's newest-first
   values; `SearchAsync` via `/symbol_search`, normalizing results back to neutral symbols. New
   `TwelveDataApiKey` setting + source-gen `TwelveDataJsonContext` (`AllowReadingFromString`). Build is
-  clean (AOT/trim). ⚠️ Verified to **compile**; live end-to-end verification with a real key is pending.
-  See "Twelve Data specifics". ⚠️ Working tree is **uncommitted** (on `repo`).
+  clean (AOT/trim). ✅ Verified live end-to-end against a real Twelve Data key (quotes, batched `/quote`,
+  and free-tier `/time_series` charts). See "Twelve Data specifics".
 - **Done:** layered data architecture; live Finnhub provider; `MarketRepository` coordinator;
   **runtime API key + refresh-interval settings** (`MarketSettingsManager`; key is settings-only,
   no baked-in key); tagged logging; **Enter-only Finnhub `/search`**; **persistent
@@ -249,7 +249,7 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   renders real charts — the premium gate now applies only to the Finnhub fallback path. The
   **range-switch flicker is fixed**; the
   **Enter-steals-focus bug is UNSOLVED** and left as a documented known limitation (two fixes tried and
-  abandoned — see the "Symbol detail + live chart" section). ⚠️ Working tree is **uncommitted** (on `repo`).
+  abandoned — see the "Symbol detail + live chart" section).
 - **Done (this round):** **live price polling** — prices now auto-refresh on a timer while a priced
   surface is visible (Markets Watchlist / Favorites + the Favorites dock band). Realized via
   `Helpers/PollTicker.cs` (a singleton `StateFlow<long>` ticker using the `OnActive`/`OnInactive`
@@ -281,8 +281,12 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   premium-gated, so a free Finnhub key just re-fetches a 403 each tick; with **Twelve Data** primary its
   free-tier candles refresh for real.
 - **Deferred:** rate-limit (429) **back-off** + richer error UX (the keep-last-good guard is a first
-  step, not the full story — `Retry`/`RetryWhen` is a natural fit if the Rx migration below happens);
-  crypto/Finnhub-side FX in symbol search.
+  step, not the full story — `Retry`/`RetryWhen` is a natural fit if the Rx migration below happens).
+  **(Resolved by the Twelve Data provider:** crypto + FX symbol search now works across all three classes
+  — TD's `/symbol_search` maps `instrument_type` → category and normalizes symbols back to neutral form,
+  and the repository fans search out to every provider. The original gap was Finnhub-only; it now persists
+  **only on the keyless fallback path** — without a TD key, Finnhub search is US-equities-only, Frankfurter
+  covers FX via a local catalog filter, and crypto search is unavailable.)
 - **Done (this round): stale-revisit catch-up** — closes the "short visit" gap in live polling. The
   priced pages are long-lived singletons whose `_priceCache` survives navigation, so revisiting an
   unchanged set repainted cached prices with **no fetch**, while every revisit restarted the poll timer
