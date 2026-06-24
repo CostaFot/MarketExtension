@@ -98,7 +98,7 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Models/ChartRange.cs` | `ChartRange` (1D/1W/1M/1Y/5Y) **+ `CandleInterval`** enums + neutral helpers (`Label`/`Lookback`/`Interval`/`FromLabel`). Provider-agnostic — **no resolution tokens here** (those live in the provider). |
 | `Models/DomainCandleSeries.cs` | Domain history: `Symbol`, `Range`, ordered `CandlePoint`s (`Time`+`Close`), `IsValid`; `Invalid(...)` factory + `First/LastClose`. No formatting. |
 | `Models/UiCandleSeries.cs` | Ui projection of a `DomainCandleSeries`: `IsUp`, `FormatPrice`, `FormatRangeChange` (Robinhood-style net change over the selected range), `ChartImageUrl()`. The ONLY place chart formatting/SVG live. |
-| `Helpers/ChartHelper.cs` | Ports Perf Monitor's **SVG-sparkline-as-`data:`-URI** (pure `System.Xml.Linq`, AOT-safe), generalized to plot N points + normalize Y to the series min/max, recolored green/red. Only caller: `UiCandleSeries`. |
+| `Helpers/ChartHelper.cs` | Ports Perf Monitor's **SVG-sparkline-as-`data:`-URI** (pure `System.Xml.Linq`, AOT-safe), generalized to plot N points + normalize Y to the series min/max, recolored green/red. Draws a **faint quarter gridline box** (0/¼/½/¾/1 on both axes) so the scale reads at a glance. **No numeric tick labels:** the host rasterizes the data-URI through Direct2D's SVG engine (`ID2D1SvgDocument`), which renders lines/polylines/rects/gradients but **silently drops `<text>`** — so axis numbers aren't possible on this surface (the grid is decorative only). Grid uses a theme-neutral mid-gray (static image can't read the host theme). Only caller: `UiCandleSeries`. |
 | `Helpers/AssetIconResolver.cs` | Instrument identity → row/dock `IconInfo`. Builds **Elbstream** logo URLs by category (`/logos/symbol/{t}`, `/logos/crypto/{c}`, FX pair → base currency's flag `/logos/country/{iso2}` via a currency→country map, `?format=png`); Segoe-glyph fallback for unmapped currencies/unknown. **Zero API calls** (the host fetches the URL). Also the shared `AttributionRow()` factory (the required Elbstream credit). See "Asset logos (done)". |
 | `Pages/SymbolDetailPage.cs` | Shared per-symbol screen: nested `SymbolChartForm : FormContent` (adaptive-card chart + range tabs) + the list-management command bar. Flicker on range switch is fixed; ⚠️ the Enter-steals-focus bug is an **open known limitation** — see the chart section. |
 
@@ -567,6 +567,14 @@ For reference, the Perf Monitor source this chart was ported from
 - MediaControls `…/Pages/DockHeadItem.cs` — the event-driven content-band variant.
 
 **Refinements still open (flicker is fixed; the Enter/focus bug above is still open):**
+- **Gridlines — ✅ DONE; numeric axis labels NOT POSSIBLE.** The chart draws a faint quarter-gridline box
+  (the "normal graph" look) so the scale reads at a glance. **Numeric axis ticks were attempted and
+  abandoned:** the SVG is rasterized by Direct2D's `ID2D1SvgDocument`, which **does not render `<text>`**
+  (it silently drops it — lines/polylines/rects/gradients are fine), so `<text>` price/time labels never
+  appeared (verified: gridlines showed, numbers didn't). The standard workaround — moving labels into the
+  adaptive card around the image (a left price column + a bottom time `ColumnSet`) — was deliberately **not**
+  pursued (alignment with the stretched image is fragile; deemed not worth the hack). Grid is decorative
+  only, theme-neutral gray. (This is the same ceiling Perf Monitor's chart hits — it has no labels either.)
 - **Active-tab highlight:** the tabs don't visually mark the selected range (adaptive cards can't easily
   restyle a button by bound data); the header caption names it instead.
 - **Keyboard range switching:** you must Tab into the card to reach the tabs — no arrow-key switch from
