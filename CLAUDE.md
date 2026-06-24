@@ -204,7 +204,7 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   cleared, prices swap when the fetch lands). Honors the existing interval setting (default 5 min,
   `0` = off, applied without reload). A **keep-last-good guard** in `PricedListPage.LoadQuotes(silent)`
   stops a transient bad poll (e.g. a 429 mapped to an invalid quote) from blanking a price that was
-  fine. The chart's live 1D refresh stays deferred (see below). See "Live price polling (done)".
+  fine. The chart now live-refreshes its visible range on the same ticker (see below). See "Live price polling (done)".
 - **Done (this round): FX provider (keyless Frankfurter)** — forex is now live behind the existing
   `IMarketDataProvider` seam with **zero UI/repository changes**. `Data/Frankfurter/FrankfurterMarketDataProvider.cs`
   (`Supports(Currency)`) wraps the ECB daily reference rates via Frankfurter (`api.frankfurter.dev`, **no
@@ -215,9 +215,18 @@ for a given context on a **single** declaration (see `ApiFinnhubQuoteDto.cs`).
   filter over the catalog's pairs (Frankfurter has no symbol endpoint). Verified end-to-end against the
   live API. See "Frankfurter specifics (FX)". (Caveats: ECB is **daily-only** — no intraday FX bars; FX
   pairs reach existing installs via the catalog seed / local search, since Finnhub `/search` is US-equity.)
+- **Done (this round): symbol-detail chart live refresh** — the open chart now re-fetches its **visible
+  range** on each `PollTicker` tick (not just one fetch per tab tap), sharing the same ticker + `OnActive`/
+  `OnInactive` refcount as the priced list pages and dock. `SymbolDetailPage` subscribes the chart in its
+  visible-lifecycle hook (`replayOnSubscribe:false`, so opening the page doesn't double-fetch — `Start()`
+  already did the first load) and disposes it on hide with the rest. `SymbolChartForm.PollRefresh()`
+  re-prices in place: **silent** (no "Loading…" write, so no flicker), **bypasses the per-range cache** so
+  the on-screen range actually refreshes (then refreshes that cache entry), **reuses the generation guard**
+  so a concurrent tab tap still wins, and **keeps the last good chart** if a poll returns empty (the chart's
+  analog of `PricedListPage`'s keep-last-good). Caveat: candles are premium-gated, so on a **free key** each
+  tick just re-fetches a 403 (correct but invisible until a paid key lands).
 - **Deferred:** rate-limit (429) **back-off** + richer error UX (the keep-last-good guard is a first
-  step, not the full story); crypto/Finnhub-side FX in symbol search; the **symbol-detail chart's live 1D
-  auto-refresh** (still one fetch per tab tap).
+  step, not the full story); crypto/Finnhub-side FX in symbol search.
 - **Done (this round): stale-revisit catch-up** — closes the "short visit" gap in live polling. The
   priced pages are long-lived singletons whose `_priceCache` survives navigation, so revisiting an
   unchanged set repainted cached prices with **no fetch**, while every revisit restarted the poll timer
@@ -285,9 +294,10 @@ Priced surfaces used to fetch **once** when they became visible (the StateFlow r
 drives the first load). They now also auto-refresh on a timer while visible: **default 5 min, settings-
 configurable** (0 = off). Built as designed, on the StateFlow subscriber-count seam.
 
-- **Where (in scope):** `Pages/PricedListPage.cs` (Markets Watchlist + Markets Favorites) and
-  `Pages/FavoritesDockPage.cs`. `SearchPage` is exempt (identity-only results, no prices). The
-  **symbol-detail chart is NOT polled** — it still fetches once per tab tap (deferred).
+- **Where (in scope):** `Pages/PricedListPage.cs` (Markets Watchlist + Markets Favorites),
+  `Pages/FavoritesDockPage.cs`, and **the `SymbolDetailPage` chart** (its visible range re-fetches on each
+  tick via `SymbolChartForm.PollRefresh()` — see the chart section). `SearchPage` is exempt (identity-only
+  results, no prices).
 - **The ticker = `Helpers/PollTicker.cs`.** A process-wide singleton `PollTicker : StateFlow<long>` that
   emits an incrementing tick on a `Task.Delay` loop. The loop **starts in `OnActive`** (the 0→1
   subscriber transition) and is **cancelled via a `CancellationTokenSource` in `OnInactive`** (1→0), so
@@ -494,10 +504,14 @@ For reference, the Perf Monitor source this chart was ported from
   ceiling; the content types are all declarative: Markdown / PlainText / Image / Form / Tree). Closest
   approximation = bake High/Low/Open/Close text + on-chart min/max labels (the `o/h/l/v` arrays are
   already parsed in `ApiFinnhubCandleDto`, just not yet promoted past `Close` into `CandlePoint`).
-- **Live 1D auto-refresh** is deferred: live price polling now exists (`Helpers/PollTicker.cs`, see "Live
-  price polling (done)") but the chart was kept **out of scope** — it still fetches once per tab tap.
-  Wiring it in would mean re-fetching the selected range's candles on each tick and repainting the
-  `FormContent` (reusing the chart's generation guard).
+- **Live auto-refresh — ✅ DONE.** The open chart now re-fetches its **visible range** (not just 1D) on
+  each `PollTicker` tick and repaints the `FormContent` in place, sharing the one ticker + `OnActive`/
+  `OnInactive` refcount with the priced list pages. `SymbolDetailPage` subscribes the chart in its
+  visible-lifecycle hook (`replayOnSubscribe:false` — no double-fetch on open) and `SymbolChartForm.
+  PollRefresh()` does the silent re-price: bypasses the per-range cache so the on-screen range actually
+  refreshes, reuses the generation guard so a tab tap still wins, and keeps the last good chart on a
+  transient empty poll. Premium-gated, so a free key just re-fetches a 403 each tick (invisible until a
+  paid key). See the "Done (this round): symbol-detail chart live refresh" bullet in Current Status.
 - Not yet wired to a future `PortfolioPage` (doesn't exist yet).
 
 ### Asset logos as icons, app-wide (done)

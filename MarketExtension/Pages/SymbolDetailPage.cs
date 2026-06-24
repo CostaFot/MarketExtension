@@ -29,7 +29,8 @@ namespace MarketExtension;
 // convention): it subscribes to WatchlistStore's two membership flows while visible — the
 // INotifyItemsChanged add/remove lifecycle, the same seam the list pages use — and rebuilds its Commands
 // on every change. That same "page became visible" hook starts the chart's first load, so candles are
-// fetched only when the page is actually opened (not when a list builds a row per item).
+// fetched only when the page is actually opened (not when a list builds a row per item), and subscribes
+// the chart to the shared PollTicker so the visible range live-refreshes on each tick while the page is up.
 internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChanged
 {
     private readonly DomainInstrument _instrument;
@@ -50,6 +51,11 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
             // first candle fetch (once). Building a row's SymbolDetailPage doesn't subscribe, so list
             // rows never trigger a fetch.
             _chartForm.Start();
+            // Live refresh: re-fetch the visible range on each poll tick while the page is shown, sharing
+            // the one PollTicker (and its OnActive/OnInactive refcount) with the priced list pages + dock.
+            // replayOnSubscribe:false so opening the page doesn't double-fetch — Start() already did the
+            // first load. Disposed in `remove` with the rest, so a hidden page neither polls nor leaks.
+            _subscriptions.Add(PollTicker.Instance.Subscribe(_ => _chartForm.PollRefresh(), replayOnSubscribe: false));
         }
         remove
         {
@@ -102,7 +108,8 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
 
     // The adaptive-card chart body. Holds the current range + a per-range cache, fetches candles via
     // the repository, and repaints by updating DataJson (FormContent : BaseObservable, so the host
-    // re-renders in place — the same mechanism Perf Monitor's widget cards use).
+    // re-renders in place — the same mechanism Perf Monitor's widget cards use). PollRefresh re-fetches
+    // the visible range on each PollTicker tick so an open chart stays live, not just the list pages.
     private sealed partial class SymbolChartForm : FormContent
     {
         private readonly DomainInstrument _instrument;
@@ -196,6 +203,44 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
                 _displaySeries = series;
 
             DataJson = BuildData(series, series.Range);
+        }
+
+        // Live-poll repaint, driven by PollTicker while the page is visible. Re-fetches the CURRENTLY
+        // shown range — bypassing the per-range cache so the on-screen range actually refreshes — then
+        // swaps the result in place and refreshes that cache entry. Silent by design: a chart is already
+        // up, so it never writes the "Loading…" card (no flicker), unlike a tab tap's first paint. Reuses
+        // the generation guard so a concurrent tab tap still wins, and keeps the last good chart when a
+        // poll returns empty (a transient 403/429/no_data won't blank a chart that was fine) — the chart's
+        // analog of PricedListPage's keep-last-good guard.
+        internal void PollRefresh()
+        {
+            ChartRange range;
+            int generation;
+            bool hasChart;
+            lock (_gate)
+            {
+                if (!_started)
+                    return; // first load hasn't run yet — nothing to refresh
+                range = _range;
+                hasChart = _displaySeries?.HasData == true;
+                generation = ++_generation;
+            }
+
+            Task.Run(async () =>
+            {
+                var series = await _repository.GetCandlesAsync(_instrument, range);
+                lock (_gate)
+                {
+                    if (generation != _generation)
+                        return; // a tab tap or newer poll superseded this fetch — drop it
+                    if (!series.HasData && hasChart)
+                        return; // keep-last-good: don't blank a good chart on a transient empty poll
+                    if (series.HasData)
+                        _cache[range] = series;
+                }
+
+                Render(series);
+            });
         }
 
         private static ChartRange? ParseRange(string? json)
