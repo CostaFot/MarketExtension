@@ -10,18 +10,16 @@ namespace MarketExtension;
 // reference/settings/AdbSettingsManager.cs. Wired into the host via
 // MarketExtensionCommandsProvider (Settings = MarketSettingsManager.Instance.Settings).
 //
-// Settings today:
-//   - Twelve Data API key. The primary provider when set (stocks, crypto, FX + free charts); empty
-//     means the extension falls back to Finnhub/Frankfurter.
-//   - Finnhub API key. This is the ONLY source of the key — there is no built-in/baked key; an
-//     empty value means the Finnhub provider returns no prices until the user supplies their own.
-//   - Price refresh interval in minutes (drives live-price polling; 0 = off).
+// Settings: one API key per data provider, plus the price refresh interval (minutes; 0 = off). Keys
+// are user-supplied at runtime — there is no built-in/baked key, and an empty key just means that
+// provider is skipped. Keys are named per-provider because each provider has its own.
 //
-// Naming note: provider keys are named per-provider (FinnhubApiKey, not a generic ApiKey) because
-// additional providers (e.g. a forex source) will each get their own key setting here later.
+// Note: keys are NOT masked — the toolkit's TextSetting has no password mode; settings live in a
+// local plaintext JSON file anyway.
 //
-// Note: the API key is NOT masked — the toolkit's TextSetting has no password mode. That's
-// acceptable here: settings live in a local plaintext JSON file anyway.
+// ⚠️ Toolkit quirk: TextSetting renders **Description** as the field's on-screen label (it maps Label →
+// the Adaptive Card `title`, which Input.Text ignores). So the user-visible text must go in Description;
+// Label is kept only as the semantic name.
 internal sealed class MarketSettingsManager : JsonSettingsManager
 {
     public static readonly MarketSettingsManager Instance = new();
@@ -32,26 +30,22 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     private readonly TextSetting _twelveDataApiKey = new("twelveDataApiKey", string.Empty)
     {
         Label = "Twelve Data API key",
-        Description = "Your Twelve Data API key. When set, Twelve Data becomes the primary source for " +
-                      "stocks, crypto and forex — and renders real price charts on the free tier. Leave " +
-                      "blank to fall back to Finnhub/Frankfurter. Get a free key at https://twelvedata.com.",
-        Placeholder = "Paste your Twelve Data API key",
+        Description = "Twelve Data API key. Used first when set; other providers serve only as fallback.",
+        Placeholder = "Paste your API key",
     };
 
     private readonly TextSetting _finnhubApiKey = new("finnhubApiKey", string.Empty)
     {
         Label = "Finnhub API key",
-        Description = "Your Finnhub API key. Used for stocks/crypto when no Twelve Data key is set. " +
-                      "Get a free key at https://finnhub.io.",
-        Placeholder = "Paste your Finnhub API key",
+        Description = "Finnhub API key.",
+        Placeholder = "Paste your API key",
     };
 
     private readonly TextSetting _refreshMinutes = new(
         "refreshMinutes", DefaultRefreshMinutes.ToString(CultureInfo.InvariantCulture))
     {
         Label = "Price refresh interval (minutes)",
-        Description = "How often to refresh live prices while a Markets screen is open. " +
-                      "Enter 0 to turn auto-refresh off. Lower values use more of the Finnhub rate limit.",
+        Description = "Price refresh interval in minutes. Enter 0 to turn it off.",
         Placeholder = DefaultRefreshMinutes.ToString(CultureInfo.InvariantCulture),
     };
 
