@@ -52,6 +52,9 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             // replay:false — the membership replay above already paints the initial list.
             _subscriptions.Add(MarketSettingsManager.Instance.HasAnyApiKey
                 .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
+            // Re-render when throttling starts/stops so the rate-limited banner appears/disappears at once.
+            _subscriptions.Add(RateLimitSignal.Instance.IsRateLimited
+                .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
         }
         remove
         {
@@ -144,6 +147,8 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
 
         if (ApiKeyHint.MissingKeyRow() is { } hint) // no key → explain why stock/crypto search is empty
             items.Add(hint);
+        if (RateLimitHint.Row() is { } banner) // throttled → just under the search action, seen without scrolling
+            items.Insert(1, banner);
 
         return [.. items];
     }

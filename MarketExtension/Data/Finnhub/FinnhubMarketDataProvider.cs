@@ -66,8 +66,9 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
             // reconciliation and is deferred.
             // NEVER log the full URL — it carries the API token. Log the query only.
             Log.Info("Finnhub", $"GET /search q={query}");
-            using var response = await Http.GetAsync(
-                $"search?q={Uri.EscapeDataString(query)}&exchange=US&token={ApiKey}", ct).ConfigureAwait(false);
+            using var response = await HttpRetry.SendAsync(
+                c => Http.GetAsync($"search?q={Uri.EscapeDataString(query)}&exchange=US&token={ApiKey}", c),
+                "Finnhub", ct).ConfigureAwait(false);
 
             var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             Log.Info("Finnhub", $"search '{query}' <- {(int)response.StatusCode} {response.StatusCode}");
@@ -116,8 +117,9 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
         {
             // NEVER log the full URL — it carries the API token. Log the symbol only.
             Log.Info("Finnhub", $"GET /quote symbol={symbol}");
-            using var response = await Http.GetAsync(
-                $"quote?symbol={Uri.EscapeDataString(symbol)}&token={ApiKey}", ct).ConfigureAwait(false);
+            using var response = await HttpRetry.SendAsync(
+                c => Http.GetAsync($"quote?symbol={Uri.EscapeDataString(symbol)}&token={ApiKey}", c),
+                "Finnhub", ct).ConfigureAwait(false);
 
             var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             Log.Info("Finnhub", $"{symbol} <- {(int)response.StatusCode} {response.StatusCode}  body={json}");
@@ -175,9 +177,11 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
         {
             // NEVER log the full URL — it carries the API token. Log symbol/resolution/range only.
             Log.Info("Finnhub", $"GET /{endpoint} symbol={symbol} resolution={resolution} range={range}");
-            using var response = await Http.GetAsync(
-                $"{endpoint}?symbol={Uri.EscapeDataString(symbol)}&resolution={resolution}" +
-                $"&from={fromUnix}&to={toUnix}&token={ApiKey}", ct).ConfigureAwait(false);
+            using var response = await HttpRetry.SendAsync(
+                c => Http.GetAsync(
+                    $"{endpoint}?symbol={Uri.EscapeDataString(symbol)}&resolution={resolution}" +
+                    $"&from={fromUnix}&to={toUnix}&token={ApiKey}", c),
+                "Finnhub", ct).ConfigureAwait(false);
 
             var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             Log.Info("Finnhub", $"{symbol} candles <- {(int)response.StatusCode} {response.StatusCode}");

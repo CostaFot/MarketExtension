@@ -88,6 +88,9 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Settings/WatchlistStore.cs` | JSON-persisted tracked instruments, each carrying **two independent flags** `InWatchlist`/`IsFavorite` (favorites = the dock subset). Stores **full `DomainInstrument` identity** so searched non-catalog symbols re-price; an entry with both flags false is dropped. Source-gen `WatchlistItem`/`WatchlistJsonContext` → `market_watchlist.json`; seeds `InstrumentCatalog` on first run, else migrates the legacy `market_favorites.json` (old pins → watchlisted **and** favorited). Exposes its `Watchlist`/`Favorites` subsets as **observable `StateFlow`s** (each mutation calls `PublishState()` → re-publishes both); pages and the dock **subscribe** and re-render themselves. Replaces the old `FavoritesStore` + `Watchlist.cs`. |
 | `Helpers/StateFlow.cs` | A tiny **Kotlin-StateFlow analog**, now a **thin wrapper over `System.Reactive`'s `BehaviorSubject<T>`** (the migration off the old hand-rolled version is **done** — AOT/trim is off, so the Rx dependency is taken warning-free; see the Rx done bullet). Used by the **state holders** (`WatchlistStore`, `MarketSettingsManager`) — observable *state with a current value*, which `IObservable` (no `Value`) and a bare `BehaviorSubject` (no read-only face) can't express alone. Public API unchanged: `StateFlow<T>` (read-only `Value` + `Subscribe` with **replay-on-subscribe** + distinct-until-changed; a `Subscribe(onNext, replayOnSubscribe:false)` overload opts out of the replay via `Skip(1)` — used by the priced pages' secondary flows, e.g. `HasAnyApiKey`) and writable `MutableStateFlow<T>` (`Update`). `SetValue` does **source-side** distinct-until-changed (an equal value isn't pushed, so re-publishing an unchanged subset doesn't wake its subscribers); `BehaviorSubject.OnNext` fans handlers out **outside** its lock (handlers re-read the store safely). The old hand-rolled **subscriber-count seam** (`OnActive`/`OnInactive` + the refcount + a custom `Subscription` wrapper) was **removed** once its only user, `PollTicker`, went pure Rx — Rx's `Publish().RefCount()` is the proper home for that, and Rx subscriptions are already idempotent on dispose. Plus `InstrumentListComparer` (symbol-sequence dedup for the store's two flows). |
 | `Helpers/PollTicker.cs` | The **live-price poll ticker** — now **pure Rx** (no longer a `StateFlow<long>`). A process-wide singleton `IObservable<long>` = `Observable.Generate(...)` (self-rescheduling timer; per-step delay re-read from `MarketSettingsManager` each iteration so interval/on-off applies without reload, `0` = off idles on a 30 s re-check and the tick is filtered out) wrapped in **`Publish().RefCount()`** — the WhileSubscribed seam that starts the loop on the first subscriber and tears it down on the last (Generate never completes, so disposal is silent and resubscribe restarts cleanly). `Defer`/`Finally` log the start/stop at the refcount edges. Surfaces attach via the **guarded** `PollTicker.Subscribe(onTick)` (the raw stream is private): the handler is wrapped in try/catch (swallow + `Log.Error`→Sentry) so a throwing tick handler can't trip Rx's `SafeObserver` into tearing down the shared multicast stream (which would kill polling for every surface). Handlers still offload heavy work via `Task.Run`. |
+| `Helpers/HttpRetry.cs` | **Shared 429 back-off** at the HTTP seam. `SendAsync(send, tag, ct)` takes a request **thunk** (each retry must re-issue a fresh `HttpResponseMessage`) and, on HTTP `429`, honors a short `Retry-After` else backs off `1s`→`2s` (max 3 attempts, **bails** if the wait would exceed an `8s` cap — per-minute windows don't clear in seconds, so hammering only burns quota). Returns the final response (success / non-429 error / surviving 429) so callers inspect status exactly as before — a **drop-in** at each `GetAsync`. Also the single choke point that feeds `RateLimitSignal` (2xx → off, surviving 429 → on). Used by Finnhub + Twelve Data (not keyless Frankfurter). |
+| `Helpers/RateLimitSignal.cs` | Process-wide **"are we throttled" flag** — a `MutableStateFlow<bool>` behind a read-only `StateFlow<bool>` (same state-holder idiom as `WatchlistStore`/`MarketSettingsManager`). `ReportRateLimited()`/`ReportSuccess()` flip it (distinct-until-changed); priced surfaces **subscribe** and re-render. Intentionally **global, not per-symbol** (a free-tier limit is key-wide). |
+| `Helpers/RateLimitHint.cs` | The **rate-limited banner row** (parallels `ApiKeyHint.MissingKeyRow()`): `Row()` returns an amber "Rate-limited — showing last known prices" `ListItem` (Enter = **`NoOpCommand`**, purely informational — it's the default-selected first row, so it must not navigate) when `RateLimitSignal` is set **and** the `ShowRateLimitErrors` setting is on, else `null`. Pinned to the **top** so it's seen without scrolling: `PricedListPage.GetItems` inserts it at index 0; `SearchPage.SearchItems` inserts it at index 1 (just under the Enter-to-search action, which must stay first). |
 | `Data/Finnhub/ApiFinnhubQuoteDto.cs` | Raw `/quote` DTO + the **single** `FinnhubJsonContext` (all `[JsonSerializable]` live here — see AOT/trim gotcha). |
 | `Data/Finnhub/ApiFinnhubSearchDto.cs` | Raw `/search` DTOs (`ApiFinnhubSearchDto` / `...ResultDto`); registered on `FinnhubJsonContext` in the quote file. |
 | `Data/Finnhub/ApiFinnhubCandleDto.cs` | Raw `/stock/candle` + `/crypto/candle` DTO (parallel `c/h/l/o/t/v` arrays + `s` status); registered on `FinnhubJsonContext` in the quote file. **Premium** (free key → 403). |
@@ -220,6 +223,30 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 
 ## Current Status / Next Steps
 
+- **Done (this round): rate-limit (429) back-off + a "rate-limited" banner.** Two pieces behind the
+  existing provider seam — **no model-layer change**:
+  - **Back-off** — a shared `Helpers/HttpRetry.cs` wraps every `Http.GetAsync` in the two **keyed** HTTP
+    providers (Finnhub + Twelve Data; Frankfurter is keyless / no documented limit, so it's left out). On
+    an HTTP `429` it honors a short `Retry-After`, else backs off `1s`→`2s` (max 3 attempts), bailing
+    immediately if the wait would exceed an `8s` cap — because the free tiers are **per-minute** windows, a
+    few-second retry rarely clears an exhausted minute, so hammering would just burn more quota. Plain
+    `async`/`Task.Delay`, **not** Rx — wrapping these Task-based calls in observables just to use
+    `RetryWhen` would add ceremony for no gain (the CLAUDE.md Rx framing oversold this one).
+  - **Banner** — a process-wide `Helpers/RateLimitSignal.cs` (`StateFlow<bool>`, the same state-holder
+    idiom as `WatchlistStore`): `HttpRetry` flips it **on** when a 429 survives back-off and **off** on any
+    2xx, at that single choke point. The Twelve Data provider additionally reports it when TD encodes a
+    `429` in a **200-OK body** (`{"code":429,…}`), which an HTTP-status check alone misses. The priced
+    pages + Search **subscribe** (replay:false) and render `Helpers/RateLimitHint.cs` — an amber
+    "Rate-limited — showing last known prices" row (Enter is a **no-op** — `NoOpCommand`, purely
+    informational; it's the default-selected first row so it must not steal Enter), pinned to the **top**
+    (priced pages index 0; Search index 1, just under the Enter-to-search action) so it's seen without
+    scrolling — so the user knows *why* prices look stale instead of just seeing the keep-last-good values.
+    A new **`Show rate-limit warnings`** toggle setting (`ShowRateLimitErrors`, default on) hides the banner
+    entirely for users who'd rather not see it. It's deliberately
+    **global, not per-symbol** (a free-tier limit is key-wide). The **dock band contributes to the signal**
+    (its fetches go through the same providers) but doesn't render the banner — too cramped, and a
+    pseudo-button warning would look out of place. Build clean (0 warnings). ⚠️ Verified to **compile**;
+    a live smoke test (exhaust a free key, confirm the banner appears then clears on recovery) is worth doing.
 - **Done (this round): Twelve Data provider — now the primary source.** Added
   `Data/TwelveData/TwelveDataMarketDataProvider.cs` behind the existing `IMarketDataProvider` seam with
   **zero UI/repository changes** — one API covering **stocks + crypto + forex**, registered FIRST and
@@ -280,8 +307,12 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   analog of `PricedListPage`'s keep-last-good). Caveat: on the **Finnhub fallback** path candles are
   premium-gated, so a free Finnhub key just re-fetches a 403 each tick; with **Twelve Data** primary its
   free-tier candles refresh for real.
-- **Deferred:** rate-limit (429) **back-off** + richer error UX (the keep-last-good guard is a first
-  step, not the full story — `Retry`/`RetryWhen` is a natural fit if the Rx migration below happens).
+- **Deferred:** richer **per-symbol** error UX — a typed `QuoteStatus` (Ok/Invalid/RateLimited/NoKey) on
+  `DomainQuote` so each row could render its own state. Deliberately **not** built: the rate-limit signal
+  shipped this round is global (one throttle flag for the whole key) because a free-tier limit is key-wide,
+  not per-symbol, and a typed status would ripple through all four providers + `UiQuote` + the keep-last-good
+  guard for marginal gain. **(Done this round:** 429 **back-off + a "rate-limited" banner** — see the
+  dedicated bullet above; the keep-last-good guard is no longer the whole story.)
   **(Resolved by the Twelve Data provider:** crypto + FX symbol search now works across all three classes
   — TD's `/symbol_search` maps `instrument_type` → category and normalizes symbols back to neutral form,
   and the repository fans search out to every provider. The original gap was Finnhub-only; it now persists
@@ -427,15 +458,19 @@ configurable** (0 = off). Built on the ticker's subscriber-count lifecycle (now 
 - **Settings.** `Settings/MarketSettingsManager.cs` (`JsonSettingsManager` singleton,
   `…/market.settings.json`, wired via `Settings = MarketSettingsManager.Instance.Settings;`). The refresh
   interval is a numeric `TextSetting` **in minutes, default 5** (0 = off), surfaced as `RefreshMinutes` /
-  `RefreshInterval` (TimeSpan) / `AutoRefreshEnabled`; the ticker reads these each tick. (Same manager
-  also holds the Finnhub API key — see the "API Key" section.)
+  `RefreshInterval` (TimeSpan) / `AutoRefreshEnabled`; the ticker reads these each tick. A
+  **`ToggleSetting` `Show rate-limit warnings`** (default on, surfaced as `ShowRateLimitErrors`) gates the
+  rate-limited banner — read pull-style by `RateLimitHint.Row()`, so toggling it applies on the next
+  re-render. (Same manager also holds the Finnhub API key — see the "API Key" section.)
 - ⚠️ **Rate-limit tension (still real):** Finnhub free tier is **~60 calls/min AND ~300/day**, and
   `GetQuotesAsync` issues **one `/quote` call per instrument**. Polling N instruments at interval T burns
   the budget fast at a low T — e.g. 6 favorites every 60 s = 360 calls/hour, **exhausting ~300/day in
   under an hour**. The **5-min default is gentler** (6 favorites = ~72 calls/hour). In place today: the
-  configurable interval + **Off** (0) escape, polling **only while visible**, and the keep-last-good
-  guard. Still deferred: real **429 back-off** + a "rate-limited" UI state; a batched-quote provider
-  would relax this further. ⚠️ Note: each visible surface polls independently, so a pinned favorites
+  configurable interval + **Off** (0) escape, polling **only while visible**, the keep-last-good guard,
+  and now **429 back-off + a "rate-limited" banner** (`HttpRetry` / `RateLimitSignal` / `RateLimitHint` —
+  see the "Done (this round)" bullet). Note the back-off intentionally **bails fast** rather than retrying
+  hard, since these are per-minute windows; a batched-quote provider (Twelve Data already does this) is the
+  real relief. ⚠️ Note: each visible surface polls independently, so a pinned favorites
   dock **and** an open favorites page both fetch favorites each tick (no shared-fetch dedup). This is an
   **accepted trade-off, not a todo** — at most three priced surfaces exist (Watchlist / Favorites page /
   Favorites dock) and the only real overlap is dock + Favorites page on one small set, so the worst case

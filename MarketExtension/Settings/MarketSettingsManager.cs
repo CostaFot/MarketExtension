@@ -49,6 +49,13 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
         Placeholder = DefaultRefreshMinutes.ToString(CultureInfo.InvariantCulture),
     };
 
+    private readonly ToggleSetting _showRateLimitErrors = new("showRateLimitErrors", true)
+    {
+        Label = "Show rate-limit warnings",
+        Description = "When on, a banner appears on the price lists while the data provider is throttling " +
+                      "requests (HTTP 429) so you know why prices may be stale. Turn off to hide it.",
+    };
+
     // Observable "is any pricing key configured" flag, driven by SettingsChanged (below). UI surfaces
     // (the missing-key hint) subscribe and re-render the instant the user adds/removes a key, instead of
     // re-querying on each GetItems. Distinct-until-changed means it emits only when the bool actually
@@ -89,12 +96,18 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     // The cadence as a TimeSpan for the (upcoming) PeriodicTimer-driven poll loop.
     public TimeSpan RefreshInterval => TimeSpan.FromMinutes(RefreshMinutes);
 
+    // Whether the rate-limited banner (RateLimitHint) shows while a provider is throttling requests.
+    // Default on; the user can hide it in Settings if they'd rather not see it. Read pull-style each render,
+    // so a toggle applies the next time a priced page re-renders (e.g. on navigating back to it).
+    public bool ShowRateLimitErrors => _showRateLimitErrors.Value;
+
     private MarketSettingsManager()
     {
         FilePath = Path.Combine(Utilities.BaseSettingsPath("Microsoft.CmdPal"), "market.settings.json");
         Settings.Add(_twelveDataApiKey);
         Settings.Add(_finnhubApiKey);
         Settings.Add(_refreshMinutes);
+        Settings.Add(_showRateLimitErrors);
         LoadSettings();
         _hasAnyApiKey.Update(HasTwelveDataApiKey || HasFinnhubApiKey); // seed from persisted keys (no subscribers yet)
         Settings.SettingsChanged += (_, _) =>

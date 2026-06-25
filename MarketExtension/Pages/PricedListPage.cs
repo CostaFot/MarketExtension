@@ -60,6 +60,10 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
             // replay:false — the membership flow above already drives the initial paint.
             _subscriptions.Add(MarketSettingsManager.Instance.HasAnyApiKey
                 .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
+            // Re-render when throttling starts/stops so the rate-limited banner appears/disappears at once.
+            // replay:false — same reason as above.
+            _subscriptions.Add(RateLimitSignal.Instance.IsRateLimited
+                .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
             Log.Info("Poll", $"{Title}: started polling [{string.Join(", ", _snapshot.Select(i => i.Symbol))}] " +
                              $"(every {MarketSettingsManager.Instance.RefreshMinutes} min, 0=off)");
         }
@@ -118,6 +122,8 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         rows.Add(AssetIconResolver.AttributionRow()); // Elbstream logo credit (rows above show logos)
         if (ApiKeyHint.MissingKeyRow() is { } hint) // no key → explain why prices are blank
             rows.Add(hint);
+        if (RateLimitHint.Row() is { } banner) // throttled → surface at the TOP so it's seen without scrolling
+            rows.Insert(0, banner);
         return [.. rows];
     }
 

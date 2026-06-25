@@ -70,7 +70,8 @@ internal sealed class TwelveDataMarketDataProvider : IMarketDataProvider
             var joined = string.Join(",", tdSymbols.Select(Uri.EscapeDataString));
             // NEVER log the full URL — it carries the API key. Log the symbols only.
             Log.Info("TwelveData", $"GET /quote symbols={string.Join(",", tdSymbols)}");
-            using var response = await Http.GetAsync($"quote?symbol={joined}&apikey={ApiKey}", ct).ConfigureAwait(false);
+            using var response = await HttpRetry.SendAsync(
+                c => Http.GetAsync($"quote?symbol={joined}&apikey={ApiKey}", c), "TwelveData", ct).ConfigureAwait(false);
 
             var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             Log.Info("TwelveData", $"quote <- {(int)response.StatusCode} {response.StatusCode}");
@@ -121,7 +122,10 @@ internal sealed class TwelveDataMarketDataProvider : IMarketDataProvider
             {
                 var dto = JsonSerializer.Deserialize(json, TwelveDataJsonContext.Default.ApiTwelveDataQuoteDto);
                 if (dto is not null)
+                {
+                    ReportIfRateLimited(dto); // a single-symbol error object parses straight into the DTO
                     result[requestedSymbols.First()] = dto;
+                }
             }
             else
             {
@@ -135,11 +139,34 @@ internal sealed class TwelveDataMarketDataProvider : IMarketDataProvider
         catch (JsonException ex)
         {
             // A global error (bad key, rate limit) can come back as a bare {"code":…,"status":"error"}
-            // object even on HTTP 200, which won't shape-match the multi-symbol map. Degrade to "no
-            // quotes" (all invalid) rather than throwing — keeps it out of the error/Sentry path.
+            // object even on HTTP 200, which won't shape-match the multi-symbol map. Surface a 429 to the
+            // banner, then degrade to "no quotes" (all invalid) rather than throwing — keeps it out of the
+            // error/Sentry path.
+            ReportIfGlobalRateLimit(json);
             Log.Warn("TwelveData", $"quote: could not parse response ({ex.Message}) — treating as unavailable");
         }
         return result;
+    }
+
+    // Twelve Data signals throttling with code 429 — even inside a 200-OK body — so flip the rate-limit
+    // banner when we see it (HttpRetry only catches a real HTTP 429).
+    private static void ReportIfRateLimited(ApiTwelveDataQuoteDto dto)
+    {
+        if (dto.Code == 429)
+            RateLimitSignal.Instance.ReportRateLimited();
+    }
+
+    // The multi-symbol path's global-error case: the bare error object failed to deserialize as the keyed
+    // map, so re-parse it as a single quote DTO purely to read its code (and ignore if it isn't one).
+    private static void ReportIfGlobalRateLimit(string json)
+    {
+        try
+        {
+            var error = JsonSerializer.Deserialize(json, TwelveDataJsonContext.Default.ApiTwelveDataQuoteDto);
+            if (error?.Code == 429)
+                RateLimitSignal.Instance.ReportRateLimited();
+        }
+        catch (JsonException) { /* not a recognizable error object — ignore */ }
     }
 
     public async Task<IReadOnlyList<DomainInstrument>> SearchAsync(string query, CancellationToken ct = default)
@@ -158,9 +185,10 @@ internal sealed class TwelveDataMarketDataProvider : IMarketDataProvider
         {
             // NEVER log the full URL — it carries the API key. Log the query only.
             Log.Info("TwelveData", $"GET /symbol_search q={query}");
-            using var response = await Http.GetAsync(
-                $"symbol_search?symbol={Uri.EscapeDataString(query)}&outputsize={MaxSearchResults}&apikey={ApiKey}",
-                ct).ConfigureAwait(false);
+            using var response = await HttpRetry.SendAsync(
+                c => Http.GetAsync(
+                    $"symbol_search?symbol={Uri.EscapeDataString(query)}&outputsize={MaxSearchResults}&apikey={ApiKey}", c),
+                "TwelveData", ct).ConfigureAwait(false);
 
             var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             Log.Info("TwelveData", $"search '{query}' <- {(int)response.StatusCode} {response.StatusCode}");
@@ -226,9 +254,11 @@ internal sealed class TwelveDataMarketDataProvider : IMarketDataProvider
         {
             // NEVER log the full URL — it carries the API key. Log symbol/interval/range only.
             Log.Info("TwelveData", $"GET /time_series symbol={symbol} interval={interval} range={range}");
-            using var response = await Http.GetAsync(
-                $"time_series?symbol={Uri.EscapeDataString(symbol)}&interval={interval}" +
-                $"&outputsize={outputsize}&apikey={ApiKey}", ct).ConfigureAwait(false);
+            using var response = await HttpRetry.SendAsync(
+                c => Http.GetAsync(
+                    $"time_series?symbol={Uri.EscapeDataString(symbol)}&interval={interval}" +
+                    $"&outputsize={outputsize}&apikey={ApiKey}", c),
+                "TwelveData", ct).ConfigureAwait(false);
 
             var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             Log.Info("TwelveData", $"{symbol} candles <- {(int)response.StatusCode} {response.StatusCode}");
