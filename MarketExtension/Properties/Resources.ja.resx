@@ -1,0 +1,448 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- Japanese (ja) translations of Properties/Resources.resx.
+       Same keys as the neutral English table; ResourceManager loads this as a satellite assembly
+       (ja/MarketExtension.resources.dll) for ja-JP via CultureInfo parent-chain resolution. Any key
+       missing here falls back to the English neutral resource. Format placeholders ({0}, {1}, ...)
+       and the ★ / · / leading-space concatenation strings are preserved exactly so Strings.Format
+       produces the same shape. -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Action_Open" xml:space="preserve">
+    <value>開く</value>
+  </data>
+  <data name="Action_Refresh" xml:space="preserve">
+    <value>更新</value>
+  </data>
+  <data name="Action_Search" xml:space="preserve">
+    <value>検索</value>
+  </data>
+  <data name="Action_ViewDetails" xml:space="preserve">
+    <value>詳細を表示</value>
+  </data>
+  <data name="Extension_DisplayName" xml:space="preserve">
+    <value>マーケット拡張機能</value>
+  </data>
+  <data name="Command_Markets" xml:space="preserve">
+    <value>マーケット</value>
+  </data>
+  <data name="Command_MarketsPortfolio" xml:space="preserve">
+    <value>マーケット ポートフォリオ</value>
+  </data>
+  <data name="Page_Markets_Title" xml:space="preserve">
+    <value>マーケット</value>
+  </data>
+  <data name="Page_Search_Title" xml:space="preserve">
+    <value>マーケット検索</value>
+  </data>
+  <data name="Page_Watchlist_Title" xml:space="preserve">
+    <value>マーケット ウォッチリスト</value>
+  </data>
+  <data name="Page_Favorites_Title" xml:space="preserve">
+    <value>マーケット お気に入り</value>
+  </data>
+  <data name="Page_Portfolio_Title" xml:space="preserve">
+    <value>マーケット ポートフォリオ</value>
+  </data>
+  <data name="Page_DataSources_Title" xml:space="preserve">
+    <value>データソース</value>
+  </data>
+  <data name="Hub_Placeholder" xml:space="preserve">
+    <value>検索、ウォッチリスト、お気に入り…</value>
+  </data>
+  <data name="Nav_Search_Title" xml:space="preserve">
+    <value>検索</value>
+  </data>
+  <data name="Nav_Search_Subtitle" xml:space="preserve">
+    <value>株式、暗号資産、通貨を検索</value>
+  </data>
+  <data name="Nav_Watchlist_Title" xml:space="preserve">
+    <value>ウォッチリスト</value>
+  </data>
+  <data name="Nav_Watchlist_Subtitle" xml:space="preserve">
+    <value>追跡している銘柄</value>
+  </data>
+  <data name="Nav_Favorites_Title" xml:space="preserve">
+    <value>お気に入り</value>
+  </data>
+  <data name="Nav_Favorites_Subtitle" xml:space="preserve">
+    <value>スター付きの銘柄。ドックに表示されます</value>
+  </data>
+  <data name="Nav_Portfolio_Title" xml:space="preserve">
+    <value>ポートフォリオ</value>
+  </data>
+  <data name="Nav_DataSources_Title" xml:space="preserve">
+    <value>データソース</value>
+  </data>
+  <data name="Nav_Settings_Title" xml:space="preserve">
+    <value>設定</value>
+  </data>
+  <data name="Search_Placeholder" xml:space="preserve">
+    <value>シンボルまたは名前で検索して Enter キーを押す</value>
+  </data>
+  <data name="Watchlist_Placeholder" xml:space="preserve">
+    <value>ウォッチリストを絞り込む…</value>
+  </data>
+  <data name="Favorites_Placeholder" xml:space="preserve">
+    <value>お気に入りを絞り込む…</value>
+  </data>
+  <data name="Portfolio_Placeholder" xml:space="preserve">
+    <value>保有銘柄を絞り込む…</value>
+  </data>
+  <data name="Search_Action_Title" xml:space="preserve">
+    <value>マーケットで「{0}」を検索</value>
+  </data>
+  <data name="Search_Action_Subtitle" xml:space="preserve">
+    <value>Enter キーで検索</value>
+  </data>
+  <data name="Search_NoMatches" xml:space="preserve">
+    <value>「{0}」に一致する結果はありません</value>
+  </data>
+  <data name="Search_ResultsSection" xml:space="preserve">
+    <value>検索結果</value>
+  </data>
+  <data name="Membership_WatchlistFavorite" xml:space="preserve">
+    <value>ウォッチリスト登録済み · ★ お気に入り · Enter で詳細</value>
+  </data>
+  <data name="Membership_Watchlist" xml:space="preserve">
+    <value>ウォッチリスト登録済み · Enter で詳細</value>
+  </data>
+  <data name="Membership_Favorite" xml:space="preserve">
+    <value>★ お気に入り · Enter で詳細</value>
+  </data>
+  <data name="Membership_None" xml:space="preserve">
+    <value>Enter で詳細</value>
+  </data>
+  <data name="Section_Stocks" xml:space="preserve">
+    <value>株式</value>
+  </data>
+  <data name="Section_Crypto" xml:space="preserve">
+    <value>暗号資産</value>
+  </data>
+  <data name="Section_Currency" xml:space="preserve">
+    <value>為替</value>
+  </data>
+  <data name="Section_Other" xml:space="preserve">
+    <value>その他</value>
+  </data>
+  <data name="Watchlist_Empty_Title" xml:space="preserve">
+    <value>ウォッチリストは空です</value>
+  </data>
+  <data name="Watchlist_Empty_Subtitle" xml:space="preserve">
+    <value>銘柄を開いて、詳細ページから追加してください</value>
+  </data>
+  <data name="Favorites_Empty_Title" xml:space="preserve">
+    <value>お気に入りはまだありません</value>
+  </data>
+  <data name="Favorites_Empty_Subtitle" xml:space="preserve">
+    <value>銘柄を開いて、詳細ページからスターを付けてください</value>
+  </data>
+  <data name="Portfolio_Empty_Title" xml:space="preserve">
+    <value>保有銘柄はまだありません</value>
+  </data>
+  <data name="Portfolio_Empty_Subtitle" xml:space="preserve">
+    <value>銘柄の詳細ページから保有銘柄を追加してください</value>
+  </data>
+  <data name="Status_Demo_Title" xml:space="preserve">
+    <value>デモモード — サンプルデータを表示中</value>
+  </data>
+  <data name="Status_Demo_Subtitle" xml:space="preserve">
+    <value>シミュレートされた価格です。Enter キーで設定からオフにできます。</value>
+  </data>
+  <data name="Status_Demo_Tag" xml:space="preserve">
+    <value>デモモード</value>
+  </data>
+  <data name="Status_Demo_Tooltip" xml:space="preserve">
+    <value>ライブ価格ではなくサンプルデータを表示しています</value>
+  </data>
+  <data name="Status_NoKey_Title" xml:space="preserve">
+    <value>API キーが設定されていません</value>
+  </data>
+  <data name="Status_NoKey_Subtitle" xml:space="preserve">
+    <value>Enter キーで設定から追加できます。</value>
+  </data>
+  <data name="Status_NoKey_Tag" xml:space="preserve">
+    <value>操作が必要です</value>
+  </data>
+  <data name="Status_NoKey_Tooltip" xml:space="preserve">
+    <value>API キーが未設定です — 機能が制限されます</value>
+  </data>
+  <data name="RateLimit_Title" xml:space="preserve">
+    <value>レート制限中 — 最後に取得した価格を表示しています</value>
+  </data>
+  <data name="RateLimit_Subtitle" xml:space="preserve">
+    <value>制限が解除されると自動的に更新されます。</value>
+  </data>
+  <data name="RateLimit_Tag" xml:space="preserve">
+    <value>レート制限中</value>
+  </data>
+  <data name="RateLimit_Tooltip" xml:space="preserve">
+    <value>リクエストが制限されています — 価格が古い可能性があります</value>
+  </data>
+  <data name="Attribution_Title" xml:space="preserve">
+    <value>ロゴは Elbstream から提供されています</value>
+  </data>
+  <data name="Attribution_Subtitle" xml:space="preserve">
+    <value>ロゴ画像は elbstream.com 提供</value>
+  </data>
+  <data name="Attribution_OpenName" xml:space="preserve">
+    <value>Elbstream を開く</value>
+  </data>
+  <data name="Cmd_AddToWatchlist" xml:space="preserve">
+    <value>ウォッチリストに追加</value>
+  </data>
+  <data name="Cmd_RemoveFromWatchlist" xml:space="preserve">
+    <value>ウォッチリストから削除</value>
+  </data>
+  <data name="Cmd_AddToFavorites" xml:space="preserve">
+    <value>お気に入りに追加</value>
+  </data>
+  <data name="Cmd_RemoveFromFavorites" xml:space="preserve">
+    <value>お気に入りから削除</value>
+  </data>
+  <data name="Cmd_RemoveFromPortfolio" xml:space="preserve">
+    <value>ポートフォリオから削除</value>
+  </data>
+  <data name="Toast_AddedToWatchlist" xml:space="preserve">
+    <value>{0} をウォッチリストに追加しました</value>
+  </data>
+  <data name="Toast_RemovedFromWatchlist" xml:space="preserve">
+    <value>{0} をウォッチリストから削除しました</value>
+  </data>
+  <data name="Toast_AddedToFavorites" xml:space="preserve">
+    <value>{0} をお気に入りに追加しました</value>
+  </data>
+  <data name="Toast_RemovedFromFavorites" xml:space="preserve">
+    <value>{0} をお気に入りから削除しました</value>
+  </data>
+  <data name="Toast_RemovedFromPortfolio" xml:space="preserve">
+    <value>{0} をポートフォリオから削除しました</value>
+  </data>
+  <data name="Toast_OpenUrlFailed" xml:space="preserve">
+    <value>{0} を開けませんでした: {1}</value>
+  </data>
+  <data name="Chart_Loading" xml:space="preserve">
+    <value>{0} のチャートを読み込み中…</value>
+  </data>
+  <data name="Chart_NoData" xml:space="preserve">
+    <value>この期間のチャートデータはありません。</value>
+  </data>
+  <data name="SetQty_Title_Edit" xml:space="preserve">
+    <value>{0} の保有を編集</value>
+  </data>
+  <data name="SetQty_Title_Add" xml:space="preserve">
+    <value>{0} をポートフォリオに追加</value>
+  </data>
+  <data name="SetQty_Name_Edit" xml:space="preserve">
+    <value>保有を編集</value>
+  </data>
+  <data name="SetQty_Name_Add" xml:space="preserve">
+    <value>ポートフォリオに追加</value>
+  </data>
+  <data name="SetQty_Toast_Set" xml:space="preserve">
+    <value>{0} を {1}{2} に設定しました</value>
+  </data>
+  <data name="SetQty_BasisNote" xml:space="preserve">
+    <value>（単価 {0}）</value>
+  </data>
+  <data name="SetQty_Error_Number" xml:space="preserve">
+    <value>0 より大きい数値を入力してください。</value>
+  </data>
+  <data name="SetQty_Error_Positive" xml:space="preserve">
+    <value>数量は 0 より大きくする必要があります。保有を削除するには「ポートフォリオから削除」を使用してください。</value>
+  </data>
+  <data name="SetQty_Card_Quantity" xml:space="preserve">
+    <value>保有数量</value>
+  </data>
+  <data name="SetQty_Card_QuantityError" xml:space="preserve">
+    <value>0 より大きい数量を入力してください</value>
+  </data>
+  <data name="SetQty_Card_CostBasis" xml:space="preserve">
+    <value>1 単位あたりの平均取得単価（任意）</value>
+  </data>
+  <data name="SetQty_Card_Help" xml:space="preserve">
+    <value>支払った平均価格（銘柄の通貨建て）。不明な場合は 0 のままにします。</value>
+  </data>
+  <data name="SetQty_Card_Save" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="Portfolio_TotalsRow_Title" xml:space="preserve">
+    <value>ポートフォリオ {0}</value>
+  </data>
+  <data name="Portfolio_Row_TotalReturnPrefix" xml:space="preserve">
+    <value>累計 {0}</value>
+  </data>
+  <data name="Ui_Portfolio_DailyChange" xml:space="preserve">
+    <value>本日 {0}（{1}%）</value>
+  </data>
+  <data name="Ui_Portfolio_TotalReturnNote" xml:space="preserve">
+    <value> · 累計 {0}（{1}%）</value>
+  </data>
+  <data name="Ui_Portfolio_Unconverted_One" xml:space="preserve">
+    <value> · 1 銘柄が未換算</value>
+  </data>
+  <data name="Ui_Portfolio_Unconverted_Many" xml:space="preserve">
+    <value> · {0} 銘柄が未換算</value>
+  </data>
+  <data name="Ui_Position_Unit_Shares" xml:space="preserve">
+    <value>株</value>
+  </data>
+  <data name="Ui_Position_Unit_Units" xml:space="preserve">
+    <value>単位</value>
+  </data>
+  <data name="Settings_TwelveData_Label" xml:space="preserve">
+    <value>Twelve Data API キー</value>
+  </data>
+  <data name="Settings_TwelveData_Desc" xml:space="preserve">
+    <value>Twelve Data の API キー。設定されている場合に優先して使用されます。</value>
+  </data>
+  <data name="Settings_Finnhub_Label" xml:space="preserve">
+    <value>Finnhub API キー</value>
+  </data>
+  <data name="Settings_Finnhub_Desc" xml:space="preserve">
+    <value>Finnhub の API キー。</value>
+  </data>
+  <data name="Settings_ApiKey_Placeholder" xml:space="preserve">
+    <value>API キーを貼り付け</value>
+  </data>
+  <data name="Settings_Refresh_Label" xml:space="preserve">
+    <value>価格の更新間隔（分）</value>
+  </data>
+  <data name="Settings_Refresh_Desc" xml:space="preserve">
+    <value>価格の更新間隔（分単位、0 = オフ）。</value>
+  </data>
+  <data name="Settings_RateLimit_Label" xml:space="preserve">
+    <value>レート制限の警告を表示</value>
+  </data>
+  <data name="Settings_RateLimit_Desc" xml:space="preserve">
+    <value>プロバイダーのレート制限により価格が古くなった場合にバナーを表示します。</value>
+  </data>
+  <data name="Settings_Demo_Label" xml:space="preserve">
+    <value>デモモード</value>
+  </data>
+  <data name="Settings_Demo_Desc" xml:space="preserve">
+    <value>ライブ価格の代わりに組み込みのサンプルデータを表示します。拡張機能を試すのに最適です。</value>
+  </data>
+  <data name="Settings_PortfolioCurrency_Label" xml:space="preserve">
+    <value>ポートフォリオの通貨</value>
+  </data>
+  <data name="Settings_PortfolioCurrency_Desc" xml:space="preserve">
+    <value>ポートフォリオ合計の通貨。他の保有銘柄はこの通貨に換算されます。</value>
+  </data>
+  <data name="Currency_USD" xml:space="preserve">
+    <value>米ドル (USD)</value>
+  </data>
+  <data name="Currency_EUR" xml:space="preserve">
+    <value>ユーロ (EUR)</value>
+  </data>
+  <data name="Currency_GBP" xml:space="preserve">
+    <value>英ポンド (GBP)</value>
+  </data>
+  <data name="Currency_JPY" xml:space="preserve">
+    <value>日本円 (JPY)</value>
+  </data>
+  <data name="Currency_CHF" xml:space="preserve">
+    <value>スイスフラン (CHF)</value>
+  </data>
+  <data name="Currency_AUD" xml:space="preserve">
+    <value>豪ドル (AUD)</value>
+  </data>
+  <data name="Currency_CAD" xml:space="preserve">
+    <value>カナダドル (CAD)</value>
+  </data>
+  <data name="Currency_NZD" xml:space="preserve">
+    <value>ニュージーランドドル (NZD)</value>
+  </data>
+  <data name="Currency_CNY" xml:space="preserve">
+    <value>中国人民元 (CNY)</value>
+  </data>
+  <data name="Currency_HKD" xml:space="preserve">
+    <value>香港ドル (HKD)</value>
+  </data>
+  <data name="Currency_SGD" xml:space="preserve">
+    <value>シンガポールドル (SGD)</value>
+  </data>
+  <data name="Currency_SEK" xml:space="preserve">
+    <value>スウェーデンクローナ (SEK)</value>
+  </data>
+  <data name="Currency_NOK" xml:space="preserve">
+    <value>ノルウェークローネ (NOK)</value>
+  </data>
+  <data name="Currency_DKK" xml:space="preserve">
+    <value>デンマーククローネ (DKK)</value>
+  </data>
+  <data name="Currency_PLN" xml:space="preserve">
+    <value>ポーランドズロチ (PLN)</value>
+  </data>
+  <data name="Currency_ZAR" xml:space="preserve">
+    <value>南アフリカランド (ZAR)</value>
+  </data>
+  <data name="Currency_MXN" xml:space="preserve">
+    <value>メキシコペソ (MXN)</value>
+  </data>
+  <data name="Currency_INR" xml:space="preserve">
+    <value>インドルピー (INR)</value>
+  </data>
+  <data name="Currency_BRL" xml:space="preserve">
+    <value>ブラジルレアル (BRL)</value>
+  </data>
+  <data name="Currency_KRW" xml:space="preserve">
+    <value>韓国ウォン (KRW)</value>
+  </data>
+</root>
