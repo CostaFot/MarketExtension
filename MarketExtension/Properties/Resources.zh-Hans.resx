@@ -1,0 +1,501 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Action_Open" xml:space="preserve">
+    <value>打开</value>
+  </data>
+  <data name="Action_Refresh" xml:space="preserve">
+    <value>刷新</value>
+  </data>
+  <data name="Action_Search" xml:space="preserve">
+    <value>搜索</value>
+  </data>
+  <data name="Action_ViewDetails" xml:space="preserve">
+    <value>查看详情</value>
+  </data>
+  <data name="Extension_DisplayName" xml:space="preserve">
+    <value>行情扩展</value>
+  </data>
+  <data name="Command_Markets" xml:space="preserve">
+    <value>市场</value>
+  </data>
+  <data name="Command_MarketsPortfolio" xml:space="preserve">
+    <value>市场投资组合</value>
+  </data>
+  <data name="Page_Markets_Title" xml:space="preserve">
+    <value>市场</value>
+  </data>
+  <data name="Page_Search_Title" xml:space="preserve">
+    <value>市场搜索</value>
+  </data>
+  <data name="Page_Watchlist_Title" xml:space="preserve">
+    <value>市场自选</value>
+  </data>
+  <data name="Page_Favorites_Title" xml:space="preserve">
+    <value>市场收藏</value>
+  </data>
+  <data name="Page_Portfolio_Title" xml:space="preserve">
+    <value>市场投资组合</value>
+  </data>
+  <data name="Page_DataSources_Title" xml:space="preserve">
+    <value>数据源</value>
+  </data>
+  <data name="Hub_Placeholder" xml:space="preserve">
+    <value>搜索、自选、收藏…</value>
+  </data>
+  <data name="Nav_Search_Title" xml:space="preserve">
+    <value>搜索</value>
+  </data>
+  <data name="Nav_Search_Subtitle" xml:space="preserve">
+    <value>查找股票、加密货币或外汇</value>
+  </data>
+  <data name="Nav_Watchlist_Title" xml:space="preserve">
+    <value>自选</value>
+  </data>
+  <data name="Nav_Watchlist_Subtitle" xml:space="preserve">
+    <value>您关注的标的</value>
+  </data>
+  <data name="Nav_Favorites_Title" xml:space="preserve">
+    <value>收藏</value>
+  </data>
+  <data name="Nav_Favorites_Subtitle" xml:space="preserve">
+    <value>已加星标的标的，显示在停靠栏中</value>
+  </data>
+  <data name="Nav_Portfolio_Title" xml:space="preserve">
+    <value>投资组合</value>
+  </data>
+  <data name="Nav_DataSources_Title" xml:space="preserve">
+    <value>数据源</value>
+  </data>
+  <data name="Nav_Settings_Title" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="Search_Placeholder" xml:space="preserve">
+    <value>按代码或名称搜索，然后按 Enter</value>
+  </data>
+  <data name="Watchlist_Placeholder" xml:space="preserve">
+    <value>筛选自选…</value>
+  </data>
+  <data name="Favorites_Placeholder" xml:space="preserve">
+    <value>筛选收藏…</value>
+  </data>
+  <data name="Portfolio_Placeholder" xml:space="preserve">
+    <value>筛选持仓…</value>
+  </data>
+  <data name="Search_Action_Title" xml:space="preserve">
+    <value>在市场中搜索“{0}”</value>
+  </data>
+  <data name="Search_Action_Subtitle" xml:space="preserve">
+    <value>按 Enter 搜索</value>
+  </data>
+  <data name="Search_NoMatches" xml:space="preserve">
+    <value>没有与“{0}”匹配的结果</value>
+  </data>
+  <data name="Search_ResultsSection" xml:space="preserve">
+    <value>搜索结果</value>
+  </data>
+  <data name="Membership_WatchlistFavorite" xml:space="preserve">
+    <value>已在自选 · ★ 收藏 · 按 Enter 查看详情</value>
+  </data>
+  <data name="Membership_Watchlist" xml:space="preserve">
+    <value>已在自选 · 按 Enter 查看详情</value>
+  </data>
+  <data name="Membership_Favorite" xml:space="preserve">
+    <value>★ 收藏 · 按 Enter 查看详情</value>
+  </data>
+  <data name="Membership_None" xml:space="preserve">
+    <value>按 Enter 查看详情</value>
+  </data>
+  <data name="Section_Stocks" xml:space="preserve">
+    <value>股票</value>
+  </data>
+  <data name="Section_Crypto" xml:space="preserve">
+    <value>加密货币</value>
+  </data>
+  <data name="Section_Currency" xml:space="preserve">
+    <value>外汇</value>
+  </data>
+  <data name="Section_Other" xml:space="preserve">
+    <value>其他</value>
+  </data>
+  <data name="Watchlist_Empty_Title" xml:space="preserve">
+    <value>您的自选列表为空</value>
+  </data>
+  <data name="Watchlist_Empty_Subtitle" xml:space="preserve">
+    <value>打开某个标的，并在其详情页中添加</value>
+  </data>
+  <data name="Favorites_Empty_Title" xml:space="preserve">
+    <value>暂无收藏</value>
+  </data>
+  <data name="Favorites_Empty_Subtitle" xml:space="preserve">
+    <value>打开某个标的，并在其详情页中加星标</value>
+  </data>
+  <data name="Portfolio_Empty_Title" xml:space="preserve">
+    <value>暂无持仓</value>
+  </data>
+  <data name="Portfolio_Empty_Subtitle" xml:space="preserve">
+    <value>在标的的详情页中添加持仓</value>
+  </data>
+  <data name="Status_Demo_Title" xml:space="preserve">
+    <value>演示模式 — 显示示例数据</value>
+  </data>
+  <data name="Status_Demo_Subtitle" xml:space="preserve">
+    <value>模拟价格。按 Enter 在设置中关闭。</value>
+  </data>
+  <data name="Status_Demo_Tag" xml:space="preserve">
+    <value>演示模式</value>
+  </data>
+  <data name="Status_Demo_Tooltip" xml:space="preserve">
+    <value>显示示例数据，而非实时价格</value>
+  </data>
+  <data name="Status_NoKey_Title" xml:space="preserve">
+    <value>未设置 API 密钥</value>
+  </data>
+  <data name="Status_NoKey_Subtitle" xml:space="preserve">
+    <value>按 Enter 在设置中添加。</value>
+  </data>
+  <data name="Status_NoKey_Tag" xml:space="preserve">
+    <value>需要操作</value>
+  </data>
+  <data name="Status_NoKey_Tooltip" xml:space="preserve">
+    <value>未设置 API 密钥 — 功能受限</value>
+  </data>
+  <data name="RateLimit_Title" xml:space="preserve">
+    <value>已触发速率限制 — 显示最近已知价格</value>
+  </data>
+  <data name="RateLimit_Subtitle" xml:space="preserve">
+    <value>限制解除后将自动刷新。</value>
+  </data>
+  <data name="RateLimit_Tag" xml:space="preserve">
+    <value>速率受限</value>
+  </data>
+  <data name="RateLimit_Tooltip" xml:space="preserve">
+    <value>请求正在被限流 — 价格可能不是最新</value>
+  </data>
+  <data name="Attribution_Title" xml:space="preserve">
+    <value>徽标由 Elbstream 提供</value>
+  </data>
+  <data name="Attribution_Subtitle" xml:space="preserve">
+    <value>徽标图像来自 elbstream.com</value>
+  </data>
+  <data name="Attribution_OpenName" xml:space="preserve">
+    <value>打开 Elbstream</value>
+  </data>
+  <data name="Cmd_AddToWatchlist" xml:space="preserve">
+    <value>添加到自选</value>
+  </data>
+  <data name="Cmd_RemoveFromWatchlist" xml:space="preserve">
+    <value>从自选中移除</value>
+  </data>
+  <data name="Cmd_AddToFavorites" xml:space="preserve">
+    <value>添加到收藏</value>
+  </data>
+  <data name="Cmd_RemoveFromFavorites" xml:space="preserve">
+    <value>从收藏中移除</value>
+  </data>
+  <data name="Cmd_RemoveFromPortfolio" xml:space="preserve">
+    <value>从投资组合中移除</value>
+  </data>
+  <data name="Toast_AddedToWatchlist" xml:space="preserve">
+    <value>已将 {0} 添加到自选</value>
+  </data>
+  <data name="Toast_RemovedFromWatchlist" xml:space="preserve">
+    <value>已将 {0} 从自选中移除</value>
+  </data>
+  <data name="Toast_AddedToFavorites" xml:space="preserve">
+    <value>已将 {0} 添加到收藏</value>
+  </data>
+  <data name="Toast_RemovedFromFavorites" xml:space="preserve">
+    <value>已将 {0} 从收藏中移除</value>
+  </data>
+  <data name="Toast_RemovedFromPortfolio" xml:space="preserve">
+    <value>已将 {0} 从投资组合中移除</value>
+  </data>
+  <data name="Toast_OpenUrlFailed" xml:space="preserve">
+    <value>无法打开 {0}：{1}</value>
+  </data>
+  <data name="Chart_Loading" xml:space="preserve">
+    <value>正在加载 {0} 图表…</value>
+  </data>
+  <data name="Chart_NoData" xml:space="preserve">
+    <value>此时间范围没有图表数据。</value>
+  </data>
+  <data name="SetQty_Title_Edit" xml:space="preserve">
+    <value>编辑 {0} 持仓</value>
+  </data>
+  <data name="SetQty_Title_Add" xml:space="preserve">
+    <value>将 {0} 添加到投资组合</value>
+  </data>
+  <data name="SetQty_Name_Edit" xml:space="preserve">
+    <value>编辑持仓</value>
+  </data>
+  <data name="SetQty_Name_Add" xml:space="preserve">
+    <value>添加到投资组合</value>
+  </data>
+  <data name="SetQty_Toast_Set" xml:space="preserve">
+    <value>已将 {0} 设置为 {1}{2}</value>
+  </data>
+  <data name="SetQty_BasisNote" xml:space="preserve">
+    <value>，单价 {0}</value>
+  </data>
+  <data name="SetQty_Error_Number" xml:space="preserve">
+    <value>请输入大于 0 的数字。</value>
+  </data>
+  <data name="SetQty_Error_Positive" xml:space="preserve">
+    <value>数量必须大于 0。如需删除持仓，请使用“从投资组合中移除”。</value>
+  </data>
+  <data name="SetQty_Card_Quantity" xml:space="preserve">
+    <value>持有数量</value>
+  </data>
+  <data name="SetQty_Card_QuantityError" xml:space="preserve">
+    <value>请输入大于 0 的数量</value>
+  </data>
+  <data name="SetQty_Card_CostBasis" xml:space="preserve">
+    <value>每单位平均成本（可选）</value>
+  </data>
+  <data name="SetQty_Card_Help" xml:space="preserve">
+    <value>您支付的平均价格，以该标的的货币计价。未知则留 0。</value>
+  </data>
+  <data name="SetQty_Card_Save" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="Portfolio_TotalsRow_Title" xml:space="preserve">
+    <value>投资组合 {0}</value>
+  </data>
+  <data name="Portfolio_Row_TotalReturnPrefix" xml:space="preserve">
+    <value>总回报 {0}</value>
+  </data>
+  <data name="Ui_Portfolio_DailyChange" xml:space="preserve">
+    <value>今日 {0}（{1}%）</value>
+  </data>
+  <data name="Ui_Portfolio_TotalReturnNote" xml:space="preserve">
+    <value> · 总回报 {0}（{1}%）</value>
+  </data>
+  <data name="Ui_Portfolio_Unconverted_One" xml:space="preserve">
+    <value> · 1 项持仓未换算</value>
+  </data>
+  <data name="Ui_Portfolio_Unconverted_Many" xml:space="preserve">
+    <value> · {0} 项持仓未换算</value>
+  </data>
+  <data name="Ui_Position_Unit_Shares" xml:space="preserve">
+    <value>股</value>
+  </data>
+  <data name="Ui_Position_Unit_Units" xml:space="preserve">
+    <value>单位</value>
+  </data>
+  <data name="Settings_TwelveData_Label" xml:space="preserve">
+    <value>Twelve Data API 密钥</value>
+  </data>
+  <data name="Settings_TwelveData_Desc" xml:space="preserve">
+    <value>Twelve Data API 密钥。设置后将优先使用。</value>
+  </data>
+  <data name="Settings_Finnhub_Label" xml:space="preserve">
+    <value>Finnhub API 密钥</value>
+  </data>
+  <data name="Settings_Finnhub_Desc" xml:space="preserve">
+    <value>Finnhub API 密钥。</value>
+  </data>
+  <data name="Settings_ApiKey_Placeholder" xml:space="preserve">
+    <value>粘贴您的 API 密钥</value>
+  </data>
+  <data name="Settings_Refresh_Label" xml:space="preserve">
+    <value>价格刷新间隔（分钟）</value>
+  </data>
+  <data name="Settings_Refresh_Desc" xml:space="preserve">
+    <value>价格刷新间隔（分钟，0 = 关闭）。</value>
+  </data>
+  <data name="Settings_RateLimit_Label" xml:space="preserve">
+    <value>显示速率限制警告</value>
+  </data>
+  <data name="Settings_RateLimit_Desc" xml:space="preserve">
+    <value>当因数据源速率限制导致价格过时时显示横幅提示。</value>
+  </data>
+  <data name="Settings_Demo_Label" xml:space="preserve">
+    <value>演示模式</value>
+  </data>
+  <data name="Settings_Demo_Desc" xml:space="preserve">
+    <value>显示内置示例数据而非实时价格。适合体验此扩展。</value>
+  </data>
+  <data name="Settings_PortfolioCurrency_Label" xml:space="preserve">
+    <value>投资组合货币</value>
+  </data>
+  <data name="Settings_PortfolioCurrency_Desc" xml:space="preserve">
+    <value>用于投资组合合计的货币。其他持仓将换算为该货币。</value>
+  </data>
+  <data name="Currency_USD" xml:space="preserve">
+    <value>美元 (USD)</value>
+  </data>
+  <data name="Currency_EUR" xml:space="preserve">
+    <value>欧元 (EUR)</value>
+  </data>
+  <data name="Currency_GBP" xml:space="preserve">
+    <value>英镑 (GBP)</value>
+  </data>
+  <data name="Currency_JPY" xml:space="preserve">
+    <value>日元 (JPY)</value>
+  </data>
+  <data name="Currency_CHF" xml:space="preserve">
+    <value>瑞士法郎 (CHF)</value>
+  </data>
+  <data name="Currency_AUD" xml:space="preserve">
+    <value>澳大利亚元 (AUD)</value>
+  </data>
+  <data name="Currency_CAD" xml:space="preserve">
+    <value>加拿大元 (CAD)</value>
+  </data>
+  <data name="Currency_NZD" xml:space="preserve">
+    <value>新西兰元 (NZD)</value>
+  </data>
+  <data name="Currency_CNY" xml:space="preserve">
+    <value>人民币 (CNY)</value>
+  </data>
+  <data name="Currency_HKD" xml:space="preserve">
+    <value>港元 (HKD)</value>
+  </data>
+  <data name="Currency_SGD" xml:space="preserve">
+    <value>新加坡元 (SGD)</value>
+  </data>
+  <data name="Currency_SEK" xml:space="preserve">
+    <value>瑞典克朗 (SEK)</value>
+  </data>
+  <data name="Currency_NOK" xml:space="preserve">
+    <value>挪威克朗 (NOK)</value>
+  </data>
+  <data name="Currency_DKK" xml:space="preserve">
+    <value>丹麦克朗 (DKK)</value>
+  </data>
+  <data name="Currency_PLN" xml:space="preserve">
+    <value>波兰兹罗提 (PLN)</value>
+  </data>
+  <data name="Currency_ZAR" xml:space="preserve">
+    <value>南非兰特 (ZAR)</value>
+  </data>
+  <data name="Currency_MXN" xml:space="preserve">
+    <value>墨西哥比索 (MXN)</value>
+  </data>
+  <data name="Currency_INR" xml:space="preserve">
+    <value>印度卢比 (INR)</value>
+  </data>
+  <data name="Currency_BRL" xml:space="preserve">
+    <value>巴西雷亚尔 (BRL)</value>
+  </data>
+  <data name="Currency_KRW" xml:space="preserve">
+    <value>韩元 (KRW)</value>
+  </data>
+</root>
