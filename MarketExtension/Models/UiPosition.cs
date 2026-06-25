@@ -5,16 +5,21 @@ namespace MarketExtension;
 // Like UiQuote, this is the ONLY place its formatting lives, so the Domain layer stays free of presentation
 // concerns. The Portfolio screen renders these rows; UiPortfolio rolls a set of them up into totals.
 //
-// This pass shows DAILY P&L only (cost-basis / total-return remains deferred). Multi-currency:
-//   * The native value/P&L come straight from the quote (qty × price/change in DomainQuote.Currency).
+// Two flavours of gain/loss are shown:
+//   * DAILY P&L — qty × the per-unit daily change (vs. yesterday's close); always available on a valid quote.
+//   * TOTAL RETURN — qty × (price − cost basis), the unrealized gain since purchase; shown only when the
+//     holding has a recorded CostBasis (per-unit price paid, in the instrument's NATIVE currency). A holding
+//     with no basis simply omits it.
+// Multi-currency:
+//   * The native value/P&L/cost come straight from the quote (qty × price/change/basis in DomainQuote.Currency).
 //   * RateToPreferred is units of PreferredCurrency per 1 unit of the native currency (1 when they match,
-//     null when the FX rate isn't available — see CurrencyConverter). When known, MarketValue/DailyPnL
-//     convert; the row shows native AND converted, and the holding counts toward the portfolio total. When
-//     null, the row shows native only and is excluded from the total (CountsTowardTotal == false).
-internal sealed record UiPosition(DomainQuote Source, decimal Quantity, string PreferredCurrency, decimal? RateToPreferred)
+//     null when the FX rate isn't available — see CurrencyConverter). When known, the native amounts convert
+//     and the row shows native AND converted, and the holding counts toward the portfolio total. When null,
+//     the row shows native only and is excluded from the total (CountsTowardTotal == false).
+internal sealed record UiPosition(DomainQuote Source, decimal Quantity, string PreferredCurrency, decimal? RateToPreferred, decimal? CostBasis = null)
 {
-    public static UiPosition From(DomainQuote quote, decimal quantity, string preferredCurrency, decimal? rateToPreferred)
-        => new(quote, quantity, preferredCurrency, rateToPreferred);
+    public static UiPosition From(DomainQuote quote, decimal quantity, string preferredCurrency, decimal? rateToPreferred, decimal? costBasis = null)
+        => new(quote, quantity, preferredCurrency, rateToPreferred, costBasis);
 
     public string Symbol => Source.Symbol;
     public string Name => Source.Name;
@@ -39,6 +44,26 @@ internal sealed record UiPosition(DomainQuote Source, decimal Quantity, string P
     // A holding contributes to the portfolio total only when it's priced AND convertible into the
     // preferred currency (a USD holding with USD preferred trivially has rate 1).
     public bool CountsTowardTotal => IsValid && RateToPreferred.HasValue;
+
+    // Total-return (unrealized P&L since purchase). Only meaningful when a positive cost basis was recorded;
+    // a basis of 0/null means "unknown" and these stay null so the UI omits the figure.
+    public bool HasCostBasis => CostBasis is > 0m;
+
+    // What was paid for the whole holding (qty × per-unit basis), native and converted.
+    public decimal? TotalCost => HasCostBasis ? Quantity * CostBasis : null;
+    public decimal? ConvertedTotalCost => TotalCost is { } c && RateToPreferred is { } r ? c * r : null;
+
+    // Current value minus what was paid = the unrealized gain/loss since purchase, native and converted.
+    public decimal? TotalReturn => IsValid && TotalCost is { } c ? MarketValue - c : null;
+    public decimal? ConvertedTotalReturn => TotalReturn is { } tr && RateToPreferred is { } r ? tr * r : null;
+
+    // Return as a percentage of cost: (price − basis) / basis. Currency-independent; null without a basis or
+    // a live price. Computed from the per-unit figures so it's exact regardless of quantity.
+    public decimal? TotalReturnPercent => IsValid && CostBasis is { } cb && cb > 0m
+        ? (Source.Price - cb) / cb * 100m
+        : null;
+
+    public bool IsTotalReturnUp => (TotalReturn ?? 0m) >= 0m;
 
     // The quantity without trailing zeros (10, not 10.00; 0.5 stays 0.5).
     public string FormatQuantity() => Quantity.ToString("0.########", System.Globalization.CultureInfo.InvariantCulture);
@@ -79,5 +104,25 @@ internal sealed record UiPosition(DomainQuote Source, decimal Quantity, string P
 
         return $"{(IsUp ? "▲" : "▼")} {CurrencyFormat.FormatSigned(amount, currency)} " +
                $"({Source.ChangePercent.ToString("+0.00;-0.00", System.Globalization.CultureInfo.InvariantCulture)}%)";
+    }
+
+    // e.g. "▲ +$420.00 (+12.00%)" — the unrealized gain/loss since purchase. Empty when no cost basis is
+    // recorded or the quote is invalid. Like FormatDailyPnL it shows the converted (preferred-currency)
+    // amount when convertible — so it matches the portfolio total — else the native one; the percent is
+    // currency-independent. The caller prefixes its own label ("Total") to distinguish it from daily P&L.
+    public string FormatTotalReturn()
+    {
+        if (!IsValid || TotalReturn is not { } native)
+            return string.Empty;
+
+        var (amount, currency) = NeedsConversion && ConvertedTotalReturn is { } c
+            ? (c, PreferredCurrency)
+            : (native, NativeCurrency);
+
+        var percent = TotalReturnPercent is { } p
+            ? $" ({p.ToString("+0.00;-0.00", System.Globalization.CultureInfo.InvariantCulture)}%)"
+            : string.Empty;
+
+        return $"{(IsTotalReturnUp ? "▲" : "▼")} {CurrencyFormat.FormatSigned(amount, currency)}{percent}";
     }
 }

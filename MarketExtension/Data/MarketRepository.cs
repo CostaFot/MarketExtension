@@ -13,15 +13,26 @@ namespace MarketExtension;
 // constructor; nothing else changes.
 internal sealed class MarketRepository(params IMarketDataProvider[] providers)
 {
+    // The providers that should serve right now. When any provider declares itself exclusive (e.g. the
+    // mock in Demo mode), ONLY those serve — every operation routes to them alone, so the exclusive source
+    // takes precedence everywhere, including the search fan-out that Supports() can't gate. Otherwise the
+    // full ordered set, routed normally by first-match Supports.
+    private IReadOnlyList<IMarketDataProvider> ActiveProviders()
+    {
+        var exclusive = providers.Where(p => p.IsExclusive).ToList();
+        return exclusive.Count > 0 ? exclusive : providers;
+    }
+
     public async Task<IReadOnlyList<DomainQuote>> GetQuotesAsync(
         IReadOnlyList<DomainInstrument> instruments, CancellationToken ct = default)
     {
-        // Route each instrument to the first provider that can serve its asset class.
+        // Route each instrument to the first ACTIVE provider that can serve its asset class.
+        var active = ActiveProviders();
         var batches = new Dictionary<IMarketDataProvider, List<DomainInstrument>>();
         var unserviceable = new List<DomainInstrument>();
         foreach (var instrument in instruments)
         {
-            var provider = providers.FirstOrDefault(p => p.Supports(instrument.Category));
+            var provider = active.FirstOrDefault(p => p.Supports(instrument.Category));
             if (provider is null)
             {
                 unserviceable.Add(instrument);
@@ -59,7 +70,7 @@ internal sealed class MarketRepository(params IMarketDataProvider[] providers)
         string query, CancellationToken ct = default)
     {
         var results = await Task.WhenAll(
-            providers.Select(p => p.SearchAsync(query, ct))).ConfigureAwait(false);
+            ActiveProviders().Select(p => p.SearchAsync(query, ct))).ConfigureAwait(false);
 
         var merged = results
             .SelectMany(r => r)
@@ -77,7 +88,7 @@ internal sealed class MarketRepository(params IMarketDataProvider[] providers)
     public async Task<DomainCandleSeries> GetCandlesAsync(
         DomainInstrument instrument, ChartRange range, CancellationToken ct = default)
     {
-        var provider = providers.FirstOrDefault(p => p.Supports(instrument.Category));
+        var provider = ActiveProviders().FirstOrDefault(p => p.Supports(instrument.Category));
         if (provider is null)
         {
             Log.Info("Repository", $"candles {instrument.Symbol} {range}: no provider for {instrument.Category}");

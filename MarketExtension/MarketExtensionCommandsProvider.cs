@@ -5,14 +5,16 @@ namespace MarketExtension;
 
 public partial class MarketExtensionCommandsProvider : CommandProvider
 {
-    // The repository coordinates all market-data providers; both the palette page and the dock
-    // band share this one instance. Routing is by asset class, first-match in this order: Twelve Data
-    // (stocks + crypto + forex, plus free price charts) is primary WHEN its key is set — its Supports()
-    // is gated on the key, so with no Twelve Data key the routing falls through to Finnhub (stocks +
-    // crypto) and Frankfurter (forex, keyless ECB rates). Add a provider here to extend coverage;
-    // MockMarketDataProvider is the offline fallback.
+    // The repository coordinates all market-data providers; both the palette page and the dock band share
+    // this one instance. Routing is by asset class, first-match in registration order. MockMarketDataProvider
+    // is FIRST but gated on the Demo-mode setting (its Supports() is false unless Demo mode is on), so it
+    // wins everything when demoing and is otherwise skipped. Then Twelve Data (stocks + crypto + forex, plus
+    // free price charts) is primary WHEN its key is set — also gated on its key — so with no Twelve Data key
+    // the routing falls through to Finnhub (stocks + crypto) and Frankfurter (forex, keyless ECB rates). Add
+    // a provider here to extend coverage; gate its Supports() on whatever should make it active.
     private readonly MarketRepository _repository =
-        new(new TwelveDataMarketDataProvider(),
+        new(new MockMarketDataProvider(),
+            new TwelveDataMarketDataProvider(),
             new FinnhubMarketDataProvider(),
             new FrankfurterMarketDataProvider());
 

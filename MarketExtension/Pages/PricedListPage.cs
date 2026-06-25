@@ -127,7 +127,7 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
             return []; // framework's pre-subscribe fetch — nothing to show yet
 
         if (_snapshot.Count == 0)
-            return ApiKeyHint.MissingKeyRow() is { } emptyHint ? [.. EmptyState(), emptyHint] : EmptyState();
+            return ApiKeyHint.StatusRow() is { } emptyHint ? [.. EmptyState(), emptyHint] : EmptyState();
 
         UiQuote[] cached;
         lock (_cacheLock)
@@ -143,7 +143,7 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         rows.AddRange(cached.Where(Matches).Select(BuildRow));
         rows.Add(new ListItem(new RefreshCommand(this)) { Title = "Refresh 🔄" });
         rows.Add(AssetIconResolver.AttributionRow()); // Elbstream logo credit (rows above show logos)
-        if (ApiKeyHint.MissingKeyRow() is { } hint) // no key → explain why prices are blank
+        if (ApiKeyHint.StatusRow() is { } hint) // no key → explain blanks; demo mode → flag sample data
             rows.Add(hint);
         if (RateLimitHint.Row() is { } banner) // throttled → surface at the TOP so it's seen without scrolling
             rows.Insert(0, banner);

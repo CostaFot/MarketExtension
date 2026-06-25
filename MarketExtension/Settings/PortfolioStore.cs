@@ -79,16 +79,23 @@ internal sealed class PortfolioStore
         return false;
     }
 
-    // Add or update a holding (a SetPosition with the same symbol overwrites its quantity). Preserves any
-    // existing cost basis unless a new one is given, so a quantity-only edit doesn't wipe it.
+    // The full holding for a symbol (quantity + cost basis), or null if not held. Used by the Portfolio
+    // screen to render total return alongside daily P&L — the quantity-only TryGetQuantity isn't enough.
+    public DomainPosition? GetPosition(string symbol)
+    {
+        lock (_lock)
+            return _positions.TryGetValue(WatchlistStore.Normalize(symbol), out var p) ? p : null;
+    }
+
+    // Add or update a holding (a SetPosition with the same symbol overwrites it). The cost basis is applied
+    // VERBATIM: a value sets it, null clears it — there is no preserve-on-null rule. The editor
+    // (SetQuantityPage) is the only caller and is authoritative: it prefills the field with the current
+    // basis, so a quantity-only edit round-trips (and thus preserves) the existing basis on its own.
     public void SetPosition(DomainInstrument instrument, decimal quantity, decimal? costBasis = null)
     {
         var key = WatchlistStore.Normalize(instrument.Symbol);
         lock (_lock)
-        {
-            var basis = costBasis ?? (_positions.TryGetValue(key, out var existing) ? existing.CostBasis : null);
-            _positions[key] = new DomainPosition(instrument, quantity, basis);
-        }
+            _positions[key] = new DomainPosition(instrument, quantity, costBasis);
 
         Save();
         PublishState();

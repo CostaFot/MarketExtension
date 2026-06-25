@@ -56,6 +56,14 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
                       "requests (HTTP 429) so you know why prices may be stale. Turn off to hide it.",
     };
 
+    private readonly ToggleSetting _demoMode = new("demoMode", false)
+    {
+        Label = "Demo mode",
+        Description = "Show built-in sample market data instead of live prices — no API key or internet " +
+                      "connection needed, ideal for trying out the extension. Applies on the next price " +
+                      "refresh (reopen a list to see it right away).",
+    };
+
     // The reporting currency for the (upcoming) Portfolio screen: the single currency its totals are shown
     // in, so holdings priced in other currencies can be converted into it (conversion itself is future
     // work — for now this just records the preference). The choice list mirrors the currencies the FX
@@ -136,6 +144,13 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     // so a toggle applies the next time a priced page re-renders (e.g. on navigating back to it).
     public bool ShowRateLimitErrors => _showRateLimitErrors.Value;
 
+    // When on, the app serves built-in sample data (MockMarketDataProvider + a static FX table in
+    // CurrencyConverter) instead of calling any live market-data or FX API — no key or connectivity needed.
+    // Read pull-style: MockMarketDataProvider.Supports/SearchAsync and CurrencyConverter check it per
+    // request, so toggling applies on the next price refresh without a reload (the price cache repaints
+    // immediately when a list is reopened). Default off → ships live.
+    public bool DemoMode => _demoMode.Value;
+
     // The reporting currency the Portfolio screen rolls up into (ISO 4217 code, e.g. "USD"). Read
     // pull-style so a change applies the next time the portfolio re-prices, no reload needed. Falls back
     // to USD if somehow unset. Conversion of foreign-currency holdings into this is future work.
@@ -149,6 +164,7 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
         Settings.Add(_finnhubApiKey);
         Settings.Add(_refreshMinutes);
         Settings.Add(_showRateLimitErrors);
+        Settings.Add(_demoMode);
         Settings.Add(_portfolioCurrency);
         LoadSettings();
         _hasAnyApiKey.Update(HasTwelveDataApiKey || HasFinnhubApiKey); // seed from persisted keys (no subscribers yet)

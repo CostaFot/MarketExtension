@@ -92,7 +92,7 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
             new ListItem(new PortfolioPage(_repository))
             {
                 Title = $"Portfolio {_portfolio.FormatTotalValue()}",
-                Subtitle = _portfolio.FormatTotalChange() + _portfolio.FormatUnconvertedNote(),
+                Subtitle = _portfolio.FormatTotalChange() + _portfolio.FormatTotalReturnNote() + _portfolio.FormatUnconvertedNote(),
                 Icon = new IconInfo(PortfolioGlyph),
             },
         ];
@@ -180,7 +180,7 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
             if (quoteBySymbol.TryGetValue(p.Instrument.Symbol, out var quote))
             {
                 var rate = CurrencyConverter.Instance.TryGetRate(quote.Currency, preferred);
-                uiPositions.Add(UiPosition.From(quote, p.Quantity, preferred, rate));
+                uiPositions.Add(UiPosition.From(quote, p.Quantity, preferred, rate, p.CostBasis));
             }
 
         return UiPortfolio.From(uiPositions, preferred);

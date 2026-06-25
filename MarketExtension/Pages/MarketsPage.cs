@@ -115,8 +115,9 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
             },
         };
 
-        // With no API key configured, most of the app shows no data — surface that up front on the hub.
-        if (ApiKeyHint.MissingKeyRow() is { } hint)
+        // Surface the data state up front on the hub: no key → most of the app shows nothing; demo mode →
+        // the data is sample/simulated.
+        if (ApiKeyHint.StatusRow() is { } hint)
             items.Add(hint);
 
         return [.. items];

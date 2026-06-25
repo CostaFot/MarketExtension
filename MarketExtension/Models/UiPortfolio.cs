@@ -13,7 +13,15 @@ namespace MarketExtension;
 // therefore left out: an unpriced one (unknown symbol / fetch failure) and one whose native currency the FX
 // provider can't convert. UnconvertedCount surfaces the latter so the user knows the total is partial; an
 // all-USD portfolio with USD preferred converts trivially (rate 1) and excludes nothing.
-internal sealed record UiPortfolio(decimal TotalValue, decimal TotalDailyPnL, string Currency, bool HasHoldings, int UnconvertedCount)
+internal sealed record UiPortfolio(
+    decimal TotalValue,
+    decimal TotalDailyPnL,
+    string Currency,
+    bool HasHoldings,
+    int UnconvertedCount,
+    decimal TotalCost,
+    decimal TotalReturn,
+    bool HasCostBasis)
 {
     public static UiPortfolio From(IEnumerable<UiPosition> positions, string preferredCurrency)
     {
@@ -23,10 +31,19 @@ internal sealed record UiPortfolio(decimal TotalValue, decimal TotalDailyPnL, st
         var totalPnL = counted.Sum(p => p.ConvertedDailyPnL ?? 0m);
         // Priced but not convertible — present in the list, missing from the total.
         var unconverted = all.Count(p => p.IsValid && !p.IsConverted);
-        return new UiPortfolio(totalValue, totalPnL, preferredCurrency, all.Count > 0, unconverted);
+        // Total return rolls up only over counted holdings that actually carry a cost basis: a holding
+        // without one can't contribute a gain, so cost AND return are summed across the same subset (and the
+        // percent below is gain/cost over exactly those). HasCostBasis gates whether the figure is shown.
+        var withBasis = counted.Where(p => p.HasCostBasis).ToList();
+        var totalCost = withBasis.Sum(p => p.ConvertedTotalCost ?? 0m);
+        var totalReturn = withBasis.Sum(p => p.ConvertedTotalReturn ?? 0m);
+        return new UiPortfolio(
+            totalValue, totalPnL, preferredCurrency, all.Count > 0, unconverted,
+            totalCost, totalReturn, withBasis.Count > 0);
     }
 
     public bool IsUp => TotalDailyPnL >= 0;
+    public bool IsTotalReturnUp => TotalReturn >= 0m;
 
     // Aggregate daily percent measured against YESTERDAY'S close value (today's value minus today's
     // gain), not an average of the per-position percents. Guards a zero denominator.
@@ -39,12 +56,24 @@ internal sealed record UiPortfolio(decimal TotalValue, decimal TotalDailyPnL, st
         }
     }
 
+    // Total return as a percentage of cost (gain / what was paid), over the holdings that have a basis.
+    // Guards a zero denominator.
+    public decimal TotalReturnPercent => TotalCost == 0m ? 0m : TotalReturn / TotalCost * 100m;
+
     public string FormatTotalValue() => CurrencyFormat.Format(TotalValue, Currency);
 
     // e.g. "▲ +$120.50 (+0.98%) today" / "▼ -$84.10 (-0.71%) today", in the preferred currency.
     public string FormatTotalChange() =>
         $"{(IsUp ? "▲" : "▼")} {CurrencyFormat.FormatSigned(TotalDailyPnL, Currency)} " +
         $"({TotalDailyPnLPercent.ToString("+0.00;-0.00", CultureInfo.InvariantCulture)}%) today";
+
+    // A trailing total-return note for the summary subtitle, e.g. " · Total ▲ +$2,300.00 (+18.40%)", in the
+    // preferred currency. Empty when no holding has a recorded cost basis (so total return is unknown).
+    public string FormatTotalReturnNote() =>
+        HasCostBasis
+            ? $" · Total {(IsTotalReturnUp ? "▲" : "▼")} {CurrencyFormat.FormatSigned(TotalReturn, Currency)} " +
+              $"({TotalReturnPercent.ToString("+0.00;-0.00", CultureInfo.InvariantCulture)}%)"
+            : string.Empty;
 
     // A trailing note for the summary subtitle when some priced holdings couldn't be converted into the
     // preferred currency (so the total visibly excludes them); empty when everything converted.

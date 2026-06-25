@@ -77,20 +77,20 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 
 | File | Role |
 |---|---|
-| `Data/MarketRepository.cs` | **The coordinator the UI depends on.** Routes each `DomainInstrument` to the first `IMarketDataProvider` whose `Supports(AssetCategory)` matches, fans out concurrently, merges into one order-preserving list. Also `SearchAsync(query)` — fans out the free-text lookup to every provider and merges/dedupes by symbol — and `GetCandlesAsync(instrument, range)` — routes the chart history to the first supporting provider (no fan-out; one instrument). No provider for a category → `IsValid:false` quote / invalid candle series. |
-| `Data/IMarketDataProvider.cs` | ONE data source: `bool Supports(AssetCategory)` + `GetQuotesAsync(instruments, ct)` + `SearchAsync(query, ct)` (free-text symbol lookup → `DomainInstrument`s, **identity only, no prices**; a provider that can't search returns `[]`) + `GetCandlesAsync(instrument, ChartRange, ct)` (price history for the detail chart; **default interface method** returns an invalid series, so non-candle providers opt out for free). |
+| `Data/MarketRepository.cs` | **The coordinator the UI depends on.** Routes each `DomainInstrument` to the first `IMarketDataProvider` whose `Supports(AssetCategory)` matches, fans out concurrently, merges into one order-preserving list. Also `SearchAsync(query)` — fans out the free-text lookup to every provider and merges/dedupes by symbol — and `GetCandlesAsync(instrument, range)` — routes the chart history to the first supporting provider (no fan-out; one instrument). No provider for a category → `IsValid:false` quote / invalid candle series. **`ActiveProviders()`**: if any provider is `IsExclusive` (the mock in Demo mode), ALL three operations route to the exclusive set only — so an exclusive source wins everywhere, including the search fan-out. |
+| `Data/IMarketDataProvider.cs` | ONE data source: `bool Supports(AssetCategory)` + **`bool IsExclusive`** (default `false`; true → MarketRepository routes every operation to this provider alone — how the Demo-mode mock takes precedence everywhere) + `GetQuotesAsync(instruments, ct)` + `SearchAsync(query, ct)` (free-text symbol lookup → `DomainInstrument`s, **identity only, no prices**; a provider that can't search returns `[]`) + `GetCandlesAsync(instrument, ChartRange, ct)` (price history for the detail chart; **default interface method** returns an invalid series, so non-candle providers opt out for free). |
 | `Data/TwelveData/TwelveDataMarketDataProvider.cs` | **Primary provider when its key is set** (`Supports` Stock+Crypto+Currency, **gated on `HasTwelveDataApiKey`** → first-match routing falls back to Finnhub/Frankfurter when unset). One API for all three classes; **`/time_series` candles are free-tier**, so charts render on a free key. `GetQuotesAsync` **batches all symbols into one `/quote`** call (tight 8/min limit); `SearchAsync` = `/symbol_search` (results normalized back to neutral symbols). See Twelve Data specifics. |
 | `Data/Finnhub/FinnhubMarketDataProvider.cs` | Stock+Crypto provider (`Supports` Stock+Crypto), used when no Twelve Data key is set. Maps `ApiFinnhubQuoteDto` → `DomainQuote`; `SearchAsync` calls `/search` (US equities only — see Finnhub specifics). |
 | `Data/Frankfurter/FrankfurterMarketDataProvider.cs` | FX provider (`Supports` Currency). **Keyless** ECB daily rates via Frankfurter (`https://api.frankfurter.dev/v1/`). Splits a 6-letter pair (`EURUSD` → base `EUR`/quote `USD`), calls the time-series endpoint for both quotes (latest vs previous fixing = **day-over-day** change) and candles (daily closes). `SearchAsync` = local filter over the catalog's FX pairs (no Frankfurter free-text endpoint exists). See Frankfurter specifics. |
 | `Data/Frankfurter/ApiFrankfurterDto.cs` | Raw time-series DTO (`ApiFrankfurterSeriesDto`: `rates` = date→{currency→rate}) **+ the flat `/latest` DTO (`ApiFrankfurterLatestDto`: `rates` = currency→rate)** used by `CurrencyConverter` + the source-gen `FrankfurterJsonContext`. |
-| `Data/MockMarketDataProvider.cs` | Offline fallback (`Supports` all). `SearchAsync` filters its seed keys. |
+| `Data/MockMarketDataProvider.cs` | The **Demo-mode** data source — seeded quotes/candles for every asset class so the whole UI works with no key/network. Registered **first**; `Supports()` is **gated on the `DemoMode` setting** and **`IsExclusive`** also returns it, so in demo mode the repository routes **everything (quotes, candles, search)** to the mock alone — it wins everywhere and no live provider is hit. Off → serves nothing, live providers take over (`SearchAsync` self-gates to `[]` so it stays out of the live search fan-out). Each seed entry carries real name/category/**native currency** (incl. a GBP London stock `HSBA.L`) so search is correctly typed and conversion/total-return have a non-USD holding to exercise. See "Demo mode (offline testing)". |
 | `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults — the **first-run seed** for `WatchlistStore` (no longer always-shown; removable once seeded). |
 | `Settings/WatchlistStore.cs` | JSON-persisted tracked instruments, each carrying **two independent flags** `InWatchlist`/`IsFavorite` (favorites = the dock subset). Stores **full `DomainInstrument` identity** so searched non-catalog symbols re-price; an entry with both flags false is dropped. Source-gen `WatchlistItem`/`WatchlistJsonContext` → `market_watchlist.json`; seeds `InstrumentCatalog` on first run, else migrates the legacy `market_favorites.json` (old pins → watchlisted **and** favorited). Exposes its `Watchlist`/`Favorites` subsets as **observable `StateFlow`s** (each mutation calls `PublishState()` → re-publishes both); pages and the dock **subscribe** and re-render themselves. Replaces the old `FavoritesStore` + `Watchlist.cs`. |
 | `Helpers/StateFlow.cs` | A tiny **Kotlin-StateFlow analog**, now a **thin wrapper over `System.Reactive`'s `BehaviorSubject<T>`** (the migration off the old hand-rolled version is **done** — AOT/trim is off, so the Rx dependency is taken warning-free; see the Rx done bullet). Used by the **state holders** (`WatchlistStore`, `MarketSettingsManager`) — observable *state with a current value*, which `IObservable` (no `Value`) and a bare `BehaviorSubject` (no read-only face) can't express alone. Public API unchanged: `StateFlow<T>` (read-only `Value` + `Subscribe` with **replay-on-subscribe** + distinct-until-changed; a `Subscribe(onNext, replayOnSubscribe:false)` overload opts out of the replay via `Skip(1)` — used by the priced pages' secondary flows, e.g. `HasAnyApiKey`) and writable `MutableStateFlow<T>` (`Update`). `SetValue` does **source-side** distinct-until-changed (an equal value isn't pushed, so re-publishing an unchanged subset doesn't wake its subscribers); `BehaviorSubject.OnNext` fans handlers out **outside** its lock (handlers re-read the store safely). The old hand-rolled **subscriber-count seam** (`OnActive`/`OnInactive` + the refcount + a custom `Subscription` wrapper) was **removed** once its only user, `PollTicker`, went pure Rx — Rx's `Publish().RefCount()` is the proper home for that, and Rx subscriptions are already idempotent on dispose. Plus `InstrumentListComparer` (symbol-sequence dedup for the store's two flows). |
 | `Helpers/PollTicker.cs` | The **live-price poll ticker** — now **pure Rx** (no longer a `StateFlow<long>`). A process-wide singleton `IObservable<long>` = `Observable.Generate(...)` (self-rescheduling timer; per-step delay re-read from `MarketSettingsManager` each iteration so interval/on-off applies without reload, `0` = off idles on a 30 s re-check and the tick is filtered out) wrapped in **`Publish().RefCount()`** — the WhileSubscribed seam that starts the loop on the first subscriber and tears it down on the last (Generate never completes, so disposal is silent and resubscribe restarts cleanly). `Defer`/`Finally` log the start/stop at the refcount edges. Surfaces attach via the **guarded** `PollTicker.Subscribe(onTick)` (the raw stream is private): the handler is wrapped in try/catch (swallow + `Log.Error`→Sentry) so a throwing tick handler can't trip Rx's `SafeObserver` into tearing down the shared multicast stream (which would kill polling for every surface). Handlers still offload heavy work via `Task.Run`. |
 | `Helpers/HttpRetry.cs` | **Shared 429 back-off** at the HTTP seam. `SendAsync(send, tag, ct)` takes a request **thunk** (each retry must re-issue a fresh `HttpResponseMessage`) and, on HTTP `429`, honors a short `Retry-After` else backs off `1s`→`2s` (max 3 attempts, **bails** if the wait would exceed an `8s` cap — per-minute windows don't clear in seconds, so hammering only burns quota). Returns the final response (success / non-429 error / surviving 429) so callers inspect status exactly as before — a **drop-in** at each `GetAsync`. Also the single choke point that feeds `RateLimitSignal` (2xx → off, surviving 429 → on). Used by Finnhub + Twelve Data (not keyless Frankfurter). |
 | `Helpers/RateLimitSignal.cs` | Process-wide **"are we throttled" flag** — a `MutableStateFlow<bool>` behind a read-only `StateFlow<bool>` (same state-holder idiom as `WatchlistStore`/`MarketSettingsManager`). `ReportRateLimited()`/`ReportSuccess()` flip it (distinct-until-changed); priced surfaces **subscribe** and re-render. Intentionally **global, not per-symbol** (a free-tier limit is key-wide). |
-| `Helpers/RateLimitHint.cs` | The **rate-limited banner row** (parallels `ApiKeyHint.MissingKeyRow()`): `Row()` returns an amber "Rate-limited — showing last known prices" `ListItem` (Enter = **`NoOpCommand`**, purely informational — it's the default-selected first row, so it must not navigate) when `RateLimitSignal` is set **and** the `ShowRateLimitErrors` setting is on, else `null`. Pinned to the **top** so it's seen without scrolling: `PricedListPage.GetItems` inserts it at index 0; `SearchPage.SearchItems` inserts it at index 1 (just under the Enter-to-search action, which must stay first). |
+| `Helpers/RateLimitHint.cs` | The **rate-limited banner row** (parallels `ApiKeyHint.StatusRow()`): `Row()` returns an amber "Rate-limited — showing last known prices" `ListItem` (Enter = **`NoOpCommand`**, purely informational — it's the default-selected first row, so it must not navigate) when `RateLimitSignal` is set **and** the `ShowRateLimitErrors` setting is on, else `null`. Pinned to the **top** so it's seen without scrolling: `PricedListPage.GetItems` inserts it at index 0; `SearchPage.SearchItems` inserts it at index 1 (just under the Enter-to-search action, which must stay first). |
 | `Data/Finnhub/ApiFinnhubQuoteDto.cs` | Raw `/quote` DTO + the **single** `FinnhubJsonContext` (all `[JsonSerializable]` live here — see AOT/trim gotcha). |
 | `Data/Finnhub/ApiFinnhubSearchDto.cs` | Raw `/search` DTOs (`ApiFinnhubSearchDto` / `...ResultDto`); registered on `FinnhubJsonContext` in the quote file. |
 | `Data/Finnhub/ApiFinnhubCandleDto.cs` | Raw `/stock/candle` + `/crypto/candle` DTO (parallel `c/h/l/o/t/v` arrays + `s` status); registered on `FinnhubJsonContext` in the quote file. **Premium** (free key → 403). |
@@ -226,6 +226,44 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 
 ## Current Status / Next Steps
 
+- **Done (this round): Demo mode (offline testing).** A **`Demo mode` toggle setting** (default off) makes the
+  whole app serve built-in sample data with **no API key and no network** — for trying out the extension or
+  testing UI work (like the cost-basis/total-return + multi-currency paths) without burning real-API budget.
+  `MockMarketDataProvider` is registered **first** and, in demo mode, declares itself **`IsExclusive`** — a new
+  default member on `IMarketDataProvider` that makes `MarketRepository` route **every** operation (quotes,
+  candles, **and the search fan-out**) to it alone, so the mock takes precedence **everywhere** and **zero**
+  network is hit even if live API keys are set. Off → it's not exclusive and `Supports()` is false, so the
+  live providers take over unchanged. `CurrencyConverter` checks the same setting and fills its cache from a
+  **static FX table** instead of calling Frankfurter `/latest`, so even cross-currency portfolio conversion is
+  fully offline. The mock seed now carries each instrument's real name/category/**native
+  currency** (incl. a GBP London stock `HSBA.L`) so search is correctly typed and conversion has a non-USD
+  holding to exercise. The list screens show an explicit blue **"Demo mode — showing sample data"** status row
+  while it's on (replacing the red missing-key nudge), so it's obvious the prices are simulated, not live —
+  `ApiKeyHint` became a unified `StatusRow()` (demo row → missing-key row → null). Reads pull-style → applies
+  on the next refresh/reopen, no reload. Build clean (0 warnings). ⏳ Not yet live-verified. See "Demo mode
+  (offline testing)".
+- **Done (this round): cost-basis / total-return reporting** — the last open portfolio wishlist item. The
+  optional `CostBasis` (average price paid per unit, in the holding's **native** currency) was already stored
+  but unsurfaced; it's now **captured and displayed** end-to-end with **no provider/repository/model-shape
+  changes** (only behavior + UI):
+  - **Capture** — `Pages/SetQuantityPage.cs` gained a second optional `Input.Number` ("Average cost per unit");
+    the editor prefills it from the current holding and maps **0/blank → null** (not recorded → total return
+    hidden). `PortfolioStore.SetPosition` now applies the cost basis **verbatim** (a value sets it, null
+    clears) — the old preserve-on-null rule is gone, because the editor is the sole caller and round-trips the
+    existing basis itself (so a quantity-only edit still preserves it). New `PortfolioStore.GetPosition(symbol)`
+    returns the full holding (quantity + basis) for rendering.
+  - **Compute** (only place the math/formatting lives) — `UiPosition` exposes `TotalCost`/`TotalReturn`/
+    `TotalReturnPercent` (native **and** converted via the same `RateToPreferred` as daily P&L; percent =
+    `(price − basis)/basis`, currency-independent) + `FormatTotalReturn()`, shown only when a positive basis
+    exists. `UiPortfolio.From` rolls **converted** cost + return up across the counted holdings that **have a
+    basis** (percent = `return/cost` over exactly that subset), gated by `HasCostBasis` + a
+    `FormatTotalReturnNote()`.
+  - **Display** — Portfolio rows append "Total ▲ +$… (+…%)" after daily P&L when a basis is set; the totals
+    summary row **and** the Portfolio dock band append the total-return note to their subtitle. Holdings with
+    no basis (or unpriced/unconvertible) simply contribute nothing to the return rollup. Build clean (0
+    warnings). ⏳ **Not yet live-verified** (next: add a holding with a cost basis and confirm the per-row +
+    summary + dock totals, incl. a non-native-currency holding's converted return). See "Portfolio screen +
+    dock band (done)".
 - **Done (this round): the Portfolio dock band.** A second Dock band next to the favorites band, showing the
   portfolio's **total value + daily P&L rolled up into the `PortfolioCurrency`** as a single summary button
   (clicking it opens the full `PortfolioPage`). New `Pages/PortfolioDockPage.cs` (a `ListPage`, modeled on
@@ -380,11 +418,13 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   credit (clickable via the new `Commands/OpenUrlCommand.cs` + `ProcessHelper.OpenUrl`) appears on every
   logo-bearing page; the dock band is an accepted gray area. Per-category Segoe glyph fallback for
   Currency/unknown. See "Asset logos (done)".
-- **Wishlist:** ~~**(1) multi-currency portfolio conversion**~~ — **DONE** (see "Multi-currency portfolio
-  conversion (done)"). ~~**(2) the Portfolio dock band**~~ — **DONE** (a one-line total-value + daily-P&L
-  strip next to the favorites band; see the "Done (this round): the Portfolio dock band" bullet +
-  "Portfolio screen + dock band (done)"). Remaining: **(3)** **cost-basis / total-return** reporting (the
-  `CostBasis` field is already stored, just not surfaced) — designed below.
+- **Wishlist — all three items now DONE.** ~~**(1) multi-currency portfolio conversion**~~ — **DONE** (see
+  "Multi-currency portfolio conversion (done)"). ~~**(2) the Portfolio dock band**~~ — **DONE** (a one-line
+  total-value + daily-P&L strip next to the favorites band; see the "Done (this round): the Portfolio dock
+  band" bullet + "Portfolio screen + dock band (done)"). ~~**(3) cost-basis / total-return** reporting~~ —
+  **DONE** this round (the stored `CostBasis` is now captured in the editor and surfaced as total return on
+  the rows, totals summary, and dock band; see the "Done (this round): cost-basis / total-return reporting"
+  bullet above).
 - **Done (this round): migrated the observable layer to Rx.NET (`System.Reactive`).** Two parts:
   - **`StateFlow` → thin wrapper over `BehaviorSubject<T>`** (the blocker was gone once AOT/trim went off —
     the trim/AOT analyzers were removed, so `System.Reactive` 6.0.1 is taken **warning-free**, CA1001
@@ -508,7 +548,9 @@ configurable** (0 = off). Built on the ticker's subscriber-count lifecycle (now 
   `RefreshInterval` (TimeSpan) / `AutoRefreshEnabled`; the ticker reads these each tick. A
   **`ToggleSetting` `Show rate-limit warnings`** (default on, surfaced as `ShowRateLimitErrors`) gates the
   rate-limited banner — read pull-style by `RateLimitHint.Row()`, so toggling it applies on the next
-  re-render. (Same manager also holds the Finnhub API key — see the "API Key" section.)
+  re-render. A **`ToggleSetting` `Demo mode`** (default off, surfaced as `DemoMode`) switches the app to
+  built-in sample data with no key/network — see "Demo mode (offline testing)". (Same manager also holds the
+  API keys + the `PortfolioCurrency` choice — see the "API Key" section.)
 - ⚠️ **Rate-limit tension (still real):** Finnhub free tier is **~60 calls/min AND ~300/day**, and
   `GetQuotesAsync` issues **one `/quote` call per instrument**. Polling N instruments at interval T burns
   the budget fast at a low T — e.g. 6 favorites every 60 s = 360 calls/hour, **exhausting ~300/day in
@@ -544,8 +586,9 @@ per symbol), priced live, with a **totals summary** pinned on top and **daily P&
 the existing data seam with **no provider/repository changes** — `MarketRepository.GetQuotesAsync` already
 returns per-instrument daily change.
 
-**Scope shipped:** quantity + **daily P&L only**. `DomainPosition`/`PortfolioItem` carry an optional
-`CostBasis` (persisted, **no UI yet**), so unrealized/total return is a cheap follow-up.
+**Scope shipped:** quantity + **daily P&L** + **total return** (unrealized P&L vs. cost basis). The optional
+per-unit `CostBasis` on `DomainPosition`/`PortfolioItem` is now captured in the editor and surfaced — see
+"cost-basis / total-return" below; a holding with no basis simply omits the total-return figure.
 
 **Data model** (the usual `Api`/`Domain`/`Ui` layering; formatting only in `Ui*`):
 - `Settings/PortfolioStore.cs` — JSON-persisted holdings, modeled on `WatchlistStore` (singleton, lock,
@@ -558,13 +601,22 @@ returns per-instrument daily change.
   the base reconcile finds nothing missing → no fetch → the re-render just reads the new quantity.
 - `Models/DomainPosition.cs` — `DomainInstrument` + quantity + optional cost basis, **no prices**.
 - `Models/UiPosition.cs` + `UiPortfolio.cs` — presentation: `UiPosition` combines a `DomainQuote` with the
-  quantity → `MarketValue` (qty × price), `DailyPnL` (qty × `DomainQuote.Change`), `Format*()` helpers (the
-  only place position formatting lives, like `UiQuote`); `UiPortfolio.From(...)` rolls up the totals.
+  quantity (and optional cost basis) → `MarketValue` (qty × price), `DailyPnL` (qty × `DomainQuote.Change`),
+  `TotalCost`/`TotalReturn`/`TotalReturnPercent` (qty × basis; unrealized P&L; `(price−basis)/basis`),
+  `Format*()` helpers (the only place position formatting lives, like `UiQuote`); `UiPortfolio.From(...)`
+  rolls up the value/daily-P&L totals plus the cost + total-return rollup over holdings that have a basis.
 
 **Daily P&L:** per position = `Quantity × DomainQuote.Change`. Total value = Σ market value; total daily
 P&L = Σ daily P&L; aggregate **percent = `totalDailyPnL / (totalValue − totalDailyPnL)`** (vs. yesterday's
 close) — not an average of the per-position percents (guards ÷0). `IsValid:false` holdings are excluded
 from the totals (shown as unpriced rows).
+
+**Total return (cost basis):** per position = `MarketValue − Quantity × CostBasis` (the converted form when
+the holding's currency differs from `PortfolioCurrency`); **percent = `(price − basis)/basis`**. Surfaced
+only when a **positive** basis was recorded. The portfolio rollup sums **converted** cost + return across the
+counted holdings that have a basis (aggregate **percent = `totalReturn / totalCost`**, ÷0-guarded); a holding
+without a basis contributes to value/daily-P&L but not to the return rollup. Cost basis is stored **per unit
+in the holding's native currency**, so it converts with the same `RateToPreferred` as the value.
 
 **Screen** (`Pages/PortfolioPage.cs`): a **`PricedListPage` subclass** (like Watchlist/Favorites), so it
 inherits all the caching/polling/reconcile/keep-last-good plumbing — it just observes
@@ -581,11 +633,13 @@ which auto-labels itself by current membership) plus **Remove from Portfolio**
 (`Commands/PortfolioCommands.cs`) once held. The page also subscribes to `PortfolioStore.Positions`, so the
 bar flips Add→Edit/Remove the instant a quantity is saved.
 
-**`Pages/SetQuantityPage.cs`** — the quantity editor: a `ContentPage` whose single `FormContent` is an
-adaptive card with one `Input.Number` (prefilled with the current holding, 0 when adding) + a Save action.
-`SubmitForm` parses + validates (> 0), calls `PortfolioStore.SetPosition`, toasts, and `GoBack()`s to the
-detail page. The single-`FormContent` auto-focus quirk (that plagues the chart) is **harmless/helpful
-here** — it drops the cursor straight into the number field.
+**`Pages/SetQuantityPage.cs`** — the holding editor: a `ContentPage` whose single `FormContent` is an
+adaptive card with a **quantity** `Input.Number` (required, > 0) and an optional **average-cost-per-unit**
+`Input.Number` (the cost basis), both prefilled from the current holding (0 when adding). `SubmitForm`
+validates quantity > 0 and maps a **0/blank cost basis → null** (cleared → total return hidden), then calls
+`PortfolioStore.SetPosition(instrument, quantity, costBasis)` (which now applies the basis verbatim), toasts,
+and `GoBack()`s to the detail page. The single-`FormContent` auto-focus quirk (that plagues the chart) is
+**harmless/helpful here** — it drops the cursor straight into the quantity field.
 
 **The dock band — DONE** (`Pages/PortfolioDockPage.cs`): a second band in `GetDockBands()` next to favorites,
 rendering **one summary button** — total value + daily P&L rolled up into the `PortfolioCurrency` (the same
@@ -604,9 +658,15 @@ rate-limit signal but renders no banner** (too cramped). No provider/repository/
 private-use glyph chars (blank icon), so byte-check after editing (real glyph = `EE A0 A5`) or use a C#
 Unicode escape. ✅ Live-verified: band shows the total + P&L + icon.
 
-**Still deferred — cost-basis / total-return** reporting: `DomainPosition`/`PortfolioItem` already persist an
-optional `CostBasis` (no UI yet), so unrealized + total return on each holding and the portfolio is a cheap
-follow-up — surface it in `UiPosition`/`UiPortfolio` and the detail-page editor.
+**Cost-basis / total-return — DONE (this round).** The optional per-unit `CostBasis` is now captured in the
+holding editor (`SetQuantityPage`) and surfaced as **total return** (unrealized P&L since purchase) on the
+per-row subtitle ("Total ▲ +$… (+…%)"), the totals summary row, and the Portfolio dock band — via
+`UiPosition.TotalCost/TotalReturn/TotalReturnPercent` and the `UiPortfolio` rollup (`HasCostBasis` +
+`FormatTotalReturnNote()`). Multi-currency aware: the native basis converts into `PortfolioCurrency` with the
+same FX rate as the value, so per-row returns sum to the total. `PortfolioStore.SetPosition` applies the
+basis verbatim (null clears) and `GetPosition` returns the full holding for rendering. Holdings without a
+recorded basis (or unpriced/unconvertible ones) contribute to value/daily-P&L but not the return rollup. ⏳
+Not yet live-verified.
 
 ### Multi-currency portfolio conversion (done)
 
@@ -663,6 +723,45 @@ rolled up to ~£5,571 — i.e. the USD value × ~0.76, a genuine conversion, not
 check: the **GBX/pence** path (a London `.L` stock → ÷100 → GBP) and a **non-USD native** holding priced by
 Finnhub via profile2. Build clean (0 warnings).
 
+### Demo mode (offline testing) (done)
+
+A **`Demo mode` toggle** in Settings (`MarketSettingsManager`, key `demoMode`, default **off**, exposed as
+`DemoMode`) puts the whole app on **built-in sample data with no API key and no network** — for demoing the
+extension or testing UI changes without spending real-API budget. It exercises every path: quotes, candles,
+search, multi-currency conversion, and total return.
+
+**How it routes (no reload needed).** The mock takes precedence **everywhere** via a general "exclusive
+provider" seam, not a separate build path:
+- `IMarketDataProvider` gained a default member **`bool IsExclusive => false`**. `MockMarketDataProvider`
+  returns `MarketSettingsManager.Instance.DemoMode`. `MarketRepository.ActiveProviders()` returns **only the
+  exclusive providers when any exist**, else the full set — and quotes, candles, **and the search fan-out**
+  all route through that active set. So in demo mode the mock is the *sole* source for **every** operation; no
+  live provider is consulted at all (this closes the old search-leak that `Supports()` couldn't gate, since
+  search fans out to all providers).
+- `MockMarketDataProvider` is also registered **first** with `Supports(category)` gated on `DemoMode` (so when
+  demo is off it's neither exclusive nor selectable → the real providers serve unchanged), and `SearchAsync`
+  still self-gates to `[]` when off (off → it's back in the normal search fan-out, so it must stay quiet).
+- `CurrencyConverter.PrimeAsync` checks the same setting and, when on, fills its rate cache from a **static
+  `DemoUsdPerUnit` table** (USD value per unit → native/preferred ratio) instead of calling Frankfurter
+  `/latest`. So even cross-currency portfolio totals/returns are fully offline; `TryGetRate` reads the cache
+  exactly as for live rates.
+- `ApiKeyHint` is now a unified **`StatusRow()`** (demo on → a blue "Demo mode — showing sample data" row so
+  it's obvious prices are simulated; else no key → the red "No API key set" nudge; else null). Both rows'
+  Enter opens Settings (to turn demo off, or add a key). The hub, Search, Watchlist and Favorites append it.
+
+All checks are **pull-style**, so flipping the toggle applies on the **next price refresh / when a list is
+reopened** — no reload (consistent with `PortfolioCurrency` / `ShowRateLimitErrors`).
+
+**Seed coverage** (`MockMarketDataProvider`): AAPL/MSFT/NVDA (USD), **HSBA.L (GBP, a London stock)**, BTC/ETH/
+SOL (USD), EURUSD/GBPUSD/USDJPY. Each entry carries real **name + category + native currency**, so search is
+correctly typed (not all-`Stock` as before) and the GBP stock gives multi-currency conversion + total return a
+non-USD holding to convert. Candles are a deterministic per-`(symbol,range)` random walk.
+
+**Network in demo mode: none.** Quotes, candles, search, and FX conversion are *all* served from the mock /
+the static rate table — the `IsExclusive` routing means even a user with live API keys set hits **zero**
+network for market data while demo mode is on. (Logos are still fetched by the host from Elbstream's CDN —
+that's the host rendering an `IconInfo` URL, not an app data call, and is unaffected.) ⏳ Not yet live-verified.
+
 ### Symbol detail + live chart — for ANY instrument (CHART DONE; flicker fixed, Enter/focus bug open)
 
 **App-wide, not portfolio-specific.** The shared `Pages/SymbolDetailPage.cs` opens from any row (Enter)
@@ -686,8 +785,8 @@ through a new provider seam — see the Finnhub candle spec + the candle layer f
 - **Gating:** this premium limit is **Finnhub-only**. With **Twelve Data** primary (its `/time_series`
   candles are free-tier), a free Twelve Data key renders real charts; only the **Finnhub fallback** path
   403s on a free key → the card shows "requires a paid Finnhub plan". To preview rendering with no key at
-  all, temporarily point the repo at `new MarketRepository(new MockMarketDataProvider())` (don't ship —
-  mock also feeds search).
+  all, turn on **Demo mode** in Settings (the `DemoMode` toggle → `MockMarketDataProvider` draws synthetic
+  candles; see "Demo mode (offline testing)").
 
 **State of the two UI issues: flicker FIXED; the Enter/focus bug is UNSOLVED (left as-is, documented).**
 

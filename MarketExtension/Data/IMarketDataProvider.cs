@@ -13,6 +13,14 @@ internal interface IMarketDataProvider
     // Which asset classes this source can price — used by MarketRepository to route instruments.
     bool Supports(AssetCategory category);
 
+    // When true, this provider is the SOLE active source: MarketRepository routes EVERY operation —
+    // quotes, candles, AND the search fan-out — to exclusive providers only and ignores the rest. This is
+    // how a provider takes precedence everywhere, including search (which Supports() can't gate, since the
+    // repository fans search out to all providers). MockMarketDataProvider sets this from the Demo-mode
+    // setting so demo data wins across the board. Default false → normal first-match-by-Supports routing; a
+    // default member so existing providers opt out for free.
+    bool IsExclusive => false;
+
     Task<IReadOnlyList<DomainQuote>> GetQuotesAsync(
         IReadOnlyList<DomainInstrument> instruments, CancellationToken ct = default);
 

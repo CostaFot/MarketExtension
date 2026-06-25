@@ -43,8 +43,8 @@ internal sealed partial class PortfolioPage : PricedListPage
         var preferred = MarketSettingsManager.Instance.PortfolioCurrency;
         var positions = new List<UiPosition>();
         foreach (var q in pricedQuotes)
-            if (PortfolioStore.Instance.TryGetQuantity(q.Symbol, out var qty))
-                positions.Add(MakePosition(q.Source, qty, preferred));
+            if (PortfolioStore.Instance.GetPosition(q.Symbol) is { } held)
+                positions.Add(MakePosition(q.Source, held.Quantity, held.CostBasis, preferred));
 
         if (positions.Count == 0)
             return [];
@@ -55,7 +55,7 @@ internal sealed partial class PortfolioPage : PricedListPage
             new ListItem(new NoOpCommand())
             {
                 Title = $"Portfolio {portfolio.FormatTotalValue()}",
-                Subtitle = portfolio.FormatTotalChange() + portfolio.FormatUnconvertedNote(),
+                Subtitle = portfolio.FormatTotalChange() + portfolio.FormatTotalReturnNote() + portfolio.FormatUnconvertedNote(),
                 Icon = new IconInfo(PortfolioGlyph),
             },
         ];
@@ -64,23 +64,30 @@ internal sealed partial class PortfolioPage : PricedListPage
     protected override IListItem BuildRow(UiQuote q)
     {
         var instrument = new DomainInstrument(q.Symbol, q.Name, q.Category);
-        PortfolioStore.Instance.TryGetQuantity(q.Symbol, out var qty);
-        var position = MakePosition(q.Source, qty, MarketSettingsManager.Instance.PortfolioCurrency);
+        var held = PortfolioStore.Instance.GetPosition(q.Symbol);
+        var position = MakePosition(q.Source, held?.Quantity ?? 0m, held?.CostBasis, MarketSettingsManager.Instance.PortfolioCurrency);
+
+        // Daily P&L always; total return appended ("Total ▲ …") only when a cost basis is recorded.
+        var subtitle = $"{position.FormatValue()}   {position.FormatDailyPnL()}";
+        var totalReturn = position.FormatTotalReturn();
+        if (totalReturn.Length > 0)
+            subtitle += $"   Total {totalReturn}";
 
         return new ListItem(new SymbolDetailPage(instrument, Repository))
         {
             Title = position.FormatHolding(),
-            Subtitle = $"{position.FormatValue()}   {position.FormatDailyPnL()}",
+            Subtitle = subtitle,
             Icon = AssetIconResolver.Resolve(q),
         };
     }
 
     // Build a UiPosition, looking up the (cached) native→preferred FX rate. A null rate means "not known
-    // yet / not convertible" — the position renders native-only and stays out of the total.
-    private static UiPosition MakePosition(DomainQuote quote, decimal qty, string preferred)
+    // yet / not convertible" — the position renders native-only and stays out of the total. costBasis is the
+    // per-unit price paid (null when none recorded), carried through for total-return reporting.
+    private static UiPosition MakePosition(DomainQuote quote, decimal qty, decimal? costBasis, string preferred)
     {
         var rate = CurrencyConverter.Instance.TryGetRate(quote.Currency, preferred);
-        return UiPosition.From(quote, qty, preferred, rate);
+        return UiPosition.From(quote, qty, preferred, rate, costBasis);
     }
 
     // After each price update, ensure the FX rates for every native currency now present are fetched into

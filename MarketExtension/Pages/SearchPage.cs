@@ -105,7 +105,7 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             },
         };
 
-        if (ApiKeyHint.MissingKeyRow() is { } hint) // no key → nudge the user to add one
+        if (ApiKeyHint.StatusRow() is { } hint) // no key → nudge to add one; demo mode → flag sample data
             items.Add(hint);
 
         return [.. items];
@@ -145,7 +145,7 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
                 items.Add(AssetIconResolver.AttributionRow()); // Elbstream logo credit (results show logos)
         }
 
-        if (ApiKeyHint.MissingKeyRow() is { } hint) // no key → explain why stock/crypto search is empty
+        if (ApiKeyHint.StatusRow() is { } hint) // no key → explain empty search; demo mode → flag sample data
             items.Add(hint);
         if (RateLimitHint.Row() is { } banner) // throttled → just under the search action, seen without scrolling
             items.Insert(1, banner);

@@ -9,7 +9,7 @@ namespace MarketExtension;
 // screen are the last known ones (the keep-last-good guard holds them) and will refresh once the window
 // clears, instead of leaving them to guess why values look stale. Enter does NOTHING (a NoOpCommand): it's
 // the default-selected first row, so it must not steal Enter or navigate away — it's purely informational.
-// Parallels ApiKeyHint.MissingKeyRow().
+// Parallels ApiKeyHint.StatusRow().
 internal static class RateLimitHint
 {
     private const string WarningGlyph = ""; // Segoe MDL2 Warning

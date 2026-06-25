@@ -38,6 +38,25 @@ internal sealed class CurrencyConverter
     // unsupported) plus the tick it was stored at, for TTL expiry.
     private readonly ConcurrentDictionary<string, CachedRate> _cache = new(StringComparer.Ordinal);
 
+    // Demo-mode rate table: the USD value of 1 unit of each currency, for computing native→preferred as a
+    // ratio with no network. Approximate mid-2025 levels — enough to exercise conversion, not to be precise.
+    // Covers the PortfolioCurrency choices plus the common native quote currencies; a code that's missing
+    // resolves to null (unsupported), mirroring how ECB-uncovered currencies behave live.
+    private static readonly Dictionary<string, decimal> DemoUsdPerUnit = new(StringComparer.Ordinal)
+    {
+        ["USD"] = 1m,     ["EUR"] = 1.08m,  ["GBP"] = 1.27m,  ["JPY"] = 0.0063m, ["CHF"] = 1.12m,
+        ["AUD"] = 0.66m,  ["CAD"] = 0.73m,  ["NZD"] = 0.61m,  ["CNY"] = 0.138m,  ["HKD"] = 0.128m,
+        ["SGD"] = 0.74m,  ["SEK"] = 0.094m, ["NOK"] = 0.092m, ["DKK"] = 0.145m,  ["PLN"] = 0.25m,
+        ["ZAR"] = 0.054m, ["MXN"] = 0.058m, ["INR"] = 0.012m, ["BRL"] = 0.18m,   ["KRW"] = 0.00073m,
+    };
+
+    // native→preferred under demo mode = (USD per native) / (USD per preferred). Null when either side
+    // isn't in the table, matching the live "ECB doesn't cover it" → null contract.
+    private static decimal? DemoRate(string from, string to) =>
+        DemoUsdPerUnit.TryGetValue(from, out var f) && DemoUsdPerUnit.TryGetValue(to, out var t) && t != 0m
+            ? f / t
+            : null;
+
     private CurrencyConverter() { }
 
     private readonly record struct CachedRate(decimal? Rate, long Tick);
@@ -88,6 +107,16 @@ internal sealed class CurrencyConverter
 
         if (needed.Count == 0)
             return;
+
+        // Demo mode: fill the cache from the static table (no network), then return. TryGetRate reads the
+        // cache exactly as it does for live rates, so the rest of the app is none the wiser.
+        if (MarketSettingsManager.Instance.DemoMode)
+        {
+            var stamp = Environment.TickCount64;
+            foreach (var native in needed)
+                _cache[Key(native, to)] = new CachedRate(DemoRate(native, to), stamp);
+            return;
+        }
 
         try
         {
