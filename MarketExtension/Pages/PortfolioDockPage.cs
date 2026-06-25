@@ -77,7 +77,7 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
         _repository = repository;
         Id = "com.costafotiadis.market.dock.portfolio"; // dock bands require a non-empty command Id
         Title = "Markets Portfolio";
-        Icon = new IconInfo("https://github.com/favicon.ico");
+        Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base.png");
     }
 
     public override IListItem[] GetItems()

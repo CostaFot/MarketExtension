@@ -84,7 +84,7 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
     {
         Repository = repository;
         _instruments = instruments;
-        Icon = new IconInfo("https://github.com/favicon.ico");
+        Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base.png");
         // Demo mode flips the data SOURCE, so every cached price is now wrong. Subscribe for the page's
         // WHOLE life (not the visibility-scoped block above): these pages are long-lived singletons that
         // reconcile against a surviving cache on reopen, so a HIDDEN page must drop its cache on a flip too —
