@@ -284,8 +284,8 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   - **Display** — Portfolio rows append "Total ▲ +$… (+…%)" after daily P&L when a basis is set; the totals
     summary row **and** the Portfolio dock band append the total-return note to their subtitle. Holdings with
     no basis (or unpriced/unconvertible) simply contribute nothing to the return rollup. Build clean (0
-    warnings). ⏳ **Total-return display not yet explicitly spot-checked** — easiest via Demo mode now: add the
-    GBP `HSBA.L` holding with a cost basis and confirm the per-row + summary + dock converted return. See
+    warnings). ✅ **Live-verified** (via Demo mode: the GBP `HSBA.L` holding with a cost basis shows the
+    converted total return on the per-row subtitle, the totals summary, and the dock band). See
     "Portfolio screen + dock band (done)".
 - **Done (this round): the Portfolio dock band.** A second Dock band next to the favorites band, showing the
   portfolio's **total value + daily P&L rolled up into the `PortfolioCurrency`** as a single summary button
@@ -468,9 +468,9 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
     a watchlist/portfolio persists the full `DomainInstrument` to JSON, so if demo search invented matches
     for arbitrary free-text the user could add a **non-existent ticker** that becomes a permanent blank row
     once demo mode is off (no clean migration path). The curated corpus keeps search feeling complete while
-    guaranteeing it can only ever surface real symbols. Build clean (0 warnings). ⏳ Not yet live-verified
-    — spot-check by turning on Demo mode and searching for an off-seed real ticker (e.g. `GOOGL`, `7203.T`,
-    `DOGE`), adding it, and confirming it prices + charts. See "Demo mode (offline testing)".
+    guaranteeing it can only ever surface real symbols. Build clean (0 warnings). ✅ **Live-verified** —
+    in Demo mode an off-seed real ticker (e.g. `GOOGL`, `7203.T`, `DOGE`) is found in search, prices, and
+    charts after adding. See "Demo mode (offline testing)".
 - **Done (this round): migrated the observable layer to Rx.NET (`System.Reactive`).** Two parts:
   - **`StateFlow` → thin wrapper over `BehaviorSubject<T>`** (the blocker was gone once AOT/trim went off —
     the trim/AOT analyzers were removed, so `System.Reactive` 6.0.1 is taken **warning-free**, CA1001
@@ -711,9 +711,9 @@ per-row subtitle ("Total ▲ +$… (+…%)"), the totals summary row, and the Po
 `FormatTotalReturnNote()`). Multi-currency aware: the native basis converts into `PortfolioCurrency` with the
 same FX rate as the value, so per-row returns sum to the total. `PortfolioStore.SetPosition` applies the
 basis verbatim (null clears) and `GetPosition` returns the full holding for rendering. Holdings without a
-recorded basis (or unpriced/unconvertible ones) contribute to value/daily-P&L but not the return rollup. ⏳
-Total-return display not yet explicitly spot-checked — easiest via **Demo mode** (add the GBP `HSBA.L` holding
-with a cost basis and confirm the per-row + summary + dock converted return).
+recorded basis (or unpriced/unconvertible ones) contribute to value/daily-P&L but not the return rollup. ✅
+**Live-verified** via **Demo mode** (the GBP `HSBA.L` holding with a cost basis shows the converted total
+return on the per-row subtitle, the totals summary, and the dock band).
 
 ### Multi-currency portfolio conversion (done)
 
