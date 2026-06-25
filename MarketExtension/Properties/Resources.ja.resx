@@ -77,7 +77,7 @@
     <value>詳細を表示</value>
   </data>
   <data name="Extension_DisplayName" xml:space="preserve">
-    <value>マーケット拡張機能</value>
+    <value>Command Palette 用マーケット拡張機能</value>
   </data>
   <data name="Command_Markets" xml:space="preserve">
     <value>マーケット</value>

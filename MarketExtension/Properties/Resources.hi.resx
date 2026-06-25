@@ -75,7 +75,7 @@
     <value>विवरण देखें</value>
   </data>
   <data name="Extension_DisplayName" xml:space="preserve">
-    <value>मार्केट एक्सटेंशन</value>
+    <value>Command Palette के लिए मार्केट एक्सटेंशन</value>
   </data>
   <data name="Command_Markets" xml:space="preserve">
     <value>मार्केट</value>

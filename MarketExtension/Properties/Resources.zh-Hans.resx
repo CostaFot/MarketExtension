@@ -130,7 +130,7 @@
     <value>查看详情</value>
   </data>
   <data name="Extension_DisplayName" xml:space="preserve">
-    <value>行情扩展</value>
+    <value>Command Palette 行情扩展</value>
   </data>
   <data name="Command_Markets" xml:space="preserve">
     <value>市场</value>

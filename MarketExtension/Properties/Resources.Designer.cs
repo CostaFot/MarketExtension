@@ -385,7 +385,7 @@ namespace MarketExtension.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Market Extension.
+        ///   Looks up a localized string similar to Markets Extension for Command Palette.
         /// </summary>
         public static string Extension_DisplayName {
             get {

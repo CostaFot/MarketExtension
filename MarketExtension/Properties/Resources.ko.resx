@@ -76,7 +76,7 @@
     <value>세부 정보 보기</value>
   </data>
   <data name="Extension_DisplayName" xml:space="preserve">
-    <value>마켓 확장</value>
+    <value>Command Palette용 마켓 확장</value>
   </data>
   <data name="Command_Markets" xml:space="preserve">
     <value>마켓</value>

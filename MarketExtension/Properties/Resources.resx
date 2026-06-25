@@ -130,7 +130,7 @@
     <value>View details</value>
   </data>
   <data name="Extension_DisplayName" xml:space="preserve">
-    <value>Market Extension</value>
+    <value>Markets Extension for Command Palette</value>
   </data>
   <data name="Command_Markets" xml:space="preserve">
     <value>Markets</value>

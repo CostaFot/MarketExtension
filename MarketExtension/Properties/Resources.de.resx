@@ -75,7 +75,7 @@
     <value>Details anzeigen</value>
   </data>
   <data name="Extension_DisplayName" xml:space="preserve">
-    <value>Markterweiterung</value>
+    <value>Markterweiterung für Command Palette</value>
   </data>
   <data name="Command_Markets" xml:space="preserve">
     <value>Märkte</value>

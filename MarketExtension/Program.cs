@@ -43,8 +43,8 @@ public class Program
         {
             _ = MessageBox(
                 IntPtr.Zero,
-                "Market Extension is a background extension.\n\nTo use it, open PowerToys Command Palette and search for \"Market\".",
-                "Market Extension",
+                "Markets Extension for Command Palette is a background extension.\n\nTo use it, open PowerToys Command Palette and search for \"Markets\".",
+                "Markets Extension for Command Palette",
                 0x40 /* MB_ICONINFORMATION */);
         }
     }
