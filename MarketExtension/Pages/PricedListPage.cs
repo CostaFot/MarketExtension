@@ -167,6 +167,8 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         rows.AddRange(cached.Where(Matches).Select(BuildRow));
         rows.Add(new ListItem(new RefreshCommand(this)) { Title = Resources.Action_Refresh + " 🔄" });
         rows.Add(AssetIconResolver.AttributionRow()); // Elbstream logo credit (rows above show logos)
+        if (DataSourceAttribution.Row() is { } dataCredit) // Twelve Data (required) / Finnhub data credit
+            rows.Add(dataCredit);
         if (ApiKeyHint.StatusRow() is { } hint) // no key → explain blanks; demo mode → flag sample data
             rows.Add(hint);
         if (RateLimitHint.Row() is { } banner) // throttled → surface at the TOP so it's seen without scrolling

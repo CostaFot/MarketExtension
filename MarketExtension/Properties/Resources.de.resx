@@ -242,6 +242,15 @@
   <data name="Attribution_OpenName" xml:space="preserve">
     <value>Elbstream öffnen</value>
   </data>
+  <data name="DataAttribution_Title" xml:space="preserve">
+    <value>Daten bereitgestellt von {0}</value>
+  </data>
+  <data name="DataAttribution_Subtitle" xml:space="preserve">
+    <value>Kurse können verzögert oder ungenau sein</value>
+  </data>
+  <data name="DataAttribution_OpenName" xml:space="preserve">
+    <value>{0} öffnen</value>
+  </data>
   <data name="Cmd_AddToWatchlist" xml:space="preserve">
     <value>Zur Beobachtungsliste hinzufügen</value>
   </data>

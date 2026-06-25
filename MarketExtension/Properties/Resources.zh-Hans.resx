@@ -297,6 +297,15 @@
   <data name="Attribution_OpenName" xml:space="preserve">
     <value>打开 Elbstream</value>
   </data>
+  <data name="DataAttribution_Title" xml:space="preserve">
+    <value>数据由 {0} 提供</value>
+  </data>
+  <data name="DataAttribution_Subtitle" xml:space="preserve">
+    <value>报价可能延迟或不准确</value>
+  </data>
+  <data name="DataAttribution_OpenName" xml:space="preserve">
+    <value>打开 {0}</value>
+  </data>
   <data name="Cmd_AddToWatchlist" xml:space="preserve">
     <value>添加到自选</value>
   </data>

@@ -298,6 +298,7 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
                 data["showStatus"] = true;
                 data["statusText"] = Strings.Format(Resources.Chart_Loading, range.Label());
                 data["attributionText"] = Resources.Attribution_Title;
+                SetDataAttribution(data);
                 return data.ToJsonString();
             }
 
@@ -313,7 +314,19 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
                 ? string.Empty
                 : Resources.Chart_NoData;
             data["attributionText"] = Resources.Attribution_Title;
+            SetDataAttribution(data);
             return data.ToJsonString();
+        }
+
+        // The active live data provider's credit (Twelve Data required / Finnhub good-practice), or hidden
+        // when none applies (demo mode / no key). Text-only here: the chart is a single card with no
+        // clickable rows, and every list/search surface that shows the same data carries the clickable
+        // version (DataSourceAttribution.Row()).
+        private static void SetDataAttribution(JsonObject data)
+        {
+            var credit = DataSourceAttribution.Text();
+            data["dataAttributionText"] = credit ?? string.Empty;
+            data["hasDataAttribution"] = credit is not null;
         }
 
         // Static card structure; values bind from DataJson. The five Action.Submit buttons each carry
@@ -341,7 +354,8 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
                 { "type": "Action.Submit", "title": "5Y", "data": { "range": "5Y" } }
               ]
             },
-            { "type": "TextBlock", "text": "${attributionText}", "isSubtle": true, "wrap": true, "spacing": "Medium" }
+            { "type": "TextBlock", "text": "${attributionText}", "isSubtle": true, "wrap": true, "spacing": "Medium" },
+            { "type": "TextBlock", "text": "${dataAttributionText}", "isSubtle": true, "wrap": true, "spacing": "Small", "$when": "${hasDataAttribution}" }
           ]
         }
         """;

@@ -147,7 +147,11 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
                 items.Add(BuildResultItem(instrument));
 
             if (_searchResults.Count > 0)
+            {
                 items.Add(AssetIconResolver.AttributionRow()); // Elbstream logo credit (results show logos)
+                if (DataSourceAttribution.Row() is { } dataCredit) // results come from the live provider's data
+                    items.Add(dataCredit);
+            }
         }
 
         if (ApiKeyHint.StatusRow() is { } hint) // no key → explain empty search; demo mode → flag sample data
