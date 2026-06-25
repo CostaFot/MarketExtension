@@ -380,7 +380,7 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   `Helpers/PollTicker.cs` (a singleton ticker — originally a `StateFlow<long>` on the `OnActive`/`OnInactive`
   subscriber-count seam, **now pure Rx** `Observable.Generate(...).Publish().RefCount()`), and per-surface
   **silent** `PollRefresh()` methods that re-price in place with **no spinner/flicker** (cache not
-  cleared, prices swap when the fetch lands). Honors the existing interval setting (default 5 min,
+  cleared, prices swap when the fetch lands). Honors the existing interval setting (default 10 min,
   `0` = off, applied without reload). A **keep-last-good guard** in `PricedListPage.LoadQuotes(silent)`
   stops a transient bad poll (e.g. a 429 mapped to an invalid quote) from blanking a price that was
   fine. The chart now live-refreshes its visible range on the same ticker (see below). See "Live price polling (done)".
@@ -546,7 +546,7 @@ the user gets explicit feedback and can keep editing.
 ### Live price polling (done)
 
 Priced surfaces used to fetch **once** when they became visible (the StateFlow replay-on-subscribe that
-drives the first load). They now also auto-refresh on a timer while visible: **default 5 min, settings-
+drives the first load). They now also auto-refresh on a timer while visible: **default 10 min, settings-
 configurable** (0 = off). Built on the ticker's subscriber-count lifecycle (now Rx `Publish().RefCount()`).
 
 - **Where (in scope):** `Pages/PricedListPage.cs` (Markets Watchlist + Markets Favorites),
@@ -595,7 +595,7 @@ configurable** (0 = off). Built on the ticker's subscriber-count lifecycle (now 
   `RefreshQuotes`, which clears `_quotes`).
 - **Settings.** `Settings/MarketSettingsManager.cs` (`JsonSettingsManager` singleton,
   `…/market.settings.json`, wired via `Settings = MarketSettingsManager.Instance.Settings;`). The refresh
-  interval is a numeric `TextSetting` **in minutes, default 5** (0 = off), surfaced as `RefreshMinutes` /
+  interval is a numeric `TextSetting` **in minutes, default 10** (0 = off), surfaced as `RefreshMinutes` /
   `RefreshInterval` (TimeSpan) / `AutoRefreshEnabled`; the ticker reads these each tick. A
   **`ToggleSetting` `Show rate-limit warnings`** (default on, surfaced as `ShowRateLimitErrors`) gates the
   rate-limited banner — read pull-style by `RateLimitHint.Row()`, so toggling it applies on the next
@@ -605,7 +605,7 @@ configurable** (0 = off). Built on the ticker's subscriber-count lifecycle (now 
 - ⚠️ **Rate-limit tension (still real):** Finnhub free tier is **~60 calls/min AND ~300/day**, and
   `GetQuotesAsync` issues **one `/quote` call per instrument**. Polling N instruments at interval T burns
   the budget fast at a low T — e.g. 6 favorites every 60 s = 360 calls/hour, **exhausting ~300/day in
-  under an hour**. The **5-min default is gentler** (6 favorites = ~72 calls/hour). In place today: the
+  under an hour**. The **10-min default is gentler** (6 favorites = ~36 calls/hour). In place today: the
   configurable interval + **Off** (0) escape, polling **only while visible**, the keep-last-good guard,
   and now **429 back-off + a "rate-limited" banner** (`HttpRetry` / `RateLimitSignal` / `RateLimitHint` —
   see the "Done (this round)" bullet). Note the back-off intentionally **bails fast** rather than retrying
@@ -1006,9 +1006,11 @@ you ship. ⚠️ **Clearbit's free logo API was permanently sunset Dec 2025 — 
 the only keyless, symbol-addressable source covering stocks + crypto + forex from one place; its attribution
 requirement was the accepted trade-off.
 
-**Future polish:** logos on a `PortfolioPage` when it lands (same `Resolve(...)` call); a glyph-on-miss probe
-if blank slots on obscure symbols become annoying. (FX flags are now wired — Elbstream `/logos/country/{iso2}`
-keyed off the base currency.)
+**Future polish:** a glyph-on-miss probe if blank slots on obscure symbols become annoying. (FX flags are
+now wired — Elbstream `/logos/country/{iso2}` keyed off the base currency. **Portfolio logos are DONE** —
+`PortfolioPage.BuildRow` resolves the per-holding logo via the same `AssetIconResolver.Resolve(...)` call,
+and it inherits the Elbstream attribution row from `PricedListPage.GetItems`; the totals summary row and the
+Portfolio dock band keep the Bank glyph on purpose, since those are rolled-up summaries, not instruments.)
 
 ## CommandPalette Toolkit — Quick Reference
 

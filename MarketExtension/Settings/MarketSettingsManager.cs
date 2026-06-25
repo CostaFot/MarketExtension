@@ -27,7 +27,7 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     public static readonly MarketSettingsManager Instance = new();
 
     // Default auto-refresh cadence when the field is blank/unparseable.
-    private const int DefaultRefreshMinutes = 5;
+    private const int DefaultRefreshMinutes = 10;
 
     private readonly TextSetting _twelveDataApiKey = new("twelveDataApiKey", string.Empty)
     {
