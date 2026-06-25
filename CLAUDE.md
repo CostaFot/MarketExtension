@@ -83,7 +83,7 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Data/Finnhub/FinnhubMarketDataProvider.cs` | Stock+Crypto provider (`Supports` Stock+Crypto), used when no Twelve Data key is set. Maps `ApiFinnhubQuoteDto` → `DomainQuote`; `SearchAsync` calls `/search` (US equities only — see Finnhub specifics). |
 | `Data/Frankfurter/FrankfurterMarketDataProvider.cs` | FX provider (`Supports` Currency). **Keyless** ECB daily rates via Frankfurter (`https://api.frankfurter.dev/v1/`). Splits a 6-letter pair (`EURUSD` → base `EUR`/quote `USD`), calls the time-series endpoint for both quotes (latest vs previous fixing = **day-over-day** change) and candles (daily closes). `SearchAsync` = local filter over the catalog's FX pairs (no Frankfurter free-text endpoint exists). See Frankfurter specifics. |
 | `Data/Frankfurter/ApiFrankfurterDto.cs` | Raw time-series DTO (`ApiFrankfurterSeriesDto`: `rates` = date→{currency→rate}) **+ the flat `/latest` DTO (`ApiFrankfurterLatestDto`: `rates` = currency→rate)** used by `CurrencyConverter` + the source-gen `FrankfurterJsonContext`. |
-| `Data/MockMarketDataProvider.cs` | The **Demo-mode** data source — seeded quotes/candles for every asset class so the whole UI works with no key/network. Registered **first**; `Supports()` is **gated on the `DemoMode` setting** and **`IsExclusive`** also returns it, so in demo mode the repository routes **everything (quotes, candles, search)** to the mock alone — it wins everywhere and no live provider is hit. Off → serves nothing, live providers take over (`SearchAsync` self-gates to `[]` so it stays out of the live search fan-out). Each seed entry carries real name/category/**native currency** (incl. a GBP London stock `HSBA.L`) so search is correctly typed and conversion/total-return have a non-USD holding to exercise. See "Demo mode (offline testing)". |
+| `Data/MockMarketDataProvider.cs` | The **Demo-mode** data source — quotes/candles for every asset class so the whole UI works with no key/network. Registered **first**; `Supports()` is **gated on the `DemoMode` setting** and **`IsExclusive`** also returns it, so in demo mode the repository routes **everything (quotes, candles, search)** to the mock alone — it wins everywhere and no live provider is hit. Off → serves nothing, live providers take over (`SearchAsync` self-gates to `[]` so it stays out of the live search fan-out). **Serves ANY symbol:** a small hand-tuned `Seed` (headline symbols, incl. GBP `HSBA.L`) overrides on top of `SynthesizeQuote` — a stable-hash, category-/currency-inferred quote for any other ticker, so an off-seed real holding still prices. **Search** matches a curated **`Catalog`** of ~120 *real* instruments (never fabricated symbols — a faked match could be persisted and break when demo is off). See "Demo mode (offline testing)". |
 | `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults — the **first-run seed** for `WatchlistStore` (no longer always-shown; removable once seeded). |
 | `Settings/WatchlistStore.cs` | JSON-persisted tracked instruments, each carrying **two independent flags** `InWatchlist`/`IsFavorite` (favorites = the dock subset). Stores **full `DomainInstrument` identity** so searched non-catalog symbols re-price; an entry with both flags false is dropped. Source-gen `WatchlistItem`/`WatchlistJsonContext` → `market_watchlist.json`; seeds `InstrumentCatalog` on first run, else migrates the legacy `market_favorites.json` (old pins → watchlisted **and** favorited). Exposes its `Watchlist`/`Favorites` subsets as **observable `StateFlow`s** (each mutation calls `PublishState()` → re-publishes both); pages and the dock **subscribe** and re-render themselves. Replaces the old `FavoritesStore` + `Watchlist.cs`. |
 | `Helpers/StateFlow.cs` | A tiny **Kotlin-StateFlow analog**, now a **thin wrapper over `System.Reactive`'s `BehaviorSubject<T>`** (the migration off the old hand-rolled version is **done** — AOT/trim is off, so the Rx dependency is taken warning-free; see the Rx done bullet). Used by the **state holders** (`WatchlistStore`, `MarketSettingsManager`) — observable *state with a current value*, which `IObservable` (no `Value`) and a bare `BehaviorSubject` (no read-only face) can't express alone. Public API unchanged: `StateFlow<T>` (read-only `Value` + `Subscribe` with **replay-on-subscribe** + distinct-until-changed; a `Subscribe(onNext, replayOnSubscribe:false)` overload opts out of the replay via `Skip(1)` — used by the priced pages' secondary flows, e.g. `HasAnyApiKey`) and writable `MutableStateFlow<T>` (`Update`). `SetValue` does **source-side** distinct-until-changed (an equal value isn't pushed, so re-publishing an unchanged subset doesn't wake its subscribers); `BehaviorSubject.OnNext` fans handlers out **outside** its lock (handlers re-read the store safely). The old hand-rolled **subscriber-count seam** (`OnActive`/`OnInactive` + the refcount + a custom `Subscription` wrapper) was **removed** once its only user, `PollTicker`, went pure Rx — Rx's `Publish().RefCount()` is the proper home for that, and Rx subscriptions are already idempotent on dispose. Plus `InstrumentListComparer` (symbol-sequence dedup for the store's two flows). |
@@ -448,18 +448,29 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   **DONE** this round (the stored `CostBasis` is now captured in the editor and surfaced as total return on
   the rows, totals summary, and dock band; see the "Done (this round): cost-basis / total-return reporting"
   bullet above).
-- **Wishlist (new): Demo mode should fabricate data for ANY symbol, not just a seeded handful.** Today
-  `MockMarketDataProvider` only knows the ~10 symbols in its static `Seed` dictionary — any other ticker
-  returns an `IsValid:false` quote (blank row) and is absent from search, so a watchlist/portfolio of
-  off-seed symbols looks broken in demo mode. Make demo mode **synthesize plausible data for any requested
-  symbol** instead: derive a deterministic price/daily-change from a hash of the symbol (stable across
-  refreshes), **infer category + native currency from the symbol shape** (6 letters → FX with the quote
-  currency; a known/short coin ticker → Crypto in USD; a `.L`/`.DE`/… suffix → that exchange's currency;
-  else Stock in USD), and synthesize a name. Candles already work for any symbol (the random walk doesn't
-  need a seed entry), so this is mostly `GetQuotesAsync` + a smarter `SearchAsync` (which would also need a
-  small corpus or generator to return matches for free-text). Keep the curated `Seed` as nice-looking
-  "known" overrides on top of the generator. Goal: demo mode is a complete stand-in for the live providers,
-  not a fixed demo set.
+- **Done (this round): Demo mode now serves data for ANY symbol (not just the seeded handful).** Previously
+  `MockMarketDataProvider` only knew the ~10 symbols in its static `Seed` dictionary — any other ticker
+  returned an `IsValid:false` quote (blank row) and was absent from search, so a watchlist/portfolio of
+  off-seed symbols looked broken in demo mode. Fixed as **two deliberately-separate halves** (the split
+  matters — see the design note):
+  - **Quotes: synthesize for any requested symbol.** `GetQuotesAsync` now falls back to `SynthesizeQuote`
+    for any non-seeded instrument: a **stable FNV-1a hash** of the symbol (deterministic across refreshes
+    AND process restarts — unlike per-process-randomized `string.GetHashCode`) drives a category-appropriate
+    price (stock tens-to-hundreds, crypto a $1–$10k log spread, FX a realistic rate band) and a ±3% daily
+    move. **Native currency is inferred from the symbol shape** (crypto → USD; FX pair → quote currency via
+    `CurrencyHelper.QuoteCurrencyOfPair`; stock → exchange suffix, `.L`→GBP/`.DE`→EUR/`.T`→JPY/…, else USD),
+    with a per-currency magnitude scale so a yen stock reads in the thousands. `Seed` stays as nice-looking
+    hand-tuned overrides on top. **Candles** now anchor on the same synthesized price (was hardcoded 100) so
+    the chart agrees with the quote. This is the half that fixes off-seed real holdings looking broken.
+  - **Search: a curated REAL-ticker corpus, NOT free-text fabrication.** `SearchAsync` now matches over a
+    new `Catalog` dictionary (~120 genuine instruments — US + international stocks, crypto, FX; prefix-on-
+    symbol ranked, capped at 25) instead of just the seed. **Design note (why not fabricate search hits):**
+    a watchlist/portfolio persists the full `DomainInstrument` to JSON, so if demo search invented matches
+    for arbitrary free-text the user could add a **non-existent ticker** that becomes a permanent blank row
+    once demo mode is off (no clean migration path). The curated corpus keeps search feeling complete while
+    guaranteeing it can only ever surface real symbols. Build clean (0 warnings). ⏳ Not yet live-verified
+    — spot-check by turning on Demo mode and searching for an off-seed real ticker (e.g. `GOOGL`, `7203.T`,
+    `DOGE`), adding it, and confirming it prices + charts. See "Demo mode (offline testing)".
 - **Done (this round): migrated the observable layer to Rx.NET (`System.Reactive`).** Two parts:
   - **`StateFlow` → thin wrapper over `BehaviorSubject<T>`** (the blocker was gone once AOT/trim went off —
     the trim/AOT analyzers were removed, so `System.Reactive` 6.0.1 is taken **warning-free**, CA1001
@@ -798,10 +809,22 @@ quote/candle/search **routing** itself is still read pull-style per request (`Mo
 / `IsExclusive` and `CurrencyConverter` check `DemoMode` each call) — the `DemoModeChanged` broadcast is what
 makes the already-rendered surfaces re-fetch through that routing the instant the toggle flips.
 
-**Seed coverage** (`MockMarketDataProvider`): AAPL/MSFT/NVDA (USD), **HSBA.L (GBP, a London stock)**, BTC/ETH/
-SOL (USD), EURUSD/GBPUSD/USDJPY. Each entry carries real **name + category + native currency**, so search is
-correctly typed (not all-`Stock` as before) and the GBP stock gives multi-currency conversion + total return a
-non-USD holding to convert. Candles are a deterministic per-`(symbol,range)` random walk.
+**Coverage — any symbol** (`MockMarketDataProvider`). Two sources back demo data:
+- **`Seed`** — hand-tuned, nice-looking prices for the headline symbols: AAPL/MSFT/NVDA (USD), **HSBA.L (GBP,
+  a London stock)**, BTC/ETH/SOL (USD), EURUSD/GBPUSD/USDJPY. Used as quote *overrides*; the GBP stock gives
+  multi-currency conversion + total return a non-USD holding to exercise.
+- **`SynthesizeQuote`** — for any **non-seeded** symbol, a stable-hash quote (deterministic across refreshes
+  and process restarts) with native **currency inferred from the symbol shape** (crypto→USD; FX pair→quote
+  currency; stock→exchange suffix `.L`→GBP/`.DE`→EUR/`.T`→JPY/… else USD) and a category-appropriate price
+  magnitude. So an off-seed *real* holding added while live still prices in demo mode instead of showing a
+  blank row. Candles anchor on the same price (seed or synthesized) — a deterministic per-`(symbol,range)`
+  random walk.
+
+**Search** matches a curated **`Catalog`** of ~120 *real* instruments (US + international stocks, crypto, FX;
+prefix-on-symbol ranked, capped at 25) — each typed with its real category. It deliberately does **NOT**
+fabricate matches for free-text: a watchlist/portfolio persists the full `DomainInstrument` to JSON, so a
+faked symbol would become a permanent blank row once demo mode is off. Curated corpus = search feels complete
+but can only ever surface genuine tickers.
 
 **Network in demo mode: none.** Quotes, candles, search, and FX conversion are *all* served from the mock /
 the static rate table — the `IsExclusive` routing means even a user with live API keys set hits **zero**
