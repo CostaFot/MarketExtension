@@ -44,7 +44,12 @@ internal sealed class MockMarketDataProvider : IMarketDataProvider
         IReadOnlyList<DomainQuote> quotes =
         [
             .. instruments.Select(i => Seed.TryGetValue(i.Symbol, out var s)
-                ? new DomainQuote(i.Symbol, i.Name, i.Category, s.Price, s.Change, s.Pct, IsValid: true)
+                ? new DomainQuote(i.Symbol, i.Name, i.Category, s.Price, s.Change, s.Pct, IsValid: true,
+                    // Mirror the real providers' native currency so offline preview is coherent: an FX pair
+                    // in its quote currency, everything else USD.
+                    Currency: i.Category == AssetCategory.Currency
+                        ? CurrencyHelper.QuoteCurrencyOfPair(i.Symbol)
+                        : "USD")
                 : new DomainQuote(i.Symbol, i.Name, i.Category, 0m, 0m, 0m, IsValid: false)),
         ];
         return Task.FromResult(quotes);

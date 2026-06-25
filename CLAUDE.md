@@ -82,7 +82,7 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Data/TwelveData/TwelveDataMarketDataProvider.cs` | **Primary provider when its key is set** (`Supports` Stock+Crypto+Currency, **gated on `HasTwelveDataApiKey`** → first-match routing falls back to Finnhub/Frankfurter when unset). One API for all three classes; **`/time_series` candles are free-tier**, so charts render on a free key. `GetQuotesAsync` **batches all symbols into one `/quote`** call (tight 8/min limit); `SearchAsync` = `/symbol_search` (results normalized back to neutral symbols). See Twelve Data specifics. |
 | `Data/Finnhub/FinnhubMarketDataProvider.cs` | Stock+Crypto provider (`Supports` Stock+Crypto), used when no Twelve Data key is set. Maps `ApiFinnhubQuoteDto` → `DomainQuote`; `SearchAsync` calls `/search` (US equities only — see Finnhub specifics). |
 | `Data/Frankfurter/FrankfurterMarketDataProvider.cs` | FX provider (`Supports` Currency). **Keyless** ECB daily rates via Frankfurter (`https://api.frankfurter.dev/v1/`). Splits a 6-letter pair (`EURUSD` → base `EUR`/quote `USD`), calls the time-series endpoint for both quotes (latest vs previous fixing = **day-over-day** change) and candles (daily closes). `SearchAsync` = local filter over the catalog's FX pairs (no Frankfurter free-text endpoint exists). See Frankfurter specifics. |
-| `Data/Frankfurter/ApiFrankfurterDto.cs` | Raw time-series DTO (`ApiFrankfurterSeriesDto`: `rates` = date→{currency→rate}) + its own source-gen `FrankfurterJsonContext`. |
+| `Data/Frankfurter/ApiFrankfurterDto.cs` | Raw time-series DTO (`ApiFrankfurterSeriesDto`: `rates` = date→{currency→rate}) **+ the flat `/latest` DTO (`ApiFrankfurterLatestDto`: `rates` = currency→rate)** used by `CurrencyConverter` + the source-gen `FrankfurterJsonContext`. |
 | `Data/MockMarketDataProvider.cs` | Offline fallback (`Supports` all). `SearchAsync` filters its seed keys. |
 | `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults — the **first-run seed** for `WatchlistStore` (no longer always-shown; removable once seeded). |
 | `Settings/WatchlistStore.cs` | JSON-persisted tracked instruments, each carrying **two independent flags** `InWatchlist`/`IsFavorite` (favorites = the dock subset). Stores **full `DomainInstrument` identity** so searched non-catalog symbols re-price; an entry with both flags false is dropped. Source-gen `WatchlistItem`/`WatchlistJsonContext` → `market_watchlist.json`; seeds `InstrumentCatalog` on first run, else migrates the legacy `market_favorites.json` (old pins → watchlisted **and** favorited). Exposes its `Watchlist`/`Favorites` subsets as **observable `StateFlow`s** (each mutation calls `PublishState()` → re-publishes both); pages and the dock **subscribe** and re-render themselves. Replaces the old `FavoritesStore` + `Watchlist.cs`. |
@@ -97,12 +97,15 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Data/TwelveData/ApiTwelveDataQuoteDto.cs` | Raw `/quote` DTO + the **single** `TwelveDataJsonContext` (all `[JsonSerializable]` here, incl. the keyed `Dictionary<string,…>` batch response; `NumberHandling=AllowReadingFromString` since TD encodes numbers as JSON strings). |
 | `Data/TwelveData/ApiTwelveDataCandleDto.cs` | Raw `/time_series` DTOs (`ApiTwelveDataTimeSeriesDto` + per-bar `ApiTwelveDataValueDto`, **newest-first** — provider reverses to oldest-first); registered on `TwelveDataJsonContext`. **Free tier** (unlike Finnhub candles). |
 | `Data/TwelveData/ApiTwelveDataSearchDto.cs` | Raw `/symbol_search` DTOs (`data[]` of symbol/instrument_name/instrument_type); registered on `TwelveDataJsonContext`. |
-| `Models/{AssetCategory,DomainInstrument,DomainQuote,UiQuote}.cs` | the quote model layers |
+| `Models/{AssetCategory,DomainInstrument,DomainQuote,UiQuote}.cs` | the quote model layers. `DomainQuote` now carries a **`Currency`** (ISO-4217 native currency of the price, default `"USD"`); `UiQuote.FormatPrice` renders stock/crypto in that native currency's symbol (FX-rate prices stay raw 4-decimal). See "Multi-currency portfolio conversion (done)". |
 | `Models/ChartRange.cs` | `ChartRange` (1D/1W/1M/1Y/5Y) **+ `CandleInterval`** enums + neutral helpers (`Label`/`Lookback`/`Interval`/`FromLabel`). Provider-agnostic — **no resolution tokens here** (those live in the provider). |
 | `Models/DomainCandleSeries.cs` | Domain history: `Symbol`, `Range`, ordered `CandlePoint`s (`Time`+`Close`), `IsValid`; `Invalid(...)` factory + `First/LastClose`. No formatting. |
 | `Models/UiCandleSeries.cs` | Ui projection of a `DomainCandleSeries`: `IsUp`, `FormatPrice`, `FormatRangeChange` (Robinhood-style net change over the selected range), `ChartImageUrl()`. The ONLY place chart formatting/SVG live. |
 | `Helpers/ChartHelper.cs` | Ports Perf Monitor's **SVG-sparkline-as-`data:`-URI** (pure `System.Xml.Linq`, AOT-safe), generalized to plot N points + normalize Y to the series min/max, recolored green/red. Draws a **faint quarter gridline box** (0/¼/½/¾/1 on both axes) so the scale reads at a glance. **No numeric tick labels:** the host rasterizes the data-URI through Direct2D's SVG engine (`ID2D1SvgDocument`), which renders lines/polylines/rects/gradients but **silently drops `<text>`** — so axis numbers aren't possible on this surface (the grid is decorative only). Grid uses a theme-neutral mid-gray (static image can't read the host theme). Only caller: `UiCandleSeries`. |
 | `Helpers/AssetIconResolver.cs` | Instrument identity → row/dock `IconInfo`. Builds **Elbstream** logo URLs by category (`/logos/symbol/{t}`, `/logos/crypto/{c}`, FX pair → base currency's flag `/logos/country/{iso2}` via a currency→country map, `?format=png`); Segoe-glyph fallback for unmapped currencies/unknown. **Zero API calls** (the host fetches the URL). Also the shared `AttributionRow()` factory (the required Elbstream credit). See "Asset logos (done)". |
+| `Helpers/CurrencyConverter.cs` | Process-wide singleton that converts money between currencies via Frankfurter's keyless **`/latest`** spot rates (same ECB source as the FX provider). Two-phase for the sync-render constraint: **`PrimeAsync(preferred, natives)`** fetches every not-yet-fresh `native→preferred` rate in **one batched call** (base=preferred → invert each) and caches per ordered pair with a **~1 h TTL** (negative results cached too); **`TryGetRate(from, to)`** is the synchronous cache read used while rendering (`from==to → 1`, unknown/unsupported → `null`). Used only by `PortfolioPage` (off the price-load path via `OnPriceCacheUpdated`). |
+| `Helpers/CurrencyFormat.cs` | UI helper: render a `decimal` as money in an ISO-4217 currency — the home for the per-currency **symbol** (`$`/`€`/`£`/`¥`/…) + decimal-place rules that replaced the hardcoded `$`. `Format`/`FormatSigned` (sign-before-symbol for P&L), culture-invariant; unknown code → trailing code (`1,234.56 SGD`); JPY/KRW render 0-decimal. Used by `UiQuote`, `UiPosition`, `UiPortfolio`. |
+| `Helpers/CurrencyHelper.cs` | Currency conventions the **providers** apply when stamping `DomainQuote.Currency`: `NormalizeStockQuote` folds London's **GBX/GBp pence → GBP** (price & change ÷100; the 100× trap) and upper-cases the code (null → `USD`); `QuoteCurrencyOfPair` returns an FX pair's quote (2nd) currency (`EURUSD → USD`). One home for the pence rule across Twelve Data + Finnhub. |
 | `Pages/SymbolDetailPage.cs` | Shared per-symbol screen: nested `SymbolChartForm : FormContent` (adaptive-card chart + range tabs) + the list-management command bar. Flicker on range switch is fixed; ⚠️ the Enter-steals-focus bug is an **open known limitation** — see the chart section. |
 
 **To add a provider** (e.g. forex): implement `IMarketDataProvider` (`Supports`, `GetQuotesAsync`,
@@ -222,6 +225,20 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   Output window; or Sysinternals **DebugView** ("Capture Global Win32"). **NEVER log the API token.**
 
 ## Current Status / Next Steps
+
+- **Done (this round): multi-currency portfolio conversion** — the headline portfolio wishlist item. The
+  app no longer assumes USD: `DomainQuote` carries an ISO-4217 **`Currency`** (providers stamp it — Twelve
+  Data from the batched `/quote` field, Finnhub via a cached `/stock/profile2` lookup, Frankfurter from the
+  pair's quote currency; crypto→USD, **GBX/pence→GBP ÷100**), and the **Portfolio screen** values each
+  holding in its native currency **and** converts into the user's `PortfolioCurrency` via the keyless
+  Frankfurter `/latest` rates (new `Helpers/CurrencyConverter.cs`, primed off the price-load path through a
+  new `PricedListPage.OnPriceCacheUpdated` hook; synchronous `TryGetRate` at render time). Totals roll up in
+  the preferred currency with proper symbols (`Helpers/CurrencyFormat.cs` replaces the hardcoded `$`);
+  unconvertible holdings are excluded and surfaced. `UiQuote.FormatPrice` is currency-aware app-wide too
+  (a London stock shows `£2.50`). New files: `Helpers/CurrencyConverter.cs`, `CurrencyFormat.cs`,
+  `CurrencyHelper.cs`, `ApiFinnhubProfileDto.cs`, `ApiFrankfurterLatestDto`. Build clean (0 warnings).
+  ✅ **Live-verified**: 10 sh SPY (USD) with GBP preferred → ~£5,571 (USD value × ~0.76, a real conversion).
+  See "Multi-currency portfolio conversion (done)".
 
 - **Done (this round): rate-limit (429) back-off + a "rate-limited" banner.** Two pieces behind the
   existing provider seam — **no model-layer change**:
@@ -347,13 +364,11 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   credit (clickable via the new `Commands/OpenUrlCommand.cs` + `ProcessHelper.OpenUrl`) appears on every
   logo-bearing page; the dock band is an accepted gray area. Per-category Segoe glyph fallback for
   Currency/unknown. See "Asset logos (done)".
-- **Wishlist:** **(1) multi-currency portfolio conversion** — stop assuming USD: capture each instrument's
-  reporting currency and convert into the user's `PortfolioCurrency` via the keyless Frankfurter FX
-  provider, showing each holding in **both** its native and converted currency and the **total in the
-  preferred currency** (the current hardcoded `$` is a known gap — full design under "Portfolio screen");
+- **Wishlist:** ~~**(1) multi-currency portfolio conversion**~~ — **DONE this round** (see "Done (this
+  round): multi-currency portfolio conversion" + "Multi-currency portfolio conversion (done)"). Remaining:
   **(2)** the **Portfolio dock band** (a one-line total-value + daily-P&L strip next to the favorites band —
   the Portfolio *screen* itself is now done); and **(3)** **cost-basis / total-return** reporting (the
-  `CostBasis` field is already stored, just not surfaced). All designed below.
+  `CostBasis` field is already stored, just not surfaced). Both designed below.
 - **Done (this round): migrated the observable layer to Rx.NET (`System.Reactive`).** Two parts:
   - **`StateFlow` → thin wrapper over `BehaviorSubject<T>`** (the blocker was gone once AOT/trim went off —
     the trim/AOT analyzers were removed, so `System.Reactive` 6.0.1 is taken **warning-free**, CA1001
@@ -561,39 +576,60 @@ to favorites, one line of total value + daily P&L. **Not built this pass.** Woul
 `Command.Id` (`com.costafotiadis.market.dock.portfolio` — see `reference/dock-support.md`) and would inherit
 the favorites band's live-refresh story (the polling + push-on-change work above).
 
-**⚠️ Deferred — multi-currency conversion (PLANNED; the goal is to STOP assuming USD).** Today every value
-is summed and labeled `$` on the assumption each instrument is USD-quoted. That's correct for US stocks,
-USD-quoted crypto, and `XXXUSD` FX pairs, but **wrong for anything quoted in another currency** — e.g.
-**USDJPY**, whose price is in JPY, currently gets mislabeled `$`; a non-US stock would too. The planned
-design (per the user):
-- **Capture each instrument's reporting/native currency** in the data layer — an ISO-4217 `Currency` field
-  on `DomainQuote`. **Key insight: currency is STATIC metadata, not live data** (a stock's reporting currency
-  essentially never changes), so resolve it **once per symbol and cache/persist it** (a `symbol → currency`
-  map, ideally stored with the instrument in the watchlist/portfolio) — NOT on every poll. That reframes the
-  cost entirely.
-  - **Twelve Data (primary):** its `/quote` response **already includes a `currency` field** — just add it
-    to `ApiTwelveDataQuoteDto` (`[JsonPropertyName("currency")] string? Currency`) and map it through. It
-    rides in the batched `/quote` we already fetch, so **zero extra calls**; accurate even for non-US stocks.
-  - **Finnhub:** its `/quote` (`c/d/dp/pc`) has **no** currency field. ⚠️ Do **NOT** blanket-assume USD — a
-    **paid Finnhub plan serves global equities** (LSE/TSE/Euronext/…) quoted in their **local** currencies,
-    not USD. Resolve via **`/stock/profile2?symbol=` (returns `currency`) ONCE per symbol, cached forever** —
-    because currency is static this is one call per *new* symbol, not per poll, so it's trivial against the
-    ~300/day budget (the earlier "too expensive" framing was wrong). Cheap short-circuits skip even that call:
-    crypto (`…USDT`) → USD, and a **free** (US-equities-only) key → USD. Only a paid key bringing in non-US
-    tickers actually needs the profile2 lookup.
-  - **Frankfurter (FX):** inherently per-pair / currency-aware already.
-  - ⚠️ **GBX/pence trap:** London-listed stocks are quoted in **pence** while the reported currency is GBP
-    (often `GBp`/`GBX`) — price 250 means £2.50, a 100× factor. Conversion must special-case this or totals
-    will be 100× off for UK holdings.
-- **Convert** each holding's market value + daily P&L into the user's **`PortfolioCurrency`** (the existing
-  setting, currently inert) using the **keyless Frankfurter FX provider** (it already cross-converts via ECB
-  rates), with a small rate cache keyed by `nativeCurrency → preferredCurrency`.
-- **Display:** each holding row shows **both** its **native/local-currency** value **and** the **converted**
-  value; the **portfolio TOTAL is in the preferred currency** (using that currency's symbol — not a
-  hardcoded `$`). Requires threading a currency/format through `UiPosition`/`UiPortfolio` (replacing the
-  hardcoded `$#,##0.00`).
-- Until this lands, `IsValid:false` holdings stay excluded from the totals, and the USD/`$` assumption above
-  is the known gap.
+### Multi-currency portfolio conversion (done)
+
+**The `$`-everywhere assumption is gone.** Holdings priced in any currency are now valued in **both** their
+native currency **and** the user's `PortfolioCurrency`, and the portfolio total is rolled up in the preferred
+currency. Built behind the existing data seam with **no repository changes** — only `DomainQuote` gained a
+field and `PortfolioPage` gained an FX-priming step.
+
+**1 — Capture native currency (static metadata, resolved once per provider seam).** `DomainQuote` carries an
+ISO-4217 **`Currency`** (default `"USD"`, so every existing construction stays correct). Providers stamp it
+when mapping their `Api*` DTO; the **`Helpers/CurrencyHelper.cs`** rules are shared so each provider does it
+identically:
+- **Twelve Data (primary):** added `currency` to `ApiTwelveDataQuoteDto` — it rides in the batched `/quote`
+  we already fetch (**zero extra calls**). Mapped per category: stock → the field (normalized), crypto → USD,
+  FX → the pair's quote currency.
+- **Finnhub (fallback):** `/quote` has no currency, so stocks resolve via **`/stock/profile2?symbol=`**,
+  cached **per-symbol forever** (`StockCurrencyCache`) — one extra call per *new* stock symbol per session
+  (US tickers just confirm USD); crypto short-circuits to USD with no call; FX isn't served here. The USD
+  fallback on a failed profile2 is **cached too**, so a flaky profile2 can't double Finnhub's poll volume.
+- **Frankfurter (FX):** stamps the pair's **quote currency** (`EURUSD → USD`, `USDJPY → JPY`).
+- ⚠️ **GBX/pence trap handled:** `CurrencyHelper.NormalizeStockQuote` folds London's `GBp`/`GBX` (pence) to
+  **GBP**, dividing price *and* change by 100, so UK holdings aren't 100× too large. The Domain layer only
+  ever sees major-unit prices in a major-unit code.
+
+**2 — Convert via `Helpers/CurrencyConverter.cs`** (keyless Frankfurter `/latest`, the same ECB source as the
+FX provider). Because the screen renders synchronously but FX is a fetch, it's two-phase: `PrimeAsync` fetches
+every not-yet-fresh `native→preferred` rate in **one batched call** (cached per pair, ~1 h TTL, negatives
+cached too); `TryGetRate` is the synchronous cache read used while building rows (`from==to → 1`, unknown →
+`null`). An all-USD portfolio with USD preferred does **zero** network (rate 1 short-circuit).
+
+**3 — Display (`UiPosition`/`UiPortfolio`, the only place the formatting lives).** `UiPosition` takes the
+preferred currency + the `native→preferred` rate and exposes native value/P&L **and** their converted forms;
+a row shows e.g. `£75.00 (≈$98.70)` and its P&L in the converted currency (so per-row P&L sums to the total).
+`UiPortfolio.From(positions, preferred)` sums the **converted** values and formats the total via
+`CurrencyFormat` with the preferred currency's symbol. `Helpers/CurrencyFormat.cs` owns the per-currency
+symbol/decimals (replacing the hardcoded `$#,##0.00`).
+
+**Wiring (`PortfolioPage` + one base hook).** Rates are primed off the price-load path: `PricedListPage` gained
+a `protected virtual void OnPriceCacheUpdated()` hook (fired whenever the price cache changes; default no-op,
+so Watchlist/Favorites are unaffected) + a `SnapshotPricedQuotes()` accessor. `PortfolioPage` overrides the
+hook to `PrimeAsync` the current currencies then re-render, and reads `TryGetRate` synchronously in
+`LeadingRows`/`BuildRow`. First paint shows native-only, then swaps in converted values when the rates land
+(progressive, no flicker). Beyond the portfolio, `UiQuote.FormatPrice` is now currency-aware too, so a London
+stock shows `£2.50` on the Watchlist/dock instead of `$2.50`.
+
+**Excluded from the total** (and surfaced as "*N* not converted" on the summary): a holding whose native
+currency the ECB set can't convert. `IsValid:false` (unpriced) holdings remain excluded as before.
+
+**Caveats / not done.** Reporting currency is cached **in-memory per session** (Finnhub `StockCurrencyCache`),
+not persisted with the instrument — a reload re-resolves it (one profile2 call per stock). Changing the
+`PortfolioCurrency` setting applies on the **next price refresh/revisit** (pull-style, like the other
+settings), not instantly. ✅ **Live-verified** end-to-end: a USD holding (10 sh SPY) with **GBP** preferred
+rolled up to ~£5,571 — i.e. the USD value × ~0.76, a genuine conversion, not a relabel. Still worth a spot
+check: the **GBX/pence** path (a London `.L` stock → ÷100 → GBP) and a **non-USD native** holding priced by
+Finnhub via profile2. Build clean (0 warnings).
 
 ### Symbol detail + live chart — for ANY instrument (CHART DONE; flicker fixed, Enter/focus bug open)
 

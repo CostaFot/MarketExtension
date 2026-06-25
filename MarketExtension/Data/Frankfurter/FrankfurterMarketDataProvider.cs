@@ -90,9 +90,12 @@ internal sealed class FrankfurterMarketDataProvider : IMarketDataProvider
         var change = price - prev;
         var pct = prev != 0m ? change / prev * 100m : 0m;
 
+        // An FX pair's price is denominated in its QUOTE (second) currency — EURUSD in USD, USDJPY in JPY —
+        // so a notional holding of the pair values in that currency (and converts from it on the Portfolio).
         var quote = new DomainQuote(
-            instrument.Symbol, instrument.Name, instrument.Category, price, change, pct, IsValid: true);
-        Log.Info("Frankfurter", $"{instrument.Symbol} -> rate={price} change%={pct}");
+            instrument.Symbol, instrument.Name, instrument.Category, price, change, pct, IsValid: true,
+            Currency: quoteCur);
+        Log.Info("Frankfurter", $"{instrument.Symbol} -> rate={price} change%={pct} ccy={quoteCur}");
         return quote;
     }
 

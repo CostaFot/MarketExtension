@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -22,6 +23,13 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
 
     // Reuse a single client (creating one per request exhausts sockets). AOT-safe.
     private static readonly HttpClient Http = new() { BaseAddress = new Uri("https://finnhub.io/api/v1/") };
+
+    // symbol → raw native-currency code (e.g. "USD", "GBp"), resolved once via /stock/profile2 and cached
+    // for the process lifetime. Currency is static metadata, so this is one extra call per NEW stock symbol
+    // (trivial against the ~300/day budget) — and most are "USD". Only successful resolutions are cached, so
+    // a transient profile2 failure retries on the next poll rather than pinning the wrong currency.
+    private static readonly ConcurrentDictionary<string, string> StockCurrencyCache =
+        new(StringComparer.OrdinalIgnoreCase);
 
     // Finnhub's free tier serves stocks and crypto; forex (OANDA:*) is premium-gated.
     public bool Supports(AssetCategory category) => category is AssetCategory.Stock or AssetCategory.Crypto;
@@ -141,10 +149,15 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
                 return Invalid(instrument);
             }
 
+            // Finnhub's /quote carries no currency — resolve the native currency (and fold any pence quote
+            // to major units) before building the domain quote. Crypto is USD-quoted; stocks look up
+            // /stock/profile2 (cached). This is the only place we await a second call, and only for stocks.
+            var (currency, normPrice, normChange) =
+                await ResolveCurrencyAsync(instrument, price, dto!.Change ?? 0m, ct).ConfigureAwait(false);
             var quote = new DomainQuote(
                 instrument.Symbol, instrument.Name, instrument.Category,
-                price, dto!.Change ?? 0m, dto.ChangePercent ?? 0m, IsValid: true);
-            Log.Info("Finnhub", $"{symbol} -> price={quote.Price} change%={quote.ChangePercent}");
+                normPrice, normChange, dto.ChangePercent ?? 0m, IsValid: true, Currency: currency);
+            Log.Info("Finnhub", $"{symbol} -> price={quote.Price} change%={quote.ChangePercent} ccy={currency}");
             return quote;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -220,6 +233,62 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
 
     private static DomainQuote Invalid(DomainInstrument i) =>
         new(i.Symbol, i.Name, i.Category, 0m, 0m, 0m, IsValid: false);
+
+    // Resolve the native currency (and major-unit price/change) for a Finnhub quote. Crypto is USD (we
+    // price against USD and Finnhub serves no FX here); a stock looks up its reporting currency via
+    // /stock/profile2 and normalizes any pence quote (London GBp/GBX → GBP, ÷100).
+    private static async Task<(string Currency, decimal Price, decimal Change)> ResolveCurrencyAsync(
+        DomainInstrument instrument, decimal price, decimal change, CancellationToken ct)
+    {
+        if (instrument.Category != AssetCategory.Stock)
+            return ("USD", price, change);
+
+        var raw = await GetStockCurrencyCodeAsync(instrument.Symbol, ct).ConfigureAwait(false);
+        return CurrencyHelper.NormalizeStockQuote(raw, price, change);
+    }
+
+    // The raw reporting-currency code for a stock symbol, cached forever. A US-only (free) key returns
+    // "USD" for everything anyway; only a paid key's non-US listings make this matter. profile2 is on the
+    // free tier and reliable, so we cache EVERY result — including a USD fallback when it's unavailable — to
+    // bound this to exactly one extra call per symbol per session (doubling Finnhub's poll volume by
+    // retrying a flaky profile2 every tick would be worse than a rare, reload-healed USD mislabel).
+    private static async Task<string> GetStockCurrencyCodeAsync(string symbol, CancellationToken ct)
+    {
+        var key = symbol.ToUpperInvariant();
+        if (StockCurrencyCache.TryGetValue(key, out var cached))
+            return cached;
+
+        var resolved = await FetchProfileCurrencyAsync(key, ct).ConfigureAwait(false) ?? "USD";
+        StockCurrencyCache[key] = resolved;
+        return resolved;
+    }
+
+    private static async Task<string?> FetchProfileCurrencyAsync(string symbol, CancellationToken ct)
+    {
+        try
+        {
+            // NEVER log the full URL — it carries the API token. Log the symbol only.
+            Log.Info("Finnhub", $"GET /stock/profile2 symbol={symbol}");
+            using var response = await HttpRetry.SendAsync(
+                c => Http.GetAsync($"stock/profile2?symbol={Uri.EscapeDataString(symbol)}&token={ApiKey}", c),
+                "Finnhub", ct).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Log.Warn("Finnhub", $"profile2 {symbol}: non-success status {(int)response.StatusCode} — defaulting USD");
+                return null;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            var dto = JsonSerializer.Deserialize(json, FinnhubJsonContext.Default.ApiFinnhubProfileDto);
+            return string.IsNullOrWhiteSpace(dto?.Currency) ? null : dto!.Currency;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Error("Finnhub", $"profile2 {symbol}: request failed", ex);
+            return null;
+        }
+    }
 
     // Neutral CandleInterval -> Finnhub's resolution token. The candle analog of ToFinnhubSymbol —
     // the ONLY place these provider-specific tokens live. A different provider maps the same

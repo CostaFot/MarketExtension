@@ -102,6 +102,22 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
     // while the user filters rows below it. Default: none, so Watchlist/Favorites are unaffected.
     protected virtual IEnumerable<IListItem> LeadingRows(IReadOnlyList<UiQuote> pricedQuotes) => [];
 
+    // Fired after the price cache changes (a fresh fetch landed, or a revisit found it fully cached), on
+    // whatever thread did the update, just before the list re-renders. Default: nothing. The Portfolio
+    // screen overrides it to (re)fetch FX conversion rates for the currencies now present, then re-render
+    // once they land. Kept off the synchronous GetItems path so a keystroke never triggers a network call.
+    protected virtual void OnPriceCacheUpdated() { }
+
+    // A snapshot of the currently-priced quotes, in set order (used by OnPriceCacheUpdated overrides to see
+    // which currencies need converting). Same projection GetItems renders from.
+    protected IReadOnlyList<UiQuote> SnapshotPricedQuotes()
+    {
+        lock (_cacheLock)
+            return [.. _snapshot
+                .Select(i => _priceCache.GetValueOrDefault(WatchlistStore.Normalize(i.Symbol)))
+                .OfType<UiQuote>()];
+    }
+
     public override void UpdateSearchText(string oldSearch, string newSearch)
         => RaiseItemsChanged(0);
 
@@ -159,6 +175,7 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         if (missing.Count == 0)
         {
             IsLoading = false;
+            OnPriceCacheUpdated(); // re-prime conversion rates (e.g. preferred currency may have changed)
             RaiseItemsChanged(0); // removals reflected immediately, no network
             RefreshStaleQuotes(); // ...but if the cached prices have aged past the interval, quietly re-price
             return;
@@ -274,6 +291,7 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
             _lastFullPriceTicks = Environment.TickCount64; // whole set re-priced — reset the staleness clock
 
         IsLoading = false;
+        OnPriceCacheUpdated(); // prices changed — let a subclass refresh anything derived (e.g. FX rates)
         RaiseItemsChanged(0);
     }
 

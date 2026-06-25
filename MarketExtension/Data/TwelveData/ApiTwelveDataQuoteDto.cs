@@ -22,6 +22,7 @@ internal sealed record ApiTwelveDataQuoteDto(
     [property: JsonPropertyName("close")]          decimal? Close,         // current price
     [property: JsonPropertyName("change")]         decimal? Change,        // absolute day change
     [property: JsonPropertyName("percent_change")] decimal? PercentChange, // percent day change
+    [property: JsonPropertyName("currency")]       string? Currency,       // native currency of the quote (e.g. "USD", "GBp")
     [property: JsonPropertyName("status")]         string? Status,         // "error" on a per-symbol failure
     [property: JsonPropertyName("code")]           int? Code,              // error code when status=="error"
     [property: JsonPropertyName("message")]        string? Message);

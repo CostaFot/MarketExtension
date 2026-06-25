@@ -20,5 +20,19 @@ internal sealed record ApiFrankfurterSeriesDto(
     [property: JsonPropertyName("end_date")]   string? EndDate,
     [property: JsonPropertyName("rates")]      Dictionary<string, Dictionary<string, decimal>>? Rates);
 
+// Api layer: the raw shape of Frankfurter's LATEST (spot) response
+//   GET /v1/latest?base=USD&symbols=GBP,JPY
+//   { "amount":1.0, "base":"USD", "date":"…", "rates": { "GBP": 0.78, "JPY": 156.2 } }
+// Here `rates` is a flat currency → rate map (per 1 base unit), NOT nested by date like the series above.
+// Used by CurrencyConverter to convert holding values into the user's PortfolioCurrency.
+internal sealed record ApiFrankfurterLatestDto(
+    [property: JsonPropertyName("amount")] decimal Amount,
+    [property: JsonPropertyName("base")]   string? Base,
+    [property: JsonPropertyName("date")]   string? Date,
+    [property: JsonPropertyName("rates")]  Dictionary<string, decimal>? Rates);
+
+// ⚠️ Keep ALL [JsonSerializable] on this single declaration — splitting them across partials silently
+// breaks the JSON source generator (see CLAUDE.md AOT/trim gotcha).
 [JsonSerializable(typeof(ApiFrankfurterSeriesDto))]
+[JsonSerializable(typeof(ApiFrankfurterLatestDto))]
 internal sealed partial class FrankfurterJsonContext : JsonSerializerContext;

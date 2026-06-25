@@ -15,6 +15,7 @@ internal sealed record ApiFinnhubQuoteDto(
     [property: JsonPropertyName("pc")] decimal? PreviousClose); // previous close
 
 [JsonSerializable(typeof(ApiFinnhubQuoteDto))]
-[JsonSerializable(typeof(ApiFinnhubSearchDto))] // /search response — see ApiFinnhubSearchDto.cs
-[JsonSerializable(typeof(ApiFinnhubCandleDto))] // /stock/candle + /crypto/candle — see ApiFinnhubCandleDto.cs
+[JsonSerializable(typeof(ApiFinnhubSearchDto))]  // /search response — see ApiFinnhubSearchDto.cs
+[JsonSerializable(typeof(ApiFinnhubCandleDto))]  // /stock/candle + /crypto/candle — see ApiFinnhubCandleDto.cs
+[JsonSerializable(typeof(ApiFinnhubProfileDto))] // /stock/profile2 (native currency) — see ApiFinnhubProfileDto.cs
 internal sealed partial class FinnhubJsonContext : JsonSerializerContext;

@@ -91,10 +91,11 @@ internal sealed class TwelveDataMarketDataProvider : IMarketDataProvider
                 if (quotes.TryGetValue(tdSymbol, out var dto) && dto.Close is > 0m &&
                     !string.Equals(dto.Status, "error", StringComparison.OrdinalIgnoreCase))
                 {
+                    var (currency, price, change) = ResolveCurrency(i, dto.Close.Value, dto.Change ?? 0m, dto.Currency);
                     var quote = new DomainQuote(
                         i.Symbol, i.Name, i.Category,
-                        dto.Close.Value, dto.Change ?? 0m, dto.PercentChange ?? 0m, IsValid: true);
-                    Log.Info("TwelveData", $"{tdSymbol} -> price={quote.Price} change%={quote.ChangePercent}");
+                        price, change, dto.PercentChange ?? 0m, IsValid: true, Currency: currency);
+                    Log.Info("TwelveData", $"{tdSymbol} -> price={quote.Price} change%={quote.ChangePercent} ccy={currency}");
                     return quote;
                 }
 
@@ -306,6 +307,19 @@ internal sealed class TwelveDataMarketDataProvider : IMarketDataProvider
 
     private static DomainQuote Invalid(DomainInstrument i) =>
         new(i.Symbol, i.Name, i.Category, 0m, 0m, 0m, IsValid: false);
+
+    // Resolve the native currency (and major-unit price/change) for a quote. Per category:
+    //   * Currency — the pair's quote currency (EURUSD → USD), never the `currency` field.
+    //   * Crypto   — always USD; we price against USD (BTC/USD), and TD's `currency` adds nothing.
+    //   * Stock    — the /quote `currency` field, normalized (handles London's GBp/GBX pence → GBP, ÷100).
+    private static (string Currency, decimal Price, decimal Change) ResolveCurrency(
+        DomainInstrument instrument, decimal price, decimal change, string? rawCurrency) =>
+        instrument.Category switch
+        {
+            AssetCategory.Currency => (CurrencyHelper.QuoteCurrencyOfPair(instrument.Symbol), price, change),
+            AssetCategory.Crypto => ("USD", price, change),
+            _ => CurrencyHelper.NormalizeStockQuote(rawCurrency, price, change),
+        };
 
     // Twelve Data's instrument_type -> our neutral asset class. Equity-ish types (Common Stock, ETF,
     // Index, ADR, ...) all price as stocks; only crypto and forex map elsewhere.
