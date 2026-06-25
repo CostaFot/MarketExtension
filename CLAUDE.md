@@ -226,6 +226,21 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 
 ## Current Status / Next Steps
 
+- **Done (this round): the Portfolio dock band.** A second Dock band next to the favorites band, showing the
+  portfolio's **total value + daily P&L rolled up into the `PortfolioCurrency`** as a single summary button
+  (clicking it opens the full `PortfolioPage`). New `Pages/PortfolioDockPage.cs` (a `ListPage`, modeled on
+  `FavoritesDockPage`): same `INotifyItemsChanged` visible-lifecycle hook, subscribes to
+  `PortfolioStore.Positions` (replay paints on open; any add/edit/remove repaints — reference-equality flow
+  so even a quantity-only edit re-emits) **and** `PollTicker` (silent live re-price), disposing both on hide.
+  It prices the holdings, **`await`s `CurrencyConverter.PrimeAsync`** for the native→preferred FX rates
+  before rolling up (so the converted total lands in one paint — no progressive native-only frame needed on a
+  one-row band), then composes `UiPortfolio` exactly like `PortfolioPage.LeadingRows`. Same keep-last-good
+  guard as the favorites band. Registered as a second `CommandItem` in `GetDockBands()` with its own non-empty
+  `Id` (`com.costafotiadis.market.dock.portfolio`). No provider/repository/model changes. Build clean (0
+  warnings). ✅ **Live-verified** (band renders the total + P&L; icon shows). ⚠️ **Glyph-icon gotcha hit:**
+  the Bank summary-icon glyph (U+E825) is a Segoe MDL2 private-use char — the Write tool **silently dropped**
+  it (saved as `""` → blank icon); fixed by re-adding it and byte-checking (real glyph = `EE A0 A5`). Prefer a
+  C# Unicode escape for new glyph icons. See "Portfolio screen + dock band (done)".
 - **Done (this round): multi-currency portfolio conversion** — the headline portfolio wishlist item. The
   app no longer assumes USD: `DomainQuote` carries an ISO-4217 **`Currency`** (providers stamp it — Twelve
   Data from the batched `/quote` field, Finnhub via a cached `/stock/profile2` lookup, Frankfurter from the
@@ -333,7 +348,8 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   `PortfolioPage` is a **`PricedListPage` subclass** that reuses all the caching/polling plumbing; a new
   `PricedListPage.LeadingRows(...)` hook (default empty, others unaffected) renders the totals row from the
   full priced set. Per the user's choices this pass: **daily P&L only** (cost basis stored but no UI),
-  **no dock band yet**, and **all add/edit/remove on the symbol detail page** (rows just open it, like every
+  **no dock band that pass** (the Portfolio dock band shipped later — see its bullet above), and **all
+  add/edit/remove on the symbol detail page** (rows just open it, like every
   other list). Build clean (0 warnings). ⚠️ Verified to **compile**; a live smoke test (add a holding, see
   the total roll up, edit/remove, confirm persistence) is worth doing. See "Portfolio screen (DONE…)".
 - **Deferred:** richer **per-symbol** error UX — a typed `QuoteStatus` (Ok/Invalid/RateLimited/NoKey) on
@@ -364,11 +380,11 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   credit (clickable via the new `Commands/OpenUrlCommand.cs` + `ProcessHelper.OpenUrl`) appears on every
   logo-bearing page; the dock band is an accepted gray area. Per-category Segoe glyph fallback for
   Currency/unknown. See "Asset logos (done)".
-- **Wishlist:** ~~**(1) multi-currency portfolio conversion**~~ — **DONE this round** (see "Done (this
-  round): multi-currency portfolio conversion" + "Multi-currency portfolio conversion (done)"). Remaining:
-  **(2)** the **Portfolio dock band** (a one-line total-value + daily-P&L strip next to the favorites band —
-  the Portfolio *screen* itself is now done); and **(3)** **cost-basis / total-return** reporting (the
-  `CostBasis` field is already stored, just not surfaced). Both designed below.
+- **Wishlist:** ~~**(1) multi-currency portfolio conversion**~~ — **DONE** (see "Multi-currency portfolio
+  conversion (done)"). ~~**(2) the Portfolio dock band**~~ — **DONE** (a one-line total-value + daily-P&L
+  strip next to the favorites band; see the "Done (this round): the Portfolio dock band" bullet +
+  "Portfolio screen + dock band (done)"). Remaining: **(3)** **cost-basis / total-return** reporting (the
+  `CostBasis` field is already stored, just not surfaced) — designed below.
 - **Done (this round): migrated the observable layer to Rx.NET (`System.Reactive`).** Two parts:
   - **`StateFlow` → thin wrapper over `BehaviorSubject<T>`** (the blocker was gone once AOT/trim went off —
     the trim/AOT analyzers were removed, so `System.Reactive` 6.0.1 is taken **warning-free**, CA1001
@@ -521,7 +537,7 @@ until reopened. Implemented via the observable layer:
 - Complementary to the (still-pending) polling: polling catches *price* drift on a timer; this pushes
   *membership* changes immediately, and still works when polling is **Off**.
 
-### Portfolio screen (DONE — screen built; dock band still deferred)
+### Portfolio screen + dock band (done)
 
 **Markets Portfolio** is live: a fourth screen off the Markets hub tracking actual *holdings* (a quantity
 per symbol), priced live, with a **totals summary** pinned on top and **daily P&L** per holding. Reuses
@@ -571,10 +587,26 @@ adaptive card with one `Input.Number` (prefilled with the current holding, 0 whe
 detail page. The single-`FormContent` auto-focus quirk (that plagues the chart) is **harmless/helpful
 here** — it drops the cursor straight into the number field.
 
-**Still deferred — the dock band** (`Pages/PortfolioDockPage.cs`): a second band in `GetDockBands()` next
-to favorites, one line of total value + daily P&L. **Not built this pass.** Would need its own non-empty
-`Command.Id` (`com.costafotiadis.market.dock.portfolio` — see `reference/dock-support.md`) and would inherit
-the favorites band's live-refresh story (the polling + push-on-change work above).
+**The dock band — DONE** (`Pages/PortfolioDockPage.cs`): a second band in `GetDockBands()` next to favorites,
+rendering **one summary button** — total value + daily P&L rolled up into the `PortfolioCurrency` (the same
+totals `UiPortfolio` the screen pins on top); clicking it opens the full `PortfolioPage`. A `ListPage` modeled
+on `FavoritesDockPage` with its own non-empty `Command.Id` (`com.costafotiadis.market.dock.portfolio` — see
+`reference/dock-support.md`), registered as a second `CommandItem` in `MarketExtensionCommandsProvider.GetDockBands()`.
+It inherits the favorites band's live-refresh story: the `INotifyItemsChanged` visible-lifecycle hook
+subscribes to `PortfolioStore.Positions` (replay paints on open; add/edit/remove — incl. quantity-only edits,
+since that flow is reference-equality — repaint at once) **and** `PollTicker` (silent live re-price), disposing
+both on hide. Unlike the screen (which primes FX off the price-load path and paints native-only first), the
+band **`await`s `CurrencyConverter.PrimeAsync`** inside its async load so the converted total is ready in a
+single paint — a one-row band has no progressive-paint benefit. Same keep-last-good guard so a transient bad
+poll doesn't drop a holding and make the total jump. Like the favorites band it **contributes to the
+rate-limit signal but renders no banner** (too cramped). No provider/repository/model changes.
+⚠️ **Icon gotcha:** the summary row uses the Segoe MDL2 Bank glyph (U+E825); the Write tool drops literal
+private-use glyph chars (blank icon), so byte-check after editing (real glyph = `EE A0 A5`) or use a C#
+Unicode escape. ✅ Live-verified: band shows the total + P&L + icon.
+
+**Still deferred — cost-basis / total-return** reporting: `DomainPosition`/`PortfolioItem` already persist an
+optional `CostBasis` (no UI yet), so unrealized + total return on each holding and the portfolio is a cheap
+follow-up — surface it in `UiPosition`/`UiPortfolio` and the detail-page editor.
 
 ### Multi-currency portfolio conversion (done)
 
