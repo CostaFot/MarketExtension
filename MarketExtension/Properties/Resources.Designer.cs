@@ -122,6 +122,33 @@ namespace MarketExtension.Properties {
                 return ResourceManager.GetString("Attribution_Title", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Data provided by {0}.
+        /// </summary>
+        public static string DataAttribution_Title {
+            get {
+                return ResourceManager.GetString("DataAttribution_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Quotes may be delayed or inaccurate.
+        /// </summary>
+        public static string DataAttribution_Subtitle {
+            get {
+                return ResourceManager.GetString("DataAttribution_Subtitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Open {0}.
+        /// </summary>
+        public static string DataAttribution_OpenName {
+            get {
+                return ResourceManager.GetString("DataAttribution_OpenName", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Loading {0} chart….

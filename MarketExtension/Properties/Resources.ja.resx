@@ -244,6 +244,15 @@
   <data name="Attribution_OpenName" xml:space="preserve">
     <value>Elbstream を開く</value>
   </data>
+  <data name="DataAttribution_Title" xml:space="preserve">
+    <value>データ提供：{0}</value>
+  </data>
+  <data name="DataAttribution_Subtitle" xml:space="preserve">
+    <value>価格は遅延または不正確な場合があります</value>
+  </data>
+  <data name="DataAttribution_OpenName" xml:space="preserve">
+    <value>{0} を開く</value>
+  </data>
   <data name="Cmd_AddToWatchlist" xml:space="preserve">
     <value>ウォッチリストに追加</value>
   </data>

@@ -30,6 +30,21 @@ internal sealed partial class DataSourcesPage : ContentPage
         Some data, such as currency reference rates, can come from a
         public source that needs no key.
 
+        ## Attribution
+
+        Where data is shown, it is credited to its source:
+
+        - Stocks, crypto, and currencies — [Twelve Data](https://twelvedata.com)
+        or [Finnhub](https://finnhub.io), depending on the key you've added.
+        - Currency reference rates — the European Central Bank, via
+        [Frankfurter](https://www.frankfurter.dev).
+        - Company and asset logos — [Elbstream](https://elbstream.com).
+
+        These providers are independent. This app is not affiliated with,
+        endorsed by, or sponsored by them, and their names and logos belong to
+        their respective owners. You are responsible for using your keys within
+        each provider's terms.
+
         ## Your keys, your data
 
         The keys are yours. You create them with the provider; this app keeps

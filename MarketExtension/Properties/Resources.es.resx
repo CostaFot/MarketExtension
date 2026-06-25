@@ -297,6 +297,15 @@
   <data name="Attribution_OpenName" xml:space="preserve">
     <value>Abrir Elbstream</value>
   </data>
+  <data name="DataAttribution_Title" xml:space="preserve">
+    <value>Datos proporcionados por {0}</value>
+  </data>
+  <data name="DataAttribution_Subtitle" xml:space="preserve">
+    <value>Las cotizaciones pueden estar retrasadas o ser inexactas</value>
+  </data>
+  <data name="DataAttribution_OpenName" xml:space="preserve">
+    <value>Abrir {0}</value>
+  </data>
   <data name="Cmd_AddToWatchlist" xml:space="preserve">
     <value>Agregar a la lista de seguimiento</value>
   </data>

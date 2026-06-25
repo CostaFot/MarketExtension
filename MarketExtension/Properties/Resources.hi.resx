@@ -242,6 +242,15 @@
   <data name="Attribution_OpenName" xml:space="preserve">
     <value>Elbstream खोलें</value>
   </data>
+  <data name="DataAttribution_Title" xml:space="preserve">
+    <value>डेटा {0} द्वारा प्रदान किया गया</value>
+  </data>
+  <data name="DataAttribution_Subtitle" xml:space="preserve">
+    <value>कीमतें विलंबित या अशुद्ध हो सकती हैं</value>
+  </data>
+  <data name="DataAttribution_OpenName" xml:space="preserve">
+    <value>{0} खोलें</value>
+  </data>
   <data name="Cmd_AddToWatchlist" xml:space="preserve">
     <value>वॉचलिस्ट में जोड़ें</value>
   </data>
