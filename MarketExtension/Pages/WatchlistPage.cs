@@ -13,7 +13,7 @@ internal sealed partial class WatchlistPage : PricedListPage
     {
         Title = "Markets Watchlist";
         Name = "Open";
-        PlaceholderText = "Filter your watchlist...";
+        PlaceholderText = "Filter watchlist...";
     }
 
     // A favorite toggled here doesn't change the watchlist set, so observe the Favorites flow too and
@@ -40,7 +40,7 @@ internal sealed partial class WatchlistPage : PricedListPage
         new ListItem(new NoOpCommand())
         {
             Title = "Your watchlist is empty",
-            Subtitle = "Use Markets Search to look up instruments, then add them from the More menu",
+            Subtitle = "Open an instrument and add it from its detail page",
         },
     ];
 

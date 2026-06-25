@@ -33,7 +33,7 @@ internal sealed partial class PortfolioPage : PricedListPage
     {
         Title = "Markets Portfolio";
         Name = "Open";
-        PlaceholderText = "Filter your holdings...";
+        PlaceholderText = "Filter holdings...";
     }
 
     // The totals summary, pinned above the holdings. Built from the FULL priced set zipped with the current
@@ -117,7 +117,7 @@ internal sealed partial class PortfolioPage : PricedListPage
         new ListItem(new NoOpCommand())
         {
             Title = "No holdings yet",
-            Subtitle = "Open any instrument's detail page and choose Add to Portfolio to start tracking holdings",
+            Subtitle = "Add holdings from an instrument's detail page",
         },
     ];
 }

@@ -90,7 +90,7 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
             return [new ListItem(new NoOpCommand { Id = "com.costafotiadis.market.dock.portfolio.empty" })
             {
                 Title = "No holdings yet",
-                Subtitle = "Add holdings from an instrument's detail page (Add to Portfolio)",
+                Subtitle = "Add holdings from an instrument's detail page",
             }];
         }
 

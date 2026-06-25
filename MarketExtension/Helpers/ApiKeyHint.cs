@@ -56,12 +56,12 @@ internal static class ApiKeyHint
         new ListItem(SettingsPage)
         {
             Title = "Demo mode — showing sample data",
-            Subtitle = "Prices are simulated, not live. Turn off Demo mode in Settings (press Enter).",
+            Subtitle = "Simulated prices. Enter to turn off in Settings.",
             Icon = new IconInfo(DemoGlyph),
             Tags = [new Tag("Demo mode")
             {
                 Foreground = DemoBlue,
-                ToolTip = "Demo mode is on — showing built-in sample data, not live prices",
+                ToolTip = "Showing sample data, not live prices",
             }],
         };
 
@@ -70,8 +70,8 @@ internal static class ApiKeyHint
     private static ListItem MissingKeyRow() =>
         new ListItem(SettingsPage)
         {
-            Title = "No API key set — functionality is limited",
-            Subtitle = "Add an API key in Settings (press Enter)",
+            Title = "No API key set",
+            Subtitle = "Enter to add one in Settings.",
             Icon = new IconInfo(WarningGlyph),
             Tags = [new Tag("Action required")
             {

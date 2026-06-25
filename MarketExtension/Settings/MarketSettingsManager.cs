@@ -30,7 +30,7 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     private readonly TextSetting _twelveDataApiKey = new("twelveDataApiKey", string.Empty)
     {
         Label = "Twelve Data API key",
-        Description = "Twelve Data API key. Used first when set; other providers serve only as fallback.",
+        Description = "Twelve Data API key. Used first when set.",
         Placeholder = "Paste your API key",
     };
 
@@ -45,23 +45,20 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
         "refreshMinutes", DefaultRefreshMinutes.ToString(CultureInfo.InvariantCulture))
     {
         Label = "Price refresh interval (minutes)",
-        Description = "Price refresh interval in minutes. Enter 0 to turn it off.",
+        Description = "Price refresh interval in minutes (0 = off).",
         Placeholder = DefaultRefreshMinutes.ToString(CultureInfo.InvariantCulture),
     };
 
     private readonly ToggleSetting _showRateLimitErrors = new("showRateLimitErrors", true)
     {
         Label = "Show rate-limit warnings",
-        Description = "When on, a banner appears on the price lists while the data provider is throttling " +
-                      "requests (HTTP 429) so you know why prices may be stale. Turn off to hide it.",
+        Description = "Show a banner when prices are stale from provider rate-limiting.",
     };
 
     private readonly ToggleSetting _demoMode = new("demoMode", false)
     {
         Label = "Demo mode",
-        Description = "Show built-in sample market data instead of live prices — no API key or internet " +
-                      "connection needed, ideal for trying out the extension. Applies immediately across " +
-                      "the app.",
+        Description = "Show built-in sample data instead of live prices. Ddeal for trying out the extension.",
     };
 
     // The reporting currency for the (upcoming) Portfolio screen: the single currency its totals are shown
@@ -95,8 +92,7 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     ])
     {
         Label = "Portfolio currency",
-        Description = "The currency your portfolio totals are shown in. Holdings priced in other " +
-                      "currencies will be converted into it.",
+        Description = "Currency for portfolio totals. Other holdings are converted into it.",
     };
 
     // Observable "is any pricing key configured" flag, driven by SettingsChanged (below). UI surfaces

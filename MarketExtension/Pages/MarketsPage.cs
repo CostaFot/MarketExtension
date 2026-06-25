@@ -83,37 +83,33 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
             new ListItem(_searchPage)
             {
                 Title = "Search",
-                Subtitle = "Look up any stock, crypto, or currency",
                 Icon = new IconInfo(SearchGlyph),
             },
             new ListItem(_watchlistPage)
             {
                 Title = "Watchlist",
-                Subtitle = "The instruments you track, priced live",
+                Subtitle = "Instruments you track",
                 Icon = new IconInfo(ListGlyph),
             },
             new ListItem(_favoritesPage)
             {
                 Title = "Favorites",
-                Subtitle = "Your starred instruments — shown on the dock",
+                Subtitle = "Starred instruments, shown on the dock",
                 Icon = new IconInfo(StarFillGlyph),
             },
             new ListItem(_portfolioPage)
             {
                 Title = "Portfolio",
-                Subtitle = "Your holdings, total value, and daily P&L",
                 Icon = new IconInfo(PortfolioGlyph),
             },
             new ListItem(_dataSourcesPage)
             {
                 Title = "Data Sources",
-                Subtitle = "Where quotes come from and how your keys are used",
                 Icon = new IconInfo(InfoGlyph),
             },
             new ListItem(_settingsPage)
             {
                 Title = "Settings",
-                Subtitle = "API keys and price refresh interval",
                 Icon = new IconInfo(SettingsGlyph),
             },
         };

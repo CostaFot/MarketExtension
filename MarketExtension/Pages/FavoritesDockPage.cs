@@ -84,7 +84,7 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
             return [new ListItem(new NoOpCommand { Id = "com.costafotiadis.market.dock.empty" })
             {
                 Title = "No favorites yet",
-                Subtitle = "Star instruments from Markets Search or your Watchlist",
+                Subtitle = "Open an instrument and star it from its detail page",
             }];
         }
 

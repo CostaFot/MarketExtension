@@ -309,7 +309,7 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
             data["showStatus"] = !hasChart;
             data["statusText"] = hasChart
                 ? string.Empty
-                : "No chart data available for this range.";
+                : "No chart data for this range.";
             return data.ToJsonString();
         }
 

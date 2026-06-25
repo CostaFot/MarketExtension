@@ -80,7 +80,7 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
         Title = "Markets Search";
         Name = "Search";
-        PlaceholderText = "Type a symbol or name and press Enter to search...";
+        PlaceholderText = "Search by symbol or name, then Enter";
     }
 
     // Typing only re-lists — never calls the API. The online search is Enter-only.
@@ -98,13 +98,13 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             new ListItem(_watchlistPage)
             {
                 Title = "Watchlist",
-                Subtitle = "The instruments you track",
+                Subtitle = "Instruments you track",
                 Icon = new IconInfo(ListGlyph),
             },
             new ListItem(_favoritesPage)
             {
                 Title = "Favorites",
-                Subtitle = "Your starred instruments — shown on the dock",
+                Subtitle = "Starred instruments, shown on the dock",
                 Icon = new IconInfo(StarFillGlyph),
             },
         };
@@ -125,7 +125,7 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             new ListItem(new RunSearchCommand(this))
             {
                 Title = $"Search markets for \"{SearchText}\"",
-                Subtitle = "Press Enter to look up symbols online",
+                Subtitle = "Enter to search",
                 Icon = new IconInfo(SearchGlyph),
             },
         };

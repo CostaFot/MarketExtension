@@ -33,7 +33,7 @@ internal static class RateLimitHint
             ? new ListItem(new NoOpCommand()) // informational only — Enter must not navigate (it's the first row)
             {
                 Title = "Rate-limited — showing last known prices",
-                Subtitle = "The data provider is throttling requests; prices will refresh automatically once the limit clears.",
+                Subtitle = "Will refresh automatically once the limit clears.",
                 Icon = new IconInfo(WarningGlyph),
                 Tags = [new Tag("Rate-limited")
                 {

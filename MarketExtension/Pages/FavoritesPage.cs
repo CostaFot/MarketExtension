@@ -13,7 +13,7 @@ internal sealed partial class FavoritesPage : PricedListPage
     {
         Title = "Markets Favorites";
         Name = "Open";
-        PlaceholderText = "Filter your favorites...";
+        PlaceholderText = "Filter favorites...";
     }
 
     protected override IListItem BuildRow(UiQuote q)
@@ -33,7 +33,7 @@ internal sealed partial class FavoritesPage : PricedListPage
         new ListItem(new NoOpCommand())
         {
             Title = "No favorites yet",
-            Subtitle = "Star instruments from the More menu in Markets Search or your Watchlist",
+            Subtitle = "Open an instrument and star it from its detail page",
         },
     ];
 }

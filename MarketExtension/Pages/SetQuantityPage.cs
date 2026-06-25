@@ -133,7 +133,7 @@ internal sealed partial class SetQuantityPage : ContentPage
             { "type": "TextBlock", "text": "${name}", "isSubtle": true, "spacing": "None", "wrap": true },
             { "type": "Input.Number", "id": "quantity", "label": "Quantity held", "value": ${quantity}, "min": 0, "isRequired": true, "errorMessage": "Enter a quantity greater than 0" },
             { "type": "Input.Number", "id": "costBasis", "label": "Average cost per unit (optional)", "value": ${costBasis}, "min": 0 },
-            { "type": "TextBlock", "text": "Price you paid per unit, in the instrument's trading currency. Used to show your total return — leave 0 if unknown.", "isSubtle": true, "size": "Small", "spacing": "None", "wrap": true }
+            { "type": "TextBlock", "text": "Average price you paid, in the instrument's currency. Leave 0 if unknown.", "isSubtle": true, "size": "Small", "spacing": "None", "wrap": true }
           ],
           "actions": [
             { "type": "Action.Submit", "title": "Save", "data": { "action": "save" } }
