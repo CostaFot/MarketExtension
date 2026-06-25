@@ -226,6 +226,27 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 
 ## Current Status / Next Steps
 
+- **Done (this round): Demo mode now applies INSTANTLY (no waiting for the next refresh) + no rate-limit
+  banner while demoing.** Flipping the `Demo mode` toggle used to be **pull-style** — surfaces only picked up
+  the new data source on their next price refresh / reopen, so a hidden priced page (a long-lived singleton
+  whose `_priceCache` survives navigation) would repaint **stale, old-source** prices until the interval
+  elapsed. Now `MarketSettingsManager` exposes an observable **`DemoModeChanged`** (`StateFlow<bool>`,
+  published from the existing `SettingsChanged` handler, distinct-until-changed so it fires only on a real
+  flip) and every surface subscribes and resets the moment it flips:
+  - `PricedListPage` — a **lifetime** subscription (NOT the visibility-scoped block), so even a hidden
+    singleton drops its price cache + freshness clock: re-fetches from the new source if visible, else the
+    cleared cache forces a full fetch on next open.
+  - `FavoritesDockPage` / `PortfolioDockPage` — visible-scoped re-price (hidden bands already refetch on open).
+  - `CurrencyConverter` — clears its rate cache so the next `PrimeAsync` repopulates from the correct source
+    (live ECB ↔ the static `DemoUsdPerUnit` table) instead of serving its <1h-TTL stale entries.
+  - `SearchPage` / `MarketsPage` — re-list so the status row swaps (demo ↔ missing-key) at once.
+
+  No reload / no process restart (an out-of-proc extension can't drive CmdPal's own Reload anyway; this hits
+  the same goal reactively). **Also fixed:** the rate-limited banner no longer shows in demo mode —
+  `RateLimitHint.Row()` now guards on `DemoMode` (the authoritative gate), and `RateLimitSignal` **clears its
+  flag when demo mode turns on** (offline nothing calls `ReportSuccess()`, so a 429 set earlier would
+  otherwise linger and reappear when demo is turned back off). Build clean (0 warnings). See "Demo mode
+  (offline testing)".
 - **Done (this round): Demo mode (offline testing).** A **`Demo mode` toggle setting** (default off) makes the
   whole app serve built-in sample data with **no API key and no network** — for trying out the extension or
   testing UI work (like the cost-basis/total-return + multi-currency paths) without burning real-API budget.
@@ -239,8 +260,9 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   currency** (incl. a GBP London stock `HSBA.L`) so search is correctly typed and conversion has a non-USD
   holding to exercise. The list screens show an explicit blue **"Demo mode — showing sample data"** status row
   while it's on (replacing the red missing-key nudge), so it's obvious the prices are simulated, not live —
-  `ApiKeyHint` became a unified `StatusRow()` (demo row → missing-key row → null). Reads pull-style → applies
-  on the next refresh/reopen, no reload. Build clean (0 warnings). ✅ **Live-verified**: flipping the toggle
+  `ApiKeyHint` became a unified `StatusRow()` (demo row → missing-key row → null). **(Update: flipping the
+  toggle now applies immediately across the app — see the "applies INSTANTLY" bullet above; this entry's
+  original "next refresh/reopen" timing is superseded.)** Build clean (0 warnings). ✅ **Live-verified**: flipping the toggle
   swaps to sample data across the app, the blue status row shows, and the mock takes precedence everywhere
   (even with live keys set). See "Demo mode (offline testing)".
 - **Done (this round): cost-basis / total-return reporting** — the last open portfolio wishlist item. The
@@ -763,8 +785,18 @@ provider" seam, not a separate build path:
   it's obvious prices are simulated; else no key → the red "No API key set" nudge; else null). Both rows'
   Enter opens Settings (to turn demo off, or add a key). The hub, Search, Watchlist and Favorites append it.
 
-All checks are **pull-style**, so flipping the toggle applies on the **next price refresh / when a list is
-reopened** — no reload (consistent with `PortfolioCurrency` / `ShowRateLimitErrors`).
+Flipping the toggle applies **immediately** across the app — unlike `PortfolioCurrency` /
+`ShowRateLimitErrors`, which stay pull-style. `MarketSettingsManager` publishes an observable
+**`DemoModeChanged`** (`StateFlow<bool>`) from its `SettingsChanged` handler, and every surface subscribes
+and resets at once: the priced pages drop their price cache (a **lifetime** subscription, so even a hidden
+singleton page invalidates — re-fetching if visible, else on next open), the dock bands re-price,
+`CurrencyConverter` clears its rate cache (next prime refills from the static demo table vs live ECB), and
+the hub/Search re-list so the status row swaps. No reload, no process restart. The **rate-limited banner is
+also suppressed in demo mode**: `RateLimitHint.Row()` guards on `DemoMode`, and `RateLimitSignal` clears its
+flag when demo turns on (offline, nothing would otherwise clear a 429 set before demo mode). The
+quote/candle/search **routing** itself is still read pull-style per request (`MockMarketDataProvider.Supports`
+/ `IsExclusive` and `CurrencyConverter` check `DemoMode` each call) — the `DemoModeChanged` broadcast is what
+makes the already-rendered surfaces re-fetch through that routing the instant the toggle flips.
 
 **Seed coverage** (`MockMarketDataProvider`): AAPL/MSFT/NVDA (USD), **HSBA.L (GBP, a London stock)**, BTC/ETH/
 SOL (USD), EURUSD/GBPUSD/USDJPY. Each entry carries real **name + category + native currency**, so search is

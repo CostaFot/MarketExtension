@@ -154,9 +154,11 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
 
     // When on, the app serves built-in sample data (MockMarketDataProvider + a static FX table in
     // CurrencyConverter) instead of calling any live market-data or FX API — no key or connectivity needed.
-    // Read pull-style: MockMarketDataProvider.Supports/SearchAsync and CurrencyConverter check it per
-    // request, so toggling applies on the next price refresh without a reload (the price cache repaints
-    // immediately when a list is reopened). Default off → ships live.
+    // The VALUE is read pull-style per request (MockMarketDataProvider.Supports/SearchAsync and
+    // CurrencyConverter check it each call), but flipping the toggle applies IMMEDIATELY: the SettingsChanged
+    // handler publishes DemoModeChanged (below), and every surface subscribes to drop its cached prices/rates
+    // and re-fetch through the now-current routing — no reload, no waiting for the next refresh. Default off
+    // → ships live.
     public bool DemoMode => _demoMode.Value;
 
     // Observable form of DemoMode: subscribe to reset cached data the instant the toggle flips (see the
