@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Markets Extension for Command Palette</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site">
+    <span class="name">Markets Extension</span>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+    </nav>
+  </header>
+
+  <h1>Privacy Policy</h1>
+  <p class="subtitle">Markets Extension for Command Palette &mdash; Last updated June 2026</p>
+
+  <div class="disclaimer">
+    <strong>In short:</strong> Markets Extension runs entirely on your machine. It has no telemetry, no analytics, and no accounts, and it never sends your data to its author. The only data that leaves your device goes directly from your machine to the market-data providers you choose to use.
+  </div>
+
+  <h2>Overview</h2>
+  <p>Markets Extension for Command Palette (the "extension") is an open-source PowerToys Command Palette extension that shows live market data. This policy explains what the extension stores, what leaves your device, and what it deliberately does not do.</p>
+
+  <h2>Data stored on your device</h2>
+  <p>The extension keeps a small amount of data in local files on your computer so it can remember your setup between sessions. This data stays on your machine and is never transmitted to the author:</p>
+  <ul>
+    <li><strong>API keys</strong> you enter for market-data providers.</li>
+    <li>Your <strong>watchlist, favorites, and portfolio holdings</strong> (the symbols and quantities you track).</li>
+    <li>Your <strong>settings</strong>, such as refresh interval and preferred currency.</li>
+  </ul>
+  <p>You can clear this data at any time by removing the extension's settings files or uninstalling the extension.</p>
+
+  <h2>Data that leaves your device</h2>
+  <p>The extension is not a fully offline tool &mdash; to show live prices it makes requests over the internet. When you view quotes, charts, or search results, the extension sends the relevant <strong>ticker symbols and your API key</strong> directly to the market-data provider you have configured. Logos are fetched directly from a logo provider by symbol.</p>
+  <p>These requests go <strong>straight from your machine to those third parties</strong> &mdash; they do not pass through any server operated by the author, and the author never sees your keys, your symbols, or your requests. The third-party providers currently used are:</p>
+  <ul>
+    <li><strong>Finnhub</strong> and <strong>Twelve Data</strong> &mdash; quotes, charts, and symbol search (using the API key you provide).</li>
+    <li><strong>Frankfurter</strong> (European Central Bank reference rates) &mdash; currency exchange rates.</li>
+    <li><strong>Elbstream</strong> &mdash; company and asset logos, requested by symbol.</li>
+  </ul>
+  <p>Each provider operates under its own privacy policy and terms of service, which govern how it handles the requests it receives. Your use of those providers is subject to their terms.</p>
+
+  <h2>What the extension does not do</h2>
+  <p>The extension contains <strong>no telemetry channel of any kind</strong>. It does not:</p>
+  <ul>
+    <li>Collect analytics or usage statistics</li>
+    <li>Send crash reports or diagnostics</li>
+    <li>Require or create an account</li>
+    <li>Track you across sessions or sites</li>
+    <li>Share, sell, or transmit your data to the author or any party other than the market-data providers described above</li>
+  </ul>
+  <p>Released builds emit nothing off your machine beyond the direct provider requests above.</p>
+
+  <h2>Children's privacy</h2>
+  <p>The extension is a general-purpose developer tool and is not directed at children. It does not knowingly collect any information from children.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>This policy may be updated from time to time. The "Last updated" date above reflects the latest revision; continued use of the extension after a change constitutes acceptance of the revised policy.</p>
+
+  <h2>Contact</h2>
+  <p>Questions? <a href="https://github.com/CostaFot/MarketExtension/issues">Open an issue on GitHub</a>.</p>
+
+  <footer class="site">
+    <p><a href="index.html">&larr; Back to home</a></p>
+  </footer>
+</body>
+</html>
