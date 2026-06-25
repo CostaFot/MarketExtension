@@ -27,7 +27,7 @@ internal sealed partial class DataSourcesPage : ContentPage
         providers. What's available depends on which keys you've added in
         Settings and the plan attached to each.
 
-        Some data, such as currency reference rates, can come from a free
+        Some data, such as currency reference rates, can come from a
         public source that needs no key.
 
         ## Your keys, your data
