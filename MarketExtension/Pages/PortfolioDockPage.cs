@@ -76,7 +76,7 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
     {
         _repository = repository;
         Id = "com.costafotiadis.market.dock.portfolio"; // dock bands require a non-empty command Id
-        Title = "Markets Portfolio";
+        Title = Strings.Get("Command_MarketsPortfolio");
         Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
     }
 
@@ -89,8 +89,8 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
         {
             return [new ListItem(new NoOpCommand { Id = "com.costafotiadis.market.dock.portfolio.empty" })
             {
-                Title = "No holdings yet",
-                Subtitle = "Add holdings from an instrument's detail page",
+                Title = Strings.Get("Portfolio_Empty_Title"),
+                Subtitle = Strings.Get("Portfolio_Empty_Subtitle"),
             }];
         }
 
@@ -100,7 +100,7 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
         [
             new ListItem(new PortfolioPage(_repository))
             {
-                Title = $"Portfolio {_portfolio.FormatTotalValue()}",
+                Title = Strings.Format("Portfolio_TotalsRow_Title", _portfolio.FormatTotalValue()),
                 Subtitle = _portfolio.FormatTotalChange() + _portfolio.FormatTotalReturnNote() + _portfolio.FormatUnconvertedNote(),
                 Icon = new IconInfo(PortfolioGlyph),
             },

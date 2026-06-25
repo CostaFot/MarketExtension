@@ -11,9 +11,9 @@ internal sealed partial class FavoritesPage : PricedListPage
 {
     public FavoritesPage(MarketRepository repository) : base(repository, WatchlistStore.Instance.Favorites)
     {
-        Title = "Markets Favorites";
-        Name = "Open";
-        PlaceholderText = "Filter favorites...";
+        Title = Strings.Get("Page_Favorites_Title");
+        Name = Strings.Get("Action_Open");
+        PlaceholderText = Strings.Get("Favorites_Placeholder");
     }
 
     protected override IListItem BuildRow(UiQuote q)
@@ -32,8 +32,8 @@ internal sealed partial class FavoritesPage : PricedListPage
     [
         new ListItem(new NoOpCommand())
         {
-            Title = "No favorites yet",
-            Subtitle = "Open an instrument and star it from its detail page",
+            Title = Strings.Get("Favorites_Empty_Title"),
+            Subtitle = Strings.Get("Favorites_Empty_Subtitle"),
         },
     ];
 }

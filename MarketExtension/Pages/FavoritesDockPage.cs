@@ -68,7 +68,7 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
     {
         _repository = repository;
         Id = "com.costafotiadis.market.dock.favorites"; // dock bands require a non-empty command Id
-        Title = "Markets";
+        Title = Strings.Get("Command_Markets");
         Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
     }
 
@@ -83,8 +83,8 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
         {
             return [new ListItem(new NoOpCommand { Id = "com.costafotiadis.market.dock.empty" })
             {
-                Title = "No favorites yet",
-                Subtitle = "Open an instrument and star it from its detail page",
+                Title = Strings.Get("Favorites_Empty_Title"),
+                Subtitle = Strings.Get("Favorites_Empty_Subtitle"),
             }];
         }
 

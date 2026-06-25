@@ -29,8 +29,10 @@ internal sealed partial class SetQuantityPage : ContentPage
         // Stable, unique per symbol — also satisfies the non-empty Id a page used as a command needs.
         Id = $"com.costafotiadis.market.portfolio.setquantity.{instrument.Symbol}";
         Icon = new IconInfo(editing ? EditGlyph : AddGlyph);
-        Title = editing ? $"Edit {instrument.Symbol} holding" : $"Add {instrument.Symbol} to portfolio";
-        Name = editing ? "Edit holding" : "Add to Portfolio";
+        Title = editing
+            ? Strings.Format("SetQty_Title_Edit", instrument.Symbol)
+            : Strings.Format("SetQty_Title_Add", instrument.Symbol);
+        Name = editing ? Strings.Get("SetQty_Name_Edit") : Strings.Get("SetQty_Name_Add");
     }
 
     public override IContent[] GetContent() => [_form];
@@ -62,6 +64,12 @@ internal sealed partial class SetQuantityPage : ContentPage
                 // Average cost per unit. 0 means "not recorded" (a fresh holding, or one with no basis) and
                 // is treated as cleared on submit — so total return is simply omitted until a real price is set.
                 ["costBasis"] = existing?.CostBasis ?? 0m,
+                // Localized card labels, bound by the template below (kept out of the const JSON so they translate).
+                ["quantityLabel"] = Strings.Get("SetQty_Card_Quantity"),
+                ["quantityError"] = Strings.Get("SetQty_Card_QuantityError"),
+                ["costBasisLabel"] = Strings.Get("SetQty_Card_CostBasis"),
+                ["costBasisHelp"] = Strings.Get("SetQty_Card_Help"),
+                ["saveLabel"] = Strings.Get("SetQty_Card_Save"),
             };
             return data.ToJsonString();
         }
@@ -69,9 +77,9 @@ internal sealed partial class SetQuantityPage : ContentPage
         public override ICommandResult SubmitForm(string inputs, string data)
         {
             if (!TryReadDecimal(inputs, "quantity", out var quantity))
-                return Error("Enter a number greater than 0.");
+                return Error(Strings.Get("SetQty_Error_Number"));
             if (quantity <= 0m)
-                return Error("Quantity must be greater than 0. To remove a holding, use Remove from Portfolio.");
+                return Error(Strings.Get("SetQty_Error_Positive"));
 
             // Cost basis is optional: a missing/blank/≤0 value means "not recorded" → store null (clears any
             // previous basis), which just hides total return. A positive value is the average price paid per
@@ -80,11 +88,12 @@ internal sealed partial class SetQuantityPage : ContentPage
 
             PortfolioStore.Instance.SetPosition(_instrument, quantity, costBasis);
             var basisNote = costBasis is { } b
-                ? $" at {b.ToString("0.########", CultureInfo.InvariantCulture)}/unit"
+                ? Strings.Format("SetQty_BasisNote", b.ToString("0.########", CultureInfo.InvariantCulture))
                 : string.Empty;
             return CommandResult.ShowToast(new ToastArgs
             {
-                Message = $"Set {_instrument.Symbol} to {quantity.ToString("0.########", CultureInfo.InvariantCulture)}{basisNote}",
+                Message = Strings.Format("SetQty_Toast_Set",
+                    _instrument.Symbol, quantity.ToString("0.########", CultureInfo.InvariantCulture), basisNote),
                 Result = CommandResult.GoBack(), // back to the detail page; its subscription refreshes the bar
             });
         }
@@ -131,12 +140,12 @@ internal sealed partial class SetQuantityPage : ContentPage
           "body": [
             { "type": "TextBlock", "text": "${symbol}", "size": "ExtraLarge", "weight": "Bolder", "wrap": true },
             { "type": "TextBlock", "text": "${name}", "isSubtle": true, "spacing": "None", "wrap": true },
-            { "type": "Input.Number", "id": "quantity", "label": "Quantity held", "value": ${quantity}, "min": 0, "isRequired": true, "errorMessage": "Enter a quantity greater than 0" },
-            { "type": "Input.Number", "id": "costBasis", "label": "Average cost per unit (optional)", "value": ${costBasis}, "min": 0 },
-            { "type": "TextBlock", "text": "Average price you paid, in the instrument's currency. Leave 0 if unknown.", "isSubtle": true, "size": "Small", "spacing": "None", "wrap": true }
+            { "type": "Input.Number", "id": "quantity", "label": "${quantityLabel}", "value": ${quantity}, "min": 0, "isRequired": true, "errorMessage": "${quantityError}" },
+            { "type": "Input.Number", "id": "costBasis", "label": "${costBasisLabel}", "value": ${costBasis}, "min": 0 },
+            { "type": "TextBlock", "text": "${costBasisHelp}", "isSubtle": true, "size": "Small", "spacing": "None", "wrap": true }
           ],
           "actions": [
-            { "type": "Action.Submit", "title": "Save", "data": { "action": "save" } }
+            { "type": "Action.Submit", "title": "${saveLabel}", "data": { "action": "save" } }
           ]
         }
         """;

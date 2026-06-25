@@ -55,13 +55,13 @@ internal static class ApiKeyHint
     private static ListItem DemoRow() =>
         new ListItem(SettingsPage)
         {
-            Title = "Demo mode — showing sample data",
-            Subtitle = "Simulated prices. Enter to turn off in Settings.",
+            Title = Strings.Get("Status_Demo_Title"),
+            Subtitle = Strings.Get("Status_Demo_Subtitle"),
             Icon = new IconInfo(DemoGlyph),
-            Tags = [new Tag("Demo mode")
+            Tags = [new Tag(Strings.Get("Status_Demo_Tag"))
             {
                 Foreground = DemoBlue,
-                ToolTip = "Showing sample data, not live prices",
+                ToolTip = Strings.Get("Status_Demo_Tooltip"),
             }],
         };
 
@@ -70,13 +70,13 @@ internal static class ApiKeyHint
     private static ListItem MissingKeyRow() =>
         new ListItem(SettingsPage)
         {
-            Title = "No API key set",
-            Subtitle = "Enter to add one in Settings.",
+            Title = Strings.Get("Status_NoKey_Title"),
+            Subtitle = Strings.Get("Status_NoKey_Subtitle"),
             Icon = new IconInfo(WarningGlyph),
-            Tags = [new Tag("Action required")
+            Tags = [new Tag(Strings.Get("Status_NoKey_Tag"))
             {
                 Foreground = WarningRed,
-                ToolTip = "No API key set — functionality is limited",
+                ToolTip = Strings.Get("Status_NoKey_Tooltip"),
             }],
         };
 }

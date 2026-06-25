@@ -78,9 +78,9 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         _watchlistPage = new WatchlistPage(repository);
         _favoritesPage = new FavoritesPage(repository);
         Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
-        Title = "Markets Search";
-        Name = "Search";
-        PlaceholderText = "Search by symbol or name, then Enter";
+        Title = Strings.Get("Page_Search_Title");
+        Name = Strings.Get("Action_Search");
+        PlaceholderText = Strings.Get("Search_Placeholder");
     }
 
     // Typing only re-lists — never calls the API. The online search is Enter-only.
@@ -97,14 +97,14 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         {
             new ListItem(_watchlistPage)
             {
-                Title = "Watchlist",
-                Subtitle = "Instruments you track",
+                Title = Strings.Get("Nav_Watchlist_Title"),
+                Subtitle = Strings.Get("Nav_Watchlist_Subtitle"),
                 Icon = new IconInfo(ListGlyph),
             },
             new ListItem(_favoritesPage)
             {
-                Title = "Favorites",
-                Subtitle = "Starred instruments, shown on the dock",
+                Title = Strings.Get("Nav_Favorites_Title"),
+                Subtitle = Strings.Get("Nav_Favorites_Subtitle"),
                 Icon = new IconInfo(StarFillGlyph),
             },
         };
@@ -124,8 +124,8 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             // First item → pressing Enter runs the one /search call (see RunSearchCommand).
             new ListItem(new RunSearchCommand(this))
             {
-                Title = $"Search markets for \"{SearchText}\"",
-                Subtitle = "Enter to search",
+                Title = Strings.Format("Search_Action_Title", SearchText),
+                Subtitle = Strings.Get("Search_Action_Subtitle"),
                 Icon = new IconInfo(SearchGlyph),
             },
         };
@@ -137,8 +137,8 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             {
                 items.Add(new ListItem(new NoOpCommand())
                 {
-                    Title = $"No matches for \"{SearchText}\"",
-                    Section = "Search results",
+                    Title = Strings.Format("Search_NoMatches", SearchText),
+                    Section = Strings.Get("Search_ResultsSection"),
                 });
             }
 
@@ -169,17 +169,17 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         {
             Title = (isFavorite ? "★ " : "") + $"{instrument.Symbol} · {instrument.Name}",
             Subtitle = MembershipSubtitle(inWatchlist, isFavorite),
-            Section = "Search results",
+            Section = Strings.Get("Search_ResultsSection"),
             Icon = AssetIconResolver.Resolve(instrument),
         };
     }
 
     private static string MembershipSubtitle(bool inWatchlist, bool isFavorite) => (inWatchlist, isFavorite) switch
     {
-        (true, true) => "On watchlist · ★ Favorite · Enter for details",
-        (true, false) => "On watchlist · Enter for details",
-        (false, true) => "★ Favorite · Enter for details",
-        (false, false) => "Enter for details",
+        (true, true) => Strings.Get("Membership_WatchlistFavorite"),
+        (true, false) => Strings.Get("Membership_Watchlist"),
+        (false, true) => Strings.Get("Membership_Favorite"),
+        (false, false) => Strings.Get("Membership_None"),
     };
 
     // Runs the single online /search call for the current SearchText, then re-lists with results.
@@ -210,7 +210,7 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         public RunSearchCommand(SearchPage page)
         {
             _page = page;
-            Name = "Search";
+            Name = Strings.Get("Action_Search");
             Icon = new IconInfo(SearchGlyph);
         }
 

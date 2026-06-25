@@ -71,7 +71,9 @@ internal sealed record UiPosition(DomainQuote Source, decimal Quantity, string P
     // "AAPL · 10 sh" / "BTC · 0.5 units". Forex is shown in "units" too (a notional holding of a pair).
     public string FormatHolding() => $"{Symbol} · {FormatQuantity()} {UnitLabel}";
 
-    private string UnitLabel => Category == AssetCategory.Stock ? "sh" : "units";
+    private string UnitLabel => Category == AssetCategory.Stock
+        ? Strings.Get("Ui_Position_Unit_Shares")
+        : Strings.Get("Ui_Position_Unit_Units");
 
     // Native value, with a converted approximation appended when the currencies differ and a rate is known:
     //   USD holding, USD preferred → "$1,234.56"

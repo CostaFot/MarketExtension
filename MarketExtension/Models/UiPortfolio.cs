@@ -63,24 +63,30 @@ internal sealed record UiPortfolio(
     public string FormatTotalValue() => CurrencyFormat.Format(TotalValue, Currency);
 
     // e.g. "▲ +$120.50 (+0.98%) today" / "▼ -$84.10 (-0.71%) today", in the preferred currency.
-    public string FormatTotalChange() =>
-        $"{(IsUp ? "▲" : "▼")} {CurrencyFormat.FormatSigned(TotalDailyPnL, Currency)} " +
-        $"({TotalDailyPnLPercent.ToString("+0.00;-0.00", CultureInfo.InvariantCulture)}%) today";
+    public string FormatTotalChange()
+    {
+        var amount = $"{(IsUp ? "▲" : "▼")} {CurrencyFormat.FormatSigned(TotalDailyPnL, Currency)}";
+        var percent = TotalDailyPnLPercent.ToString("+0.00;-0.00", CultureInfo.InvariantCulture);
+        return Strings.Format("Ui_Portfolio_DailyChange", amount, percent);
+    }
 
     // A trailing total-return note for the summary subtitle, e.g. " · Total ▲ +$2,300.00 (+18.40%)", in the
     // preferred currency. Empty when no holding has a recorded cost basis (so total return is unknown).
-    public string FormatTotalReturnNote() =>
-        HasCostBasis
-            ? $" · Total {(IsTotalReturnUp ? "▲" : "▼")} {CurrencyFormat.FormatSigned(TotalReturn, Currency)} " +
-              $"({TotalReturnPercent.ToString("+0.00;-0.00", CultureInfo.InvariantCulture)}%)"
-            : string.Empty;
+    public string FormatTotalReturnNote()
+    {
+        if (!HasCostBasis)
+            return string.Empty;
+        var amount = $"{(IsTotalReturnUp ? "▲" : "▼")} {CurrencyFormat.FormatSigned(TotalReturn, Currency)}";
+        var percent = TotalReturnPercent.ToString("+0.00;-0.00", CultureInfo.InvariantCulture);
+        return Strings.Format("Ui_Portfolio_TotalReturnNote", amount, percent);
+    }
 
     // A trailing note for the summary subtitle when some priced holdings couldn't be converted into the
     // preferred currency (so the total visibly excludes them); empty when everything converted.
     public string FormatUnconvertedNote() => UnconvertedCount switch
     {
         0 => string.Empty,
-        1 => " · 1 holding not converted",
-        _ => $" · {UnconvertedCount} holdings not converted",
+        1 => Strings.Get("Ui_Portfolio_Unconverted_One"),
+        _ => Strings.Format("Ui_Portfolio_Unconverted_Many", UnconvertedCount),
     };
 }

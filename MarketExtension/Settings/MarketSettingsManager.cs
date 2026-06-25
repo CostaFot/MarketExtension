@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using Microsoft.CommandPalette.Extensions.Toolkit;
@@ -29,36 +30,36 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
 
     private readonly TextSetting _twelveDataApiKey = new("twelveDataApiKey", string.Empty)
     {
-        Label = "Twelve Data API key",
-        Description = "Twelve Data API key. Used first when set.",
-        Placeholder = "Paste your API key",
+        Label = Strings.Get("Settings_TwelveData_Label"),
+        Description = Strings.Get("Settings_TwelveData_Desc"),
+        Placeholder = Strings.Get("Settings_ApiKey_Placeholder"),
     };
 
     private readonly TextSetting _finnhubApiKey = new("finnhubApiKey", string.Empty)
     {
-        Label = "Finnhub API key",
-        Description = "Finnhub API key.",
-        Placeholder = "Paste your API key",
+        Label = Strings.Get("Settings_Finnhub_Label"),
+        Description = Strings.Get("Settings_Finnhub_Desc"),
+        Placeholder = Strings.Get("Settings_ApiKey_Placeholder"),
     };
 
     private readonly TextSetting _refreshMinutes = new(
         "refreshMinutes", DefaultRefreshMinutes.ToString(CultureInfo.InvariantCulture))
     {
-        Label = "Price refresh interval (minutes)",
-        Description = "Price refresh interval in minutes (0 = off).",
+        Label = Strings.Get("Settings_Refresh_Label"),
+        Description = Strings.Get("Settings_Refresh_Desc"),
         Placeholder = DefaultRefreshMinutes.ToString(CultureInfo.InvariantCulture),
     };
 
     private readonly ToggleSetting _showRateLimitErrors = new("showRateLimitErrors", true)
     {
-        Label = "Show rate-limit warnings",
-        Description = "Show a banner when prices are stale from provider rate-limiting.",
+        Label = Strings.Get("Settings_RateLimit_Label"),
+        Description = Strings.Get("Settings_RateLimit_Desc"),
     };
 
     private readonly ToggleSetting _demoMode = new("demoMode", false)
     {
-        Label = "Demo mode",
-        Description = "Show built-in sample data instead of live prices. Ddeal for trying out the extension.",
+        Label = Strings.Get("Settings_Demo_Label"),
+        Description = Strings.Get("Settings_Demo_Desc"),
     };
 
     // The reporting currency for the (upcoming) Portfolio screen: the single currency its totals are shown
@@ -67,33 +68,29 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     // provider (Frankfurter/ECB) can convert between, which is also the set AssetIconResolver maps to
     // flags. The first entry (USD) is the default — matching the app's current single-quote-currency
     // assumption. ChoiceSetSetting renders a dropdown; its stored Value is the selected code (e.g. "USD").
-    private readonly ChoiceSetSetting _portfolioCurrency = new("portfolioCurrency",
-    [
-        new ChoiceSetSetting.Choice("US Dollar (USD)", "USD"),
-        new ChoiceSetSetting.Choice("Euro (EUR)", "EUR"),
-        new ChoiceSetSetting.Choice("British Pound (GBP)", "GBP"),
-        new ChoiceSetSetting.Choice("Japanese Yen (JPY)", "JPY"),
-        new ChoiceSetSetting.Choice("Swiss Franc (CHF)", "CHF"),
-        new ChoiceSetSetting.Choice("Australian Dollar (AUD)", "AUD"),
-        new ChoiceSetSetting.Choice("Canadian Dollar (CAD)", "CAD"),
-        new ChoiceSetSetting.Choice("New Zealand Dollar (NZD)", "NZD"),
-        new ChoiceSetSetting.Choice("Chinese Yuan (CNY)", "CNY"),
-        new ChoiceSetSetting.Choice("Hong Kong Dollar (HKD)", "HKD"),
-        new ChoiceSetSetting.Choice("Singapore Dollar (SGD)", "SGD"),
-        new ChoiceSetSetting.Choice("Swedish Krona (SEK)", "SEK"),
-        new ChoiceSetSetting.Choice("Norwegian Krone (NOK)", "NOK"),
-        new ChoiceSetSetting.Choice("Danish Krone (DKK)", "DKK"),
-        new ChoiceSetSetting.Choice("Polish Złoty (PLN)", "PLN"),
-        new ChoiceSetSetting.Choice("South African Rand (ZAR)", "ZAR"),
-        new ChoiceSetSetting.Choice("Mexican Peso (MXN)", "MXN"),
-        new ChoiceSetSetting.Choice("Indian Rupee (INR)", "INR"),
-        new ChoiceSetSetting.Choice("Brazilian Real (BRL)", "BRL"),
-        new ChoiceSetSetting.Choice("South Korean Won (KRW)", "KRW"),
-    ])
+    private readonly ChoiceSetSetting _portfolioCurrency = new("portfolioCurrency", BuildCurrencyChoices())
     {
-        Label = "Portfolio currency",
-        Description = "Currency for portfolio totals. Other holdings are converted into it.",
+        Label = Strings.Get("Settings_PortfolioCurrency_Label"),
+        Description = Strings.Get("Settings_PortfolioCurrency_Desc"),
     };
+
+    // The supported reporting currencies (ISO-4217), in display order — the set the FX provider (ECB) can
+    // convert between. The display name for each comes from the resx ("Currency_<code>"), so the dropdown
+    // localizes with everything else; the stored value is always the bare code. The codes are a method-local
+    // (NOT a static field) on purpose: this runs from the _portfolioCurrency field initializer during
+    // Instance's own static construction, so a static field declared after Instance would still be null here.
+    private static List<ChoiceSetSetting.Choice> BuildCurrencyChoices()
+    {
+        string[] codes =
+        [
+            "USD", "EUR", "GBP", "JPY", "CHF", "AUD", "CAD", "NZD", "CNY", "HKD",
+            "SGD", "SEK", "NOK", "DKK", "PLN", "ZAR", "MXN", "INR", "BRL", "KRW",
+        ];
+        var choices = new List<ChoiceSetSetting.Choice>(codes.Length);
+        foreach (var code in codes)
+            choices.Add(new ChoiceSetSetting.Choice(Strings.Get($"Currency_{code}"), code));
+        return choices;
+    }
 
     // Observable "is any pricing key configured" flag, driven by SettingsChanged (below). UI surfaces
     // (the missing-key hint) subscribe and re-render the instant the user adds/removes a key, instead of

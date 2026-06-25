@@ -61,9 +61,9 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
     public MarketsPage(MarketRepository repository)
     {
         Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
-        Title = "Markets";
-        Name = "Open";
-        PlaceholderText = "Search, Watchlist, Favorites...";
+        Title = Strings.Get("Page_Markets_Title");
+        Name = Strings.Get("Action_Open");
+        PlaceholderText = Strings.Get("Hub_Placeholder");
 
         _searchPage = new SearchPage(repository);
         _watchlistPage = new WatchlistPage(repository);
@@ -82,34 +82,34 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
         {
             new ListItem(_searchPage)
             {
-                Title = "Search",
+                Title = Strings.Get("Nav_Search_Title"),
                 Icon = new IconInfo(SearchGlyph),
             },
             new ListItem(_watchlistPage)
             {
-                Title = "Watchlist",
-                Subtitle = "Instruments you track",
+                Title = Strings.Get("Nav_Watchlist_Title"),
+                Subtitle = Strings.Get("Nav_Watchlist_Subtitle"),
                 Icon = new IconInfo(ListGlyph),
             },
             new ListItem(_favoritesPage)
             {
-                Title = "Favorites",
-                Subtitle = "Starred instruments, shown on the dock",
+                Title = Strings.Get("Nav_Favorites_Title"),
+                Subtitle = Strings.Get("Nav_Favorites_Subtitle"),
                 Icon = new IconInfo(StarFillGlyph),
             },
             new ListItem(_portfolioPage)
             {
-                Title = "Portfolio",
+                Title = Strings.Get("Nav_Portfolio_Title"),
                 Icon = new IconInfo(PortfolioGlyph),
             },
             new ListItem(_dataSourcesPage)
             {
-                Title = "Data Sources",
+                Title = Strings.Get("Nav_DataSources_Title"),
                 Icon = new IconInfo(InfoGlyph),
             },
             new ListItem(_settingsPage)
             {
-                Title = "Settings",
+                Title = Strings.Get("Nav_Settings_Title"),
                 Icon = new IconInfo(SettingsGlyph),
             },
         };

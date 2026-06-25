@@ -32,13 +32,13 @@ internal static class RateLimitHint
         RateLimitSignal.Instance.IsRateLimited.Value && MarketSettingsManager.Instance.ShowRateLimitErrors
             ? new ListItem(new NoOpCommand()) // informational only — Enter must not navigate (it's the first row)
             {
-                Title = "Rate-limited — showing last known prices",
-                Subtitle = "Will refresh automatically once the limit clears.",
+                Title = Strings.Get("RateLimit_Title"),
+                Subtitle = Strings.Get("RateLimit_Subtitle"),
                 Icon = new IconInfo(WarningGlyph),
-                Tags = [new Tag("Rate-limited")
+                Tags = [new Tag(Strings.Get("RateLimit_Tag"))
                 {
                     Foreground = CautionAmber,
-                    ToolTip = "Requests are being throttled — prices may be stale",
+                    ToolTip = Strings.Get("RateLimit_Tooltip"),
                 }],
             }
             : null;

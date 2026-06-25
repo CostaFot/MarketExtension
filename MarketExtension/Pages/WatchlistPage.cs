@@ -11,9 +11,9 @@ internal sealed partial class WatchlistPage : PricedListPage
 {
     public WatchlistPage(MarketRepository repository) : base(repository, WatchlistStore.Instance.Watchlist)
     {
-        Title = "Markets Watchlist";
-        Name = "Open";
-        PlaceholderText = "Filter watchlist...";
+        Title = Strings.Get("Page_Watchlist_Title");
+        Name = Strings.Get("Action_Open");
+        PlaceholderText = Strings.Get("Watchlist_Placeholder");
     }
 
     // A favorite toggled here doesn't change the watchlist set, so observe the Favorites flow too and
@@ -39,16 +39,16 @@ internal sealed partial class WatchlistPage : PricedListPage
     [
         new ListItem(new NoOpCommand())
         {
-            Title = "Your watchlist is empty",
-            Subtitle = "Open an instrument and add it from its detail page",
+            Title = Strings.Get("Watchlist_Empty_Title"),
+            Subtitle = Strings.Get("Watchlist_Empty_Subtitle"),
         },
     ];
 
     private static string SectionLabel(AssetCategory category) => category switch
     {
-        AssetCategory.Stock => "Stocks",
-        AssetCategory.Crypto => "Crypto",
-        AssetCategory.Currency => "Currency",
-        _ => "Other",
+        AssetCategory.Stock => Strings.Get("Section_Stocks"),
+        AssetCategory.Crypto => Strings.Get("Section_Crypto"),
+        AssetCategory.Currency => Strings.Get("Section_Currency"),
+        _ => Strings.Get("Section_Other"),
     };
 }

@@ -24,7 +24,7 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
     public MarketExtensionCommandsProvider()
     {
         Id = "com.costafotiadis.market";
-        DisplayName = "Market Extension";
+        DisplayName = Strings.Get("Extension_DisplayName");
         Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
 
         // Surface the extension's settings (Twelve Data + Finnhub API keys + price refresh interval)
@@ -36,14 +36,14 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
         // unchanged. This keeps the Command Palette root to one entry instead of three. Favorites
         // also feed the dock band below.
         _commands = [
-            new CommandItem(new MarketsPage(_repository)) { Title = "Markets" },
+            new CommandItem(new MarketsPage(_repository)) { Title = Strings.Get("Command_Markets") },
         ];
 
         // Dock bands, each pinnable from the Dock: a ticker strip of favorited instruments, and a
         // one-line portfolio total (value + daily P&L in the preferred currency).
         _dockBands = [
-            new CommandItem(new FavoritesDockPage(_repository)) { Title = "Markets" },
-            new CommandItem(new PortfolioDockPage(_repository)) { Title = "Markets Portfolio" },
+            new CommandItem(new FavoritesDockPage(_repository)) { Title = Strings.Get("Command_Markets") },
+            new CommandItem(new PortfolioDockPage(_repository)) { Title = Strings.Get("Command_MarketsPortfolio") },
         ];
     }
 

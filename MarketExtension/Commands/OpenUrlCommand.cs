@@ -28,7 +28,7 @@ internal sealed partial class OpenUrlCommand : InvokableCommand
         {
             return CommandResult.ShowToast(new ToastArgs
             {
-                Message = $"Couldn't open {_url}: {ex.Message}",
+                Message = Strings.Format("Toast_OpenUrlFailed", _url, ex.Message),
                 Result = CommandResult.KeepOpen(),
             });
         }

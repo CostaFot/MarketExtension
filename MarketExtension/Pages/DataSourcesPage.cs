@@ -53,8 +53,8 @@ internal sealed partial class DataSourcesPage : ContentPage
     public DataSourcesPage()
     {
         Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
-        Title = "Data Sources";
-        Name = "Open";
+        Title = Strings.Get("Page_DataSources_Title");
+        Name = Strings.Get("Action_Open");
     }
 
     public override IContent[] GetContent() => [_content];

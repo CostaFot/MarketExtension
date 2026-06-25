@@ -31,9 +31,9 @@ internal sealed partial class PortfolioPage : PricedListPage
 
     public PortfolioPage(MarketRepository repository) : base(repository, PortfolioStore.Instance.Instruments)
     {
-        Title = "Markets Portfolio";
-        Name = "Open";
-        PlaceholderText = "Filter holdings...";
+        Title = Strings.Get("Page_Portfolio_Title");
+        Name = Strings.Get("Action_Open");
+        PlaceholderText = Strings.Get("Portfolio_Placeholder");
     }
 
     // The totals summary, pinned above the holdings. Built from the FULL priced set zipped with the current
@@ -54,7 +54,7 @@ internal sealed partial class PortfolioPage : PricedListPage
         [
             new ListItem(new NoOpCommand())
             {
-                Title = $"Portfolio {portfolio.FormatTotalValue()}",
+                Title = Strings.Format("Portfolio_TotalsRow_Title", portfolio.FormatTotalValue()),
                 Subtitle = portfolio.FormatTotalChange() + portfolio.FormatTotalReturnNote() + portfolio.FormatUnconvertedNote(),
                 Icon = new IconInfo(PortfolioGlyph),
             },
@@ -71,7 +71,7 @@ internal sealed partial class PortfolioPage : PricedListPage
         var subtitle = $"{position.FormatValue()}   {position.FormatDailyPnL()}";
         var totalReturn = position.FormatTotalReturn();
         if (totalReturn.Length > 0)
-            subtitle += $"   Total {totalReturn}";
+            subtitle += "   " + Strings.Format("Portfolio_Row_TotalReturnPrefix", totalReturn);
 
         return new ListItem(new SymbolDetailPage(instrument, Repository))
         {
@@ -116,8 +116,8 @@ internal sealed partial class PortfolioPage : PricedListPage
     [
         new ListItem(new NoOpCommand())
         {
-            Title = "No holdings yet",
-            Subtitle = "Add holdings from an instrument's detail page",
+            Title = Strings.Get("Portfolio_Empty_Title"),
+            Subtitle = Strings.Get("Portfolio_Empty_Subtitle"),
         },
     ];
 }

@@ -17,7 +17,7 @@ internal sealed partial class RemoveFromPortfolioCommand : InvokableCommand
     public RemoveFromPortfolioCommand(DomainInstrument instrument)
     {
         _instrument = instrument;
-        Name = "Remove from Portfolio";
+        Name = Strings.Get("Cmd_RemoveFromPortfolio");
         Icon = new IconInfo(DeleteGlyph);
     }
 
@@ -26,7 +26,7 @@ internal sealed partial class RemoveFromPortfolioCommand : InvokableCommand
         PortfolioStore.Instance.Remove(_instrument.Symbol);
         return CommandResult.ShowToast(new ToastArgs
         {
-            Message = $"Removed {_instrument.Symbol} from portfolio",
+            Message = Strings.Format("Toast_RemovedFromPortfolio", _instrument.Symbol),
             Result = CommandResult.KeepOpen(),
         });
     }

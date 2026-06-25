@@ -15,6 +15,11 @@
     <AppxPackageVersion>0.0.1.0</AppxPackageVersion>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
+
+    <!-- The neutral (built-in) resources in Properties/Resources.resx are English, so mark the main
+         assembly en-US: ResourceManager then serves English directly without probing for an en
+         satellite. Ship another language by adding a Resources.<culture>.resx (satellite); see Helpers/Strings.cs. -->
+    <NeutralLanguage>en-US</NeutralLanguage>
   </PropertyGroup>
 
   <ItemGroup>

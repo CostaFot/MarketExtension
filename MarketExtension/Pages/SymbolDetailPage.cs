@@ -82,7 +82,7 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
         Id = $"com.costafotiadis.market.detail.{instrument.Symbol}";
         Icon = AssetIconResolver.Resolve(instrument);
         Title = $"{instrument.Symbol} · {instrument.Name}";
-        Name = "View details";
+        Name = Strings.Get("Action_ViewDetails");
         Commands = BuildCommands(); // initial bar; refreshed again on subscribe and on every change
     }
 
@@ -295,7 +295,8 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
                 data["chartUrl"] = string.Empty;
                 data["hasChart"] = false;
                 data["showStatus"] = true;
-                data["statusText"] = $"Loading {range.Label()} chart…";
+                data["statusText"] = Strings.Format("Chart_Loading", range.Label());
+                data["attributionText"] = Strings.Get("Attribution_Title");
                 return data.ToJsonString();
             }
 
@@ -309,7 +310,8 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
             data["showStatus"] = !hasChart;
             data["statusText"] = hasChart
                 ? string.Empty
-                : "No chart data for this range.";
+                : Strings.Get("Chart_NoData");
+            data["attributionText"] = Strings.Get("Attribution_Title");
             return data.ToJsonString();
         }
 
@@ -338,7 +340,7 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
                 { "type": "Action.Submit", "title": "5Y", "data": { "range": "5Y" } }
               ]
             },
-            { "type": "TextBlock", "text": "Logos provided by Elbstream", "isSubtle": true, "wrap": true, "spacing": "Medium" }
+            { "type": "TextBlock", "text": "${attributionText}", "isSubtle": true, "wrap": true, "spacing": "Medium" }
           ]
         }
         """;
