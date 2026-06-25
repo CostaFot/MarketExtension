@@ -567,10 +567,24 @@ USD-quoted crypto, and `XXXUSD` FX pairs, but **wrong for anything quoted in ano
 **USDJPY**, whose price is in JPY, currently gets mislabeled `$`; a non-US stock would too. The planned
 design (per the user):
 - **Capture each instrument's reporting/native currency** in the data layer — an ISO-4217 `Currency` field
-  on `DomainQuote` (and/or `DomainInstrument`), populated by each provider. *Open piece (the real work):*
-  Twelve Data's `/quote` returns a `currency`; **Finnhub `/quote` does not** (would need `/stock/profile2`,
-  which carries `currency`); Frankfurter is inherently per-pair. So sourcing the native currency needs
-  provider changes.
+  on `DomainQuote`. **Key insight: currency is STATIC metadata, not live data** (a stock's reporting currency
+  essentially never changes), so resolve it **once per symbol and cache/persist it** (a `symbol → currency`
+  map, ideally stored with the instrument in the watchlist/portfolio) — NOT on every poll. That reframes the
+  cost entirely.
+  - **Twelve Data (primary):** its `/quote` response **already includes a `currency` field** — just add it
+    to `ApiTwelveDataQuoteDto` (`[JsonPropertyName("currency")] string? Currency`) and map it through. It
+    rides in the batched `/quote` we already fetch, so **zero extra calls**; accurate even for non-US stocks.
+  - **Finnhub:** its `/quote` (`c/d/dp/pc`) has **no** currency field. ⚠️ Do **NOT** blanket-assume USD — a
+    **paid Finnhub plan serves global equities** (LSE/TSE/Euronext/…) quoted in their **local** currencies,
+    not USD. Resolve via **`/stock/profile2?symbol=` (returns `currency`) ONCE per symbol, cached forever** —
+    because currency is static this is one call per *new* symbol, not per poll, so it's trivial against the
+    ~300/day budget (the earlier "too expensive" framing was wrong). Cheap short-circuits skip even that call:
+    crypto (`…USDT`) → USD, and a **free** (US-equities-only) key → USD. Only a paid key bringing in non-US
+    tickers actually needs the profile2 lookup.
+  - **Frankfurter (FX):** inherently per-pair / currency-aware already.
+  - ⚠️ **GBX/pence trap:** London-listed stocks are quoted in **pence** while the reported currency is GBP
+    (often `GBp`/`GBX`) — price 250 means £2.50, a 100× factor. Conversion must special-case this or totals
+    will be 100× off for UK holdings.
 - **Convert** each holding's market value + daily P&L into the user's **`PortfolioCurrency`** (the existing
   setting, currently inert) using the **keyless Frankfurter FX provider** (it already cross-converts via ECB
   rates), with a small rate cache keyed by `nativeCurrency → preferredCurrency`.
