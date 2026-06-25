@@ -1,10 +1,10 @@
-; Inno Setup Script for Market Extension
+; Inno Setup Script for Markets Extension for Command Palette
 
-#define AppVersion "0.0.1.0"
+#define AppVersion "1.0.0.0"
 
 [Setup]
 AppId={{6b38c9aa-bbee-45e9-81e9-cf25707910e7}}
-AppName=Market Extension
+AppName=Markets Extension for Command Palette
 AppVersion={#AppVersion}
 AppPublisher=Costa Fotiadis
 DefaultDirName={localappdata}\MarketExtension
@@ -22,7 +22,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "bin\Release\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 
 [Icons]
-Name: "{group}\Market Extension"; Filename: "{app}\MarketExtension.exe"
+Name: "{group}\Markets Extension for Command Palette"; Filename: "{app}\MarketExtension.exe"
 
 [Registry]
 Root: HKCU; Subkey: "SOFTWARE\Classes\CLSID\{{6b38c9aa-bbee-45e9-81e9-cf25707910e7}}"; ValueType: string; ValueName: ""; ValueData: "MarketExtension"

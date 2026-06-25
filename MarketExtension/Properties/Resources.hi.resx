@@ -1,0 +1,446 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- Hindi (hi) translations of Properties/Resources.resx.
+       Same keys as the neutral English table; loaded as a satellite assembly
+       (hi/MarketExtension.resources.dll). Missing keys fall back to English. Format
+       placeholders ({0}, {1}, ...) and the ★ / · / leading-space concat strings are preserved. -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Action_Open" xml:space="preserve">
+    <value>खोलें</value>
+  </data>
+  <data name="Action_Refresh" xml:space="preserve">
+    <value>रिफ़्रेश करें</value>
+  </data>
+  <data name="Action_Search" xml:space="preserve">
+    <value>खोजें</value>
+  </data>
+  <data name="Action_ViewDetails" xml:space="preserve">
+    <value>विवरण देखें</value>
+  </data>
+  <data name="Extension_DisplayName" xml:space="preserve">
+    <value>Command Palette के लिए मार्केट एक्सटेंशन</value>
+  </data>
+  <data name="Command_Markets" xml:space="preserve">
+    <value>मार्केट</value>
+  </data>
+  <data name="Command_MarketsPortfolio" xml:space="preserve">
+    <value>मार्केट पोर्टफ़ोलियो</value>
+  </data>
+  <data name="Page_Markets_Title" xml:space="preserve">
+    <value>मार्केट</value>
+  </data>
+  <data name="Page_Search_Title" xml:space="preserve">
+    <value>मार्केट खोज</value>
+  </data>
+  <data name="Page_Watchlist_Title" xml:space="preserve">
+    <value>मार्केट वॉचलिस्ट</value>
+  </data>
+  <data name="Page_Favorites_Title" xml:space="preserve">
+    <value>मार्केट पसंदीदा</value>
+  </data>
+  <data name="Page_Portfolio_Title" xml:space="preserve">
+    <value>मार्केट पोर्टफ़ोलियो</value>
+  </data>
+  <data name="Page_DataSources_Title" xml:space="preserve">
+    <value>डेटा स्रोत</value>
+  </data>
+  <data name="Hub_Placeholder" xml:space="preserve">
+    <value>खोज, वॉचलिस्ट, पसंदीदा…</value>
+  </data>
+  <data name="Nav_Search_Title" xml:space="preserve">
+    <value>खोजें</value>
+  </data>
+  <data name="Nav_Search_Subtitle" xml:space="preserve">
+    <value>कोई स्टॉक, क्रिप्टो या मुद्रा खोजें</value>
+  </data>
+  <data name="Nav_Watchlist_Title" xml:space="preserve">
+    <value>वॉचलिस्ट</value>
+  </data>
+  <data name="Nav_Watchlist_Subtitle" xml:space="preserve">
+    <value>आपके द्वारा ट्रैक किए जाने वाले इंस्ट्रूमेंट</value>
+  </data>
+  <data name="Nav_Favorites_Title" xml:space="preserve">
+    <value>पसंदीदा</value>
+  </data>
+  <data name="Nav_Favorites_Subtitle" xml:space="preserve">
+    <value>तारांकित इंस्ट्रूमेंट, डॉक पर दिखाए जाते हैं</value>
+  </data>
+  <data name="Nav_Portfolio_Title" xml:space="preserve">
+    <value>पोर्टफ़ोलियो</value>
+  </data>
+  <data name="Nav_DataSources_Title" xml:space="preserve">
+    <value>डेटा स्रोत</value>
+  </data>
+  <data name="Nav_Settings_Title" xml:space="preserve">
+    <value>सेटिंग्स</value>
+  </data>
+  <data name="Search_Placeholder" xml:space="preserve">
+    <value>सिंबल या नाम से खोजें, फिर Enter दबाएँ</value>
+  </data>
+  <data name="Watchlist_Placeholder" xml:space="preserve">
+    <value>वॉचलिस्ट फ़िल्टर करें…</value>
+  </data>
+  <data name="Favorites_Placeholder" xml:space="preserve">
+    <value>पसंदीदा फ़िल्टर करें…</value>
+  </data>
+  <data name="Portfolio_Placeholder" xml:space="preserve">
+    <value>होल्डिंग्स फ़िल्टर करें…</value>
+  </data>
+  <data name="Search_Action_Title" xml:space="preserve">
+    <value>मार्केट में “{0}” खोजें</value>
+  </data>
+  <data name="Search_Action_Subtitle" xml:space="preserve">
+    <value>खोजने के लिए Enter दबाएँ</value>
+  </data>
+  <data name="Search_NoMatches" xml:space="preserve">
+    <value>“{0}” के लिए कोई मिलान नहीं</value>
+  </data>
+  <data name="Search_ResultsSection" xml:space="preserve">
+    <value>खोज परिणाम</value>
+  </data>
+  <data name="Membership_WatchlistFavorite" xml:space="preserve">
+    <value>वॉचलिस्ट में · ★ पसंदीदा · विवरण के लिए Enter</value>
+  </data>
+  <data name="Membership_Watchlist" xml:space="preserve">
+    <value>वॉचलिस्ट में · विवरण के लिए Enter</value>
+  </data>
+  <data name="Membership_Favorite" xml:space="preserve">
+    <value>★ पसंदीदा · विवरण के लिए Enter</value>
+  </data>
+  <data name="Membership_None" xml:space="preserve">
+    <value>विवरण के लिए Enter</value>
+  </data>
+  <data name="Section_Stocks" xml:space="preserve">
+    <value>स्टॉक</value>
+  </data>
+  <data name="Section_Crypto" xml:space="preserve">
+    <value>क्रिप्टो</value>
+  </data>
+  <data name="Section_Currency" xml:space="preserve">
+    <value>मुद्रा</value>
+  </data>
+  <data name="Section_Other" xml:space="preserve">
+    <value>अन्य</value>
+  </data>
+  <data name="Watchlist_Empty_Title" xml:space="preserve">
+    <value>आपकी वॉचलिस्ट खाली है</value>
+  </data>
+  <data name="Watchlist_Empty_Subtitle" xml:space="preserve">
+    <value>कोई इंस्ट्रूमेंट खोलें और उसके विवरण पेज से जोड़ें</value>
+  </data>
+  <data name="Favorites_Empty_Title" xml:space="preserve">
+    <value>अभी तक कोई पसंदीदा नहीं</value>
+  </data>
+  <data name="Favorites_Empty_Subtitle" xml:space="preserve">
+    <value>कोई इंस्ट्रूमेंट खोलें और उसके विवरण पेज से तारांकित करें</value>
+  </data>
+  <data name="Portfolio_Empty_Title" xml:space="preserve">
+    <value>अभी तक कोई होल्डिंग नहीं</value>
+  </data>
+  <data name="Portfolio_Empty_Subtitle" xml:space="preserve">
+    <value>किसी इंस्ट्रूमेंट के विवरण पेज से होल्डिंग्स जोड़ें</value>
+  </data>
+  <data name="Status_Demo_Title" xml:space="preserve">
+    <value>डेमो मोड — नमूना डेटा दिखाया जा रहा है</value>
+  </data>
+  <data name="Status_Demo_Subtitle" xml:space="preserve">
+    <value>सिम्युलेटेड कीमतें। सेटिंग्स में बंद करने के लिए Enter दबाएँ।</value>
+  </data>
+  <data name="Status_Demo_Tag" xml:space="preserve">
+    <value>डेमो मोड</value>
+  </data>
+  <data name="Status_Demo_Tooltip" xml:space="preserve">
+    <value>नमूना डेटा दिखाया जा रहा है, लाइव कीमतें नहीं</value>
+  </data>
+  <data name="Status_NoKey_Title" xml:space="preserve">
+    <value>कोई API कुंजी सेट नहीं है</value>
+  </data>
+  <data name="Status_NoKey_Subtitle" xml:space="preserve">
+    <value>सेटिंग्स में एक जोड़ने के लिए Enter दबाएँ।</value>
+  </data>
+  <data name="Status_NoKey_Tag" xml:space="preserve">
+    <value>कार्रवाई आवश्यक</value>
+  </data>
+  <data name="Status_NoKey_Tooltip" xml:space="preserve">
+    <value>कोई API कुंजी सेट नहीं है — कार्यक्षमता सीमित है</value>
+  </data>
+  <data name="RateLimit_Title" xml:space="preserve">
+    <value>दर-सीमित — अंतिम ज्ञात कीमतें दिखाई जा रही हैं</value>
+  </data>
+  <data name="RateLimit_Subtitle" xml:space="preserve">
+    <value>सीमा हटते ही स्वचालित रूप से रिफ़्रेश हो जाएगा।</value>
+  </data>
+  <data name="RateLimit_Tag" xml:space="preserve">
+    <value>दर-सीमित</value>
+  </data>
+  <data name="RateLimit_Tooltip" xml:space="preserve">
+    <value>अनुरोध सीमित किए जा रहे हैं — कीमतें पुरानी हो सकती हैं</value>
+  </data>
+  <data name="Attribution_Title" xml:space="preserve">
+    <value>लोगो Elbstream द्वारा प्रदान किए गए</value>
+  </data>
+  <data name="Attribution_Subtitle" xml:space="preserve">
+    <value>लोगो छवियाँ elbstream.com के माध्यम से</value>
+  </data>
+  <data name="Attribution_OpenName" xml:space="preserve">
+    <value>Elbstream खोलें</value>
+  </data>
+  <data name="Cmd_AddToWatchlist" xml:space="preserve">
+    <value>वॉचलिस्ट में जोड़ें</value>
+  </data>
+  <data name="Cmd_RemoveFromWatchlist" xml:space="preserve">
+    <value>वॉचलिस्ट से हटाएँ</value>
+  </data>
+  <data name="Cmd_AddToFavorites" xml:space="preserve">
+    <value>पसंदीदा में जोड़ें</value>
+  </data>
+  <data name="Cmd_RemoveFromFavorites" xml:space="preserve">
+    <value>पसंदीदा से हटाएँ</value>
+  </data>
+  <data name="Cmd_RemoveFromPortfolio" xml:space="preserve">
+    <value>पोर्टफ़ोलियो से हटाएँ</value>
+  </data>
+  <data name="Toast_AddedToWatchlist" xml:space="preserve">
+    <value>{0} को वॉचलिस्ट में जोड़ा गया</value>
+  </data>
+  <data name="Toast_RemovedFromWatchlist" xml:space="preserve">
+    <value>{0} को वॉचलिस्ट से हटाया गया</value>
+  </data>
+  <data name="Toast_AddedToFavorites" xml:space="preserve">
+    <value>{0} को पसंदीदा में जोड़ा गया</value>
+  </data>
+  <data name="Toast_RemovedFromFavorites" xml:space="preserve">
+    <value>{0} को पसंदीदा से हटाया गया</value>
+  </data>
+  <data name="Toast_RemovedFromPortfolio" xml:space="preserve">
+    <value>{0} को पोर्टफ़ोलियो से हटाया गया</value>
+  </data>
+  <data name="Toast_OpenUrlFailed" xml:space="preserve">
+    <value>{0} को खोला नहीं जा सका: {1}</value>
+  </data>
+  <data name="Chart_Loading" xml:space="preserve">
+    <value>{0} चार्ट लोड हो रहा है…</value>
+  </data>
+  <data name="Chart_NoData" xml:space="preserve">
+    <value>इस अवधि के लिए कोई चार्ट डेटा नहीं है।</value>
+  </data>
+  <data name="SetQty_Title_Edit" xml:space="preserve">
+    <value>{0} होल्डिंग संपादित करें</value>
+  </data>
+  <data name="SetQty_Title_Add" xml:space="preserve">
+    <value>{0} को पोर्टफ़ोलियो में जोड़ें</value>
+  </data>
+  <data name="SetQty_Name_Edit" xml:space="preserve">
+    <value>होल्डिंग संपादित करें</value>
+  </data>
+  <data name="SetQty_Name_Add" xml:space="preserve">
+    <value>पोर्टफ़ोलियो में जोड़ें</value>
+  </data>
+  <data name="SetQty_Toast_Set" xml:space="preserve">
+    <value>{0} को {1}{2} पर सेट किया गया</value>
+  </data>
+  <data name="SetQty_BasisNote" xml:space="preserve">
+    <value> ({0}/यूनिट)</value>
+  </data>
+  <data name="SetQty_Error_Number" xml:space="preserve">
+    <value>0 से बड़ी संख्या दर्ज करें।</value>
+  </data>
+  <data name="SetQty_Error_Positive" xml:space="preserve">
+    <value>मात्रा 0 से बड़ी होनी चाहिए। होल्डिंग हटाने के लिए, 'पोर्टफ़ोलियो से हटाएँ' का उपयोग करें।</value>
+  </data>
+  <data name="SetQty_Card_Quantity" xml:space="preserve">
+    <value>रखी गई मात्रा</value>
+  </data>
+  <data name="SetQty_Card_QuantityError" xml:space="preserve">
+    <value>0 से बड़ी मात्रा दर्ज करें</value>
+  </data>
+  <data name="SetQty_Card_CostBasis" xml:space="preserve">
+    <value>प्रति यूनिट औसत लागत (वैकल्पिक)</value>
+  </data>
+  <data name="SetQty_Card_Help" xml:space="preserve">
+    <value>आपके द्वारा चुकाई गई औसत कीमत, इंस्ट्रूमेंट की मुद्रा में। अज्ञात होने पर 0 छोड़ दें।</value>
+  </data>
+  <data name="SetQty_Card_Save" xml:space="preserve">
+    <value>सहेजें</value>
+  </data>
+  <data name="Portfolio_TotalsRow_Title" xml:space="preserve">
+    <value>पोर्टफ़ोलियो {0}</value>
+  </data>
+  <data name="Portfolio_Row_TotalReturnPrefix" xml:space="preserve">
+    <value>कुल {0}</value>
+  </data>
+  <data name="Ui_Portfolio_DailyChange" xml:space="preserve">
+    <value>आज {0} ({1}%)</value>
+  </data>
+  <data name="Ui_Portfolio_TotalReturnNote" xml:space="preserve">
+    <value> · कुल {0} ({1}%)</value>
+  </data>
+  <data name="Ui_Portfolio_Unconverted_One" xml:space="preserve">
+    <value> · 1 होल्डिंग परिवर्तित नहीं</value>
+  </data>
+  <data name="Ui_Portfolio_Unconverted_Many" xml:space="preserve">
+    <value> · {0} होल्डिंग्स परिवर्तित नहीं</value>
+  </data>
+  <data name="Ui_Position_Unit_Shares" xml:space="preserve">
+    <value>शेयर</value>
+  </data>
+  <data name="Ui_Position_Unit_Units" xml:space="preserve">
+    <value>यूनिट</value>
+  </data>
+  <data name="Settings_TwelveData_Label" xml:space="preserve">
+    <value>Twelve Data API कुंजी</value>
+  </data>
+  <data name="Settings_TwelveData_Desc" xml:space="preserve">
+    <value>Twelve Data API कुंजी। सेट होने पर पहले उपयोग की जाती है।</value>
+  </data>
+  <data name="Settings_Finnhub_Label" xml:space="preserve">
+    <value>Finnhub API कुंजी</value>
+  </data>
+  <data name="Settings_Finnhub_Desc" xml:space="preserve">
+    <value>Finnhub API कुंजी।</value>
+  </data>
+  <data name="Settings_ApiKey_Placeholder" xml:space="preserve">
+    <value>अपनी API कुंजी पेस्ट करें</value>
+  </data>
+  <data name="Settings_Refresh_Label" xml:space="preserve">
+    <value>कीमत रिफ़्रेश अंतराल (मिनट)</value>
+  </data>
+  <data name="Settings_Refresh_Desc" xml:space="preserve">
+    <value>कीमत रिफ़्रेश अंतराल मिनटों में (0 = बंद)।</value>
+  </data>
+  <data name="Settings_RateLimit_Label" xml:space="preserve">
+    <value>दर-सीमा चेतावनियाँ दिखाएँ</value>
+  </data>
+  <data name="Settings_RateLimit_Desc" xml:space="preserve">
+    <value>जब प्रदाता की दर-सीमा के कारण कीमतें पुरानी हों, तो एक बैनर दिखाएँ।</value>
+  </data>
+  <data name="Settings_Demo_Label" xml:space="preserve">
+    <value>डेमो मोड</value>
+  </data>
+  <data name="Settings_Demo_Desc" xml:space="preserve">
+    <value>लाइव कीमतों के बजाय अंतर्निहित नमूना डेटा दिखाएँ। एक्सटेंशन आज़माने के लिए आदर्श।</value>
+  </data>
+  <data name="Settings_PortfolioCurrency_Label" xml:space="preserve">
+    <value>पोर्टफ़ोलियो मुद्रा</value>
+  </data>
+  <data name="Settings_PortfolioCurrency_Desc" xml:space="preserve">
+    <value>पोर्टफ़ोलियो योग के लिए मुद्रा। अन्य होल्डिंग्स इसमें परिवर्तित की जाती हैं।</value>
+  </data>
+  <data name="Currency_USD" xml:space="preserve">
+    <value>अमेरिकी डॉलर (USD)</value>
+  </data>
+  <data name="Currency_EUR" xml:space="preserve">
+    <value>यूरो (EUR)</value>
+  </data>
+  <data name="Currency_GBP" xml:space="preserve">
+    <value>ब्रिटिश पाउंड (GBP)</value>
+  </data>
+  <data name="Currency_JPY" xml:space="preserve">
+    <value>जापानी येन (JPY)</value>
+  </data>
+  <data name="Currency_CHF" xml:space="preserve">
+    <value>स्विस फ़्रैंक (CHF)</value>
+  </data>
+  <data name="Currency_AUD" xml:space="preserve">
+    <value>ऑस्ट्रेलियाई डॉलर (AUD)</value>
+  </data>
+  <data name="Currency_CAD" xml:space="preserve">
+    <value>कैनेडियन डॉलर (CAD)</value>
+  </data>
+  <data name="Currency_NZD" xml:space="preserve">
+    <value>न्यूज़ीलैंड डॉलर (NZD)</value>
+  </data>
+  <data name="Currency_CNY" xml:space="preserve">
+    <value>चीनी युआन (CNY)</value>
+  </data>
+  <data name="Currency_HKD" xml:space="preserve">
+    <value>हांगकांग डॉलर (HKD)</value>
+  </data>
+  <data name="Currency_SGD" xml:space="preserve">
+    <value>सिंगापुर डॉलर (SGD)</value>
+  </data>
+  <data name="Currency_SEK" xml:space="preserve">
+    <value>स्वीडिश क्रोना (SEK)</value>
+  </data>
+  <data name="Currency_NOK" xml:space="preserve">
+    <value>नॉर्वेजियन क्रोन (NOK)</value>
+  </data>
+  <data name="Currency_DKK" xml:space="preserve">
+    <value>डेनिश क्रोन (DKK)</value>
+  </data>
+  <data name="Currency_PLN" xml:space="preserve">
+    <value>पोलिश ज़्लॉटी (PLN)</value>
+  </data>
+  <data name="Currency_ZAR" xml:space="preserve">
+    <value>दक्षिण अफ़्रीकी रैंड (ZAR)</value>
+  </data>
+  <data name="Currency_MXN" xml:space="preserve">
+    <value>मैक्सिकन पेसो (MXN)</value>
+  </data>
+  <data name="Currency_INR" xml:space="preserve">
+    <value>भारतीय रुपया (INR)</value>
+  </data>
+  <data name="Currency_BRL" xml:space="preserve">
+    <value>ब्राज़ीलियन रियल (BRL)</value>
+  </data>
+  <data name="Currency_KRW" xml:space="preserve">
+    <value>दक्षिण कोरियाई वॉन (KRW)</value>
+  </data>
+</root>

@@ -1,0 +1,501 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Action_Open" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Action_Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Action_Search" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="Action_ViewDetails" xml:space="preserve">
+    <value>View details</value>
+  </data>
+  <data name="Extension_DisplayName" xml:space="preserve">
+    <value>Markets Extension for Command Palette</value>
+  </data>
+  <data name="Command_Markets" xml:space="preserve">
+    <value>Markets</value>
+  </data>
+  <data name="Command_MarketsPortfolio" xml:space="preserve">
+    <value>Markets Portfolio</value>
+  </data>
+  <data name="Page_Markets_Title" xml:space="preserve">
+    <value>Markets</value>
+  </data>
+  <data name="Page_Search_Title" xml:space="preserve">
+    <value>Markets Search</value>
+  </data>
+  <data name="Page_Watchlist_Title" xml:space="preserve">
+    <value>Markets Watchlist</value>
+  </data>
+  <data name="Page_Favorites_Title" xml:space="preserve">
+    <value>Markets Favorites</value>
+  </data>
+  <data name="Page_Portfolio_Title" xml:space="preserve">
+    <value>Markets Portfolio</value>
+  </data>
+  <data name="Page_DataSources_Title" xml:space="preserve">
+    <value>Data Sources</value>
+  </data>
+  <data name="Hub_Placeholder" xml:space="preserve">
+    <value>Search, Watchlist, Favorites...</value>
+  </data>
+  <data name="Nav_Search_Title" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="Nav_Search_Subtitle" xml:space="preserve">
+    <value>Look up a stock, crypto, or currency</value>
+  </data>
+  <data name="Nav_Watchlist_Title" xml:space="preserve">
+    <value>Watchlist</value>
+  </data>
+  <data name="Nav_Watchlist_Subtitle" xml:space="preserve">
+    <value>Instruments you track</value>
+  </data>
+  <data name="Nav_Favorites_Title" xml:space="preserve">
+    <value>Favorites</value>
+  </data>
+  <data name="Nav_Favorites_Subtitle" xml:space="preserve">
+    <value>Starred instruments, shown on the dock</value>
+  </data>
+  <data name="Nav_Portfolio_Title" xml:space="preserve">
+    <value>Portfolio</value>
+  </data>
+  <data name="Nav_DataSources_Title" xml:space="preserve">
+    <value>Data Sources</value>
+  </data>
+  <data name="Nav_Settings_Title" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Search_Placeholder" xml:space="preserve">
+    <value>Search by symbol or name, then Enter</value>
+  </data>
+  <data name="Watchlist_Placeholder" xml:space="preserve">
+    <value>Filter watchlist...</value>
+  </data>
+  <data name="Favorites_Placeholder" xml:space="preserve">
+    <value>Filter favorites...</value>
+  </data>
+  <data name="Portfolio_Placeholder" xml:space="preserve">
+    <value>Filter holdings...</value>
+  </data>
+  <data name="Search_Action_Title" xml:space="preserve">
+    <value>Search markets for "{0}"</value>
+  </data>
+  <data name="Search_Action_Subtitle" xml:space="preserve">
+    <value>Enter to search</value>
+  </data>
+  <data name="Search_NoMatches" xml:space="preserve">
+    <value>No matches for "{0}"</value>
+  </data>
+  <data name="Search_ResultsSection" xml:space="preserve">
+    <value>Search results</value>
+  </data>
+  <data name="Membership_WatchlistFavorite" xml:space="preserve">
+    <value>On watchlist · ★ Favorite · Enter for details</value>
+  </data>
+  <data name="Membership_Watchlist" xml:space="preserve">
+    <value>On watchlist · Enter for details</value>
+  </data>
+  <data name="Membership_Favorite" xml:space="preserve">
+    <value>★ Favorite · Enter for details</value>
+  </data>
+  <data name="Membership_None" xml:space="preserve">
+    <value>Enter for details</value>
+  </data>
+  <data name="Section_Stocks" xml:space="preserve">
+    <value>Stocks</value>
+  </data>
+  <data name="Section_Crypto" xml:space="preserve">
+    <value>Crypto</value>
+  </data>
+  <data name="Section_Currency" xml:space="preserve">
+    <value>Currency</value>
+  </data>
+  <data name="Section_Other" xml:space="preserve">
+    <value>Other</value>
+  </data>
+  <data name="Watchlist_Empty_Title" xml:space="preserve">
+    <value>Your watchlist is empty</value>
+  </data>
+  <data name="Watchlist_Empty_Subtitle" xml:space="preserve">
+    <value>Open an instrument and add it from its detail page</value>
+  </data>
+  <data name="Favorites_Empty_Title" xml:space="preserve">
+    <value>No favorites yet</value>
+  </data>
+  <data name="Favorites_Empty_Subtitle" xml:space="preserve">
+    <value>Open an instrument and star it from its detail page</value>
+  </data>
+  <data name="Portfolio_Empty_Title" xml:space="preserve">
+    <value>No holdings yet</value>
+  </data>
+  <data name="Portfolio_Empty_Subtitle" xml:space="preserve">
+    <value>Add holdings from an instrument's detail page</value>
+  </data>
+  <data name="Status_Demo_Title" xml:space="preserve">
+    <value>Demo mode — showing sample data</value>
+  </data>
+  <data name="Status_Demo_Subtitle" xml:space="preserve">
+    <value>Simulated prices. Enter to turn off in Settings.</value>
+  </data>
+  <data name="Status_Demo_Tag" xml:space="preserve">
+    <value>Demo mode</value>
+  </data>
+  <data name="Status_Demo_Tooltip" xml:space="preserve">
+    <value>Showing sample data, not live prices</value>
+  </data>
+  <data name="Status_NoKey_Title" xml:space="preserve">
+    <value>No API key set</value>
+  </data>
+  <data name="Status_NoKey_Subtitle" xml:space="preserve">
+    <value>Enter to add one in Settings.</value>
+  </data>
+  <data name="Status_NoKey_Tag" xml:space="preserve">
+    <value>Action required</value>
+  </data>
+  <data name="Status_NoKey_Tooltip" xml:space="preserve">
+    <value>No API key set — functionality is limited</value>
+  </data>
+  <data name="RateLimit_Title" xml:space="preserve">
+    <value>Rate-limited — showing last known prices</value>
+  </data>
+  <data name="RateLimit_Subtitle" xml:space="preserve">
+    <value>Will refresh automatically once the limit clears.</value>
+  </data>
+  <data name="RateLimit_Tag" xml:space="preserve">
+    <value>Rate-limited</value>
+  </data>
+  <data name="RateLimit_Tooltip" xml:space="preserve">
+    <value>Requests are being throttled — prices may be stale</value>
+  </data>
+  <data name="Attribution_Title" xml:space="preserve">
+    <value>Logos provided by Elbstream</value>
+  </data>
+  <data name="Attribution_Subtitle" xml:space="preserve">
+    <value>Logo images via elbstream.com</value>
+  </data>
+  <data name="Attribution_OpenName" xml:space="preserve">
+    <value>Open Elbstream</value>
+  </data>
+  <data name="Cmd_AddToWatchlist" xml:space="preserve">
+    <value>Add to Watchlist</value>
+  </data>
+  <data name="Cmd_RemoveFromWatchlist" xml:space="preserve">
+    <value>Remove from Watchlist</value>
+  </data>
+  <data name="Cmd_AddToFavorites" xml:space="preserve">
+    <value>Add to Favorites</value>
+  </data>
+  <data name="Cmd_RemoveFromFavorites" xml:space="preserve">
+    <value>Remove from Favorites</value>
+  </data>
+  <data name="Cmd_RemoveFromPortfolio" xml:space="preserve">
+    <value>Remove from Portfolio</value>
+  </data>
+  <data name="Toast_AddedToWatchlist" xml:space="preserve">
+    <value>Added {0} to watchlist</value>
+  </data>
+  <data name="Toast_RemovedFromWatchlist" xml:space="preserve">
+    <value>Removed {0} from watchlist</value>
+  </data>
+  <data name="Toast_AddedToFavorites" xml:space="preserve">
+    <value>Added {0} to favorites</value>
+  </data>
+  <data name="Toast_RemovedFromFavorites" xml:space="preserve">
+    <value>Removed {0} from favorites</value>
+  </data>
+  <data name="Toast_RemovedFromPortfolio" xml:space="preserve">
+    <value>Removed {0} from portfolio</value>
+  </data>
+  <data name="Toast_OpenUrlFailed" xml:space="preserve">
+    <value>Couldn't open {0}: {1}</value>
+  </data>
+  <data name="Chart_Loading" xml:space="preserve">
+    <value>Loading {0} chart…</value>
+  </data>
+  <data name="Chart_NoData" xml:space="preserve">
+    <value>No chart data for this range.</value>
+  </data>
+  <data name="SetQty_Title_Edit" xml:space="preserve">
+    <value>Edit {0} holding</value>
+  </data>
+  <data name="SetQty_Title_Add" xml:space="preserve">
+    <value>Add {0} to portfolio</value>
+  </data>
+  <data name="SetQty_Name_Edit" xml:space="preserve">
+    <value>Edit holding</value>
+  </data>
+  <data name="SetQty_Name_Add" xml:space="preserve">
+    <value>Add to Portfolio</value>
+  </data>
+  <data name="SetQty_Toast_Set" xml:space="preserve">
+    <value>Set {0} to {1}{2}</value>
+  </data>
+  <data name="SetQty_BasisNote" xml:space="preserve">
+    <value> at {0}/unit</value>
+  </data>
+  <data name="SetQty_Error_Number" xml:space="preserve">
+    <value>Enter a number greater than 0.</value>
+  </data>
+  <data name="SetQty_Error_Positive" xml:space="preserve">
+    <value>Quantity must be greater than 0. To remove a holding, use Remove from Portfolio.</value>
+  </data>
+  <data name="SetQty_Card_Quantity" xml:space="preserve">
+    <value>Quantity held</value>
+  </data>
+  <data name="SetQty_Card_QuantityError" xml:space="preserve">
+    <value>Enter a quantity greater than 0</value>
+  </data>
+  <data name="SetQty_Card_CostBasis" xml:space="preserve">
+    <value>Average cost per unit (optional)</value>
+  </data>
+  <data name="SetQty_Card_Help" xml:space="preserve">
+    <value>Average price you paid, in the instrument's currency. Leave 0 if unknown.</value>
+  </data>
+  <data name="SetQty_Card_Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Portfolio_TotalsRow_Title" xml:space="preserve">
+    <value>Portfolio {0}</value>
+  </data>
+  <data name="Portfolio_Row_TotalReturnPrefix" xml:space="preserve">
+    <value>Total {0}</value>
+  </data>
+  <data name="Ui_Portfolio_DailyChange" xml:space="preserve">
+    <value>{0} ({1}%) today</value>
+  </data>
+  <data name="Ui_Portfolio_TotalReturnNote" xml:space="preserve">
+    <value> · Total {0} ({1}%)</value>
+  </data>
+  <data name="Ui_Portfolio_Unconverted_One" xml:space="preserve">
+    <value> · 1 holding not converted</value>
+  </data>
+  <data name="Ui_Portfolio_Unconverted_Many" xml:space="preserve">
+    <value> · {0} holdings not converted</value>
+  </data>
+  <data name="Ui_Position_Unit_Shares" xml:space="preserve">
+    <value>sh</value>
+  </data>
+  <data name="Ui_Position_Unit_Units" xml:space="preserve">
+    <value>units</value>
+  </data>
+  <data name="Settings_TwelveData_Label" xml:space="preserve">
+    <value>Twelve Data API key</value>
+  </data>
+  <data name="Settings_TwelveData_Desc" xml:space="preserve">
+    <value>Twelve Data API key. Used first when set.</value>
+  </data>
+  <data name="Settings_Finnhub_Label" xml:space="preserve">
+    <value>Finnhub API key</value>
+  </data>
+  <data name="Settings_Finnhub_Desc" xml:space="preserve">
+    <value>Finnhub API key.</value>
+  </data>
+  <data name="Settings_ApiKey_Placeholder" xml:space="preserve">
+    <value>Paste your API key</value>
+  </data>
+  <data name="Settings_Refresh_Label" xml:space="preserve">
+    <value>Price refresh interval (minutes)</value>
+  </data>
+  <data name="Settings_Refresh_Desc" xml:space="preserve">
+    <value>Price refresh interval in minutes (0 = off).</value>
+  </data>
+  <data name="Settings_RateLimit_Label" xml:space="preserve">
+    <value>Show rate-limit warnings</value>
+  </data>
+  <data name="Settings_RateLimit_Desc" xml:space="preserve">
+    <value>Show a banner when prices are stale from provider rate-limiting.</value>
+  </data>
+  <data name="Settings_Demo_Label" xml:space="preserve">
+    <value>Demo mode</value>
+  </data>
+  <data name="Settings_Demo_Desc" xml:space="preserve">
+    <value>Show built-in sample data instead of live prices. Ideal for trying out the extension.</value>
+  </data>
+  <data name="Settings_PortfolioCurrency_Label" xml:space="preserve">
+    <value>Portfolio currency</value>
+  </data>
+  <data name="Settings_PortfolioCurrency_Desc" xml:space="preserve">
+    <value>Currency for portfolio totals. Other holdings are converted into it.</value>
+  </data>
+  <data name="Currency_USD" xml:space="preserve">
+    <value>US Dollar (USD)</value>
+  </data>
+  <data name="Currency_EUR" xml:space="preserve">
+    <value>Euro (EUR)</value>
+  </data>
+  <data name="Currency_GBP" xml:space="preserve">
+    <value>British Pound (GBP)</value>
+  </data>
+  <data name="Currency_JPY" xml:space="preserve">
+    <value>Japanese Yen (JPY)</value>
+  </data>
+  <data name="Currency_CHF" xml:space="preserve">
+    <value>Swiss Franc (CHF)</value>
+  </data>
+  <data name="Currency_AUD" xml:space="preserve">
+    <value>Australian Dollar (AUD)</value>
+  </data>
+  <data name="Currency_CAD" xml:space="preserve">
+    <value>Canadian Dollar (CAD)</value>
+  </data>
+  <data name="Currency_NZD" xml:space="preserve">
+    <value>New Zealand Dollar (NZD)</value>
+  </data>
+  <data name="Currency_CNY" xml:space="preserve">
+    <value>Chinese Yuan (CNY)</value>
+  </data>
+  <data name="Currency_HKD" xml:space="preserve">
+    <value>Hong Kong Dollar (HKD)</value>
+  </data>
+  <data name="Currency_SGD" xml:space="preserve">
+    <value>Singapore Dollar (SGD)</value>
+  </data>
+  <data name="Currency_SEK" xml:space="preserve">
+    <value>Swedish Krona (SEK)</value>
+  </data>
+  <data name="Currency_NOK" xml:space="preserve">
+    <value>Norwegian Krone (NOK)</value>
+  </data>
+  <data name="Currency_DKK" xml:space="preserve">
+    <value>Danish Krone (DKK)</value>
+  </data>
+  <data name="Currency_PLN" xml:space="preserve">
+    <value>Polish Złoty (PLN)</value>
+  </data>
+  <data name="Currency_ZAR" xml:space="preserve">
+    <value>South African Rand (ZAR)</value>
+  </data>
+  <data name="Currency_MXN" xml:space="preserve">
+    <value>Mexican Peso (MXN)</value>
+  </data>
+  <data name="Currency_INR" xml:space="preserve">
+    <value>Indian Rupee (INR)</value>
+  </data>
+  <data name="Currency_BRL" xml:space="preserve">
+    <value>Brazilian Real (BRL)</value>
+  </data>
+  <data name="Currency_KRW" xml:space="preserve">
+    <value>South Korean Won (KRW)</value>
+  </data>
+</root>

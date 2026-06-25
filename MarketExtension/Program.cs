@@ -1,5 +1,4 @@
 using Microsoft.CommandPalette.Extensions;
-using Sentry;
 using Shmuelie.WinRTServer;
 using Shmuelie.WinRTServer.CsWinRT;
 using System;
@@ -16,45 +15,36 @@ public class Program
     [MTAThread]
     public static void Main(string[] args)
     {
-        // Optional crash/usage telemetry. Leave the DSN empty to disable Sentry, or set
-        // your own DSN (do NOT reuse another project's DSN). Remove this block entirely
-        // if you don't want Sentry.
-        using var _ = SentrySdk.Init(options =>
-        {
-            options.Dsn = ""; // <-- your Sentry DSN here (empty = disabled)
-            options.AutoSessionTracking = true;
-        });
-
-        Log.Info("MarketExtension starting");
+        Log.Info("Startup", "MarketExtension starting");
 
         if (args.Length > 0 && args[0] == "-RegisterProcessAsComServer")
         {
-            Log.Info("RegisterProcessAsComServer mode detected.");
+            Log.Info("ComServer", "RegisterProcessAsComServer mode detected");
             try
             {
                 global::Shmuelie.WinRTServer.ComServer server = new();
                 ManualResetEvent extensionDisposedEvent = new(false);
                 MarketExtension extensionInstance = new(extensionDisposedEvent);
                 server.RegisterClass<MarketExtension, IExtension>(() => extensionInstance);
-                Log.Info("COM server registered. Starting...");
+                Log.Info("ComServer", "COM server registered, starting...");
                 server.Start();
-                Log.Info("COM server started. Waiting for disposal signal.");
+                Log.Info("ComServer", "COM server started, waiting for disposal signal");
                 extensionDisposedEvent.WaitOne();
-                Log.Info("Disposal signal received. Stopping server.");
+                Log.Info("ComServer", "Disposal signal received, stopping server");
                 server.Stop();
                 server.UnsafeDispose();
             }
             catch (Exception ex)
             {
-                Log.Error("COM server failed", ex);
+                Log.Error("ComServer", "COM server failed", ex);
             }
         }
         else
         {
-            MessageBox(
+            _ = MessageBox(
                 IntPtr.Zero,
-                "Market Extension is a background extension.\n\nTo use it, open PowerToys Command Palette and search for \"Market\".",
-                "Market Extension",
+                "Markets Extension for Command Palette is a background extension.\n\nTo use it, open PowerToys Command Palette and search for \"Markets\".",
+                "Markets Extension for Command Palette",
                 0x40 /* MB_ICONINFORMATION */);
         }
     }

@@ -1,14 +1,40 @@
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace MarketExtension;
 
-// The single seam between the UI and the data source. Today MockMarketDataProvider returns
-// static seed data; swapping in a real market-data API later means replacing the
-// implementation here and nowhere else.
-//
-// Kept synchronous to match the existing load convention (the page calls this inside
-// Task.Run, the same way the reference AdbExtensionPage wraps AdbHelper.GetInstalledPackages).
+// One market-data source (Finnhub, a future forex source, the offline mock, ...). Each provider
+// declares which asset classes it can serve and maps its own Api* response into provider-agnostic
+// DomainQuotes. MarketRepository coordinates one or more of these; the UI depends on the
+// repository, not on a provider directly.
 internal interface IMarketDataProvider
 {
-    IReadOnlyList<Quote> GetQuotes();
+    // Which asset classes this source can price — used by MarketRepository to route instruments.
+    bool Supports(AssetCategory category);
+
+    // When true, this provider is the SOLE active source: MarketRepository routes EVERY operation —
+    // quotes, candles, AND the search fan-out — to exclusive providers only and ignores the rest. This is
+    // how a provider takes precedence everywhere, including search (which Supports() can't gate, since the
+    // repository fans search out to all providers). MockMarketDataProvider sets this from the Demo-mode
+    // setting so demo data wins across the board. Default false → normal first-match-by-Supports routing; a
+    // default member so existing providers opt out for free.
+    bool IsExclusive => false;
+
+    Task<IReadOnlyList<DomainQuote>> GetQuotesAsync(
+        IReadOnlyList<DomainInstrument> instruments, CancellationToken ct = default);
+
+    // Look up instruments by free-text query (symbol or name). Returns identity only — no prices,
+    // so a search costs one call regardless of how many matches come back. A provider that can't
+    // search returns an empty list. MarketRepository fans out and merges across providers.
+    Task<IReadOnlyList<DomainInstrument>> SearchAsync(string query, CancellationToken ct = default);
+
+    // Historical price candles for one instrument over a ChartRange (backs the detail-page chart).
+    // Provider-agnostic in and out: the provider translates ChartRange.Interval into its own
+    // resolution token and ChartRange.Lookback into a from/to window, and maps its Api* candle DTO
+    // into a DomainCandleSeries. A provider that can't serve candles keeps this default (an invalid,
+    // empty series). MarketRepository routes by asset class, exactly like GetQuotesAsync.
+    Task<DomainCandleSeries> GetCandlesAsync(
+        DomainInstrument instrument, ChartRange range, CancellationToken ct = default)
+        => Task.FromResult(DomainCandleSeries.Invalid(instrument.Symbol, range));
 }

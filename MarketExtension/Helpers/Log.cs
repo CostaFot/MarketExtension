@@ -1,37 +1,29 @@
 using System;
 using System.Diagnostics;
-using System.IO;
 
 namespace MarketExtension;
 
+// Lightweight tagged logger.
+//
+// All three levels write to the Debug stream (OutputDebugString) — watch them live in the VS
+// Output window or Sysinternals DebugView. They are all marked [Conditional("DEBUG")], so in a
+// Release build the calls (and their argument evaluation) are compiled away entirely: a shipped
+// MSIX emits nothing here and has NO telemetry channel — no overhead, and nothing leaves the
+// machine. Format: "[time] [LEVEL] [Tag] message". The <tag> is a component name (e.g. "Finnhub",
+// "Repository"). NEVER pass secrets (API tokens) into a message.
 internal static class Log
 {
-    private static readonly string _logPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "MarketExtension", "logs", $"marketextension-{DateTime.Now:yyyy-MM-dd}.log");
+    [Conditional("DEBUG")]
+    public static void Info(string tag, string message) => Write("INFO", tag, message);
 
-    static Log()
-    {
-        try { Directory.CreateDirectory(Path.GetDirectoryName(_logPath)!); }
-        catch { /* if we can't create the log dir, file writes will just fail silently */ }
-    }
+    [Conditional("DEBUG")]
+    public static void Warn(string tag, string message) => Write("WARN", tag, message);
 
-    public static void Info(string message) => Write("INFO", message, writeToFile: false);
+    [Conditional("DEBUG")]
+    public static void Error(string tag, string message, Exception? ex = null) =>
+        Write("ERROR", tag, ex is null ? message : $"{message} — {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
 
-    public static void Error(string message, Exception? ex = null)
-    {
-        var text = ex is null ? message : $"{message} — {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}";
-        Write("ERROR", text, writeToFile: true);
-    }
-
-    private static void Write(string level, string message, bool writeToFile)
-    {
-        var line = $"[{DateTime.Now:HH:mm:ss.fff}] [{level}] {message}";
-        Trace.WriteLine(line);
-        if (writeToFile)
-        {
-            try { File.AppendAllText(_logPath, line + Environment.NewLine); }
-            catch { /* don't crash the app if logging fails */ }
-        }
-    }
+    [Conditional("DEBUG")]
+    private static void Write(string level, string tag, string message) =>
+        Debug.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [{level}] [{tag}] {message}");
 }

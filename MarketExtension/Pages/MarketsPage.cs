@@ -1,131 +1,125 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 using Windows.Foundation;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
-// Top-level page: browse market instruments and star favorites.
-//
-// Structure mirrors reference/pages/AdbExtensionPage.cs — DynamicListPage with the
-// INotifyItemsChanged on-load refresh hook (see CLAUDE.md), an async Task.Run load, and a
-// trailing Refresh item. Data comes from IMarketDataProvider; today that is the mock, later
-// a real API. Favorites are pinned into their own section at the top.
-internal sealed partial class MarketsPage : DynamicListPage, INotifyItemsChanged
+// The single top-level "Markets" command: a hub that funnels into the three market screens
+// (Search / Watchlist / Favorites). Replaces the old three separate top-level commands, so the
+// Command Palette root now carries one "Markets" entry instead of polluting it with three. Each row
+// navigates into the existing page unchanged ("everything is the same after that"). The sub-pages are
+// built once and reused, so their per-page price caches survive navigating in and out of the hub.
+internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
 {
-    // Injected so the palette page and the dock band share one data source (the seam where the
-    // real API implementation drops in later — see reference/dock-support.md).
-    private readonly IMarketDataProvider _provider;
-    private Quote[]? _quotes;
+    private const string SearchGlyph = "\uE721";    // Segoe MDL2 Search
+    private const string ListGlyph = "\uE8FD";      // Segoe MDL2 List
+    private const string StarFillGlyph = "\uE735";  // Segoe MDL2 FavoriteStarFill
+    private const string PortfolioGlyph = "\uE825"; // Segoe MDL2 Bank
+    private const string InfoGlyph = "\uE9F9";      // Segoe MDL2 ReportDocument
+    private const string SettingsGlyph = "\uE713";  // Segoe MDL2 Setting
 
+    private readonly SearchPage _searchPage;
+    private readonly WatchlistPage _watchlistPage;
+    private readonly FavoritesPage _favoritesPage;
+    private readonly PortfolioPage _portfolioPage;
+    private readonly DataSourcesPage _dataSourcesPage;
+    private readonly IContentPage _settingsPage;
+
+    // The hub is otherwise a static list, but the missing-key hint row must react when a key is
+    // added/cleared. Re-implement INotifyItemsChanged so we can subscribe to the key flow while visible
+    // (the add/remove accessors are CmdPal's de-facto Loaded/Unloaded hooks) and re-list on a flip.
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
+    private readonly List<IDisposable> _subscriptions = [];
 
     event TypedEventHandler<object, IItemsChangedEventArgs> INotifyItemsChanged.ItemsChanged
     {
-        add { _itemsChanged += value; RefreshQuotes(); } // fires every time the user navigates here
-        remove => _itemsChanged -= value;
+        add
+        {
+            _itemsChanged += value;
+            // replay:false \u2014 the framework's initial fetch already painted the rows (incl. the hint);
+            // we only need to re-list when the key presence actually flips.
+            _subscriptions.Add(MarketSettingsManager.Instance.HasAnyApiKey
+                .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
+            // Same for demo mode: re-list so the status row swaps to/from the blue "Demo mode" row at once.
+            _subscriptions.Add(MarketSettingsManager.Instance.DemoModeChanged
+                .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
+        }
+        remove
+        {
+            _itemsChanged -= value;
+            foreach (var subscription in _subscriptions)
+                subscription.Dispose();
+            _subscriptions.Clear();
+        }
     }
 
-    protected new void RaiseItemsChanged(int totalItems = -1)
+    private new void RaiseItemsChanged(int totalItems = -1)
         => _itemsChanged?.Invoke(this, new ItemsChangedEventArgs(totalItems));
 
-    public MarketsPage(IMarketDataProvider provider)
+    public MarketsPage(MarketRepository repository)
     {
-        _provider = provider;
-        Icon = new IconInfo("https://github.com/favicon.ico");
-        Title = "Markets";
-        Name = "Open";
-        PlaceholderText = "Search symbol or name...";
-    }
+        Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
+        Title = Resources.Page_Markets_Title;
+        Name = Resources.Action_Open;
+        PlaceholderText = Resources.Hub_Placeholder;
 
-    public override void UpdateSearchText(string oldSearch, string newSearch)
-        => RaiseItemsChanged(0);
+        _searchPage = new SearchPage(repository);
+        _watchlistPage = new WatchlistPage(repository);
+        _favoritesPage = new FavoritesPage(repository);
+        _portfolioPage = new PortfolioPage(repository);
+        _dataSourcesPage = new DataSourcesPage();
+
+        // The toolkit builds a navigable settings page straight from our settings (Finnhub API key +
+        // refresh interval) \u2014 the same form Command Palette shows in its own Settings UI.
+        _settingsPage = MarketSettingsManager.Instance.Settings.SettingsPage;
+    }
 
     public override IListItem[] GetItems()
     {
-        if (_quotes is null)
-            return [];
-
-        var source = string.IsNullOrEmpty(SearchText)
-            ? _quotes
-            : _quotes.Where(q =>
-                q.Symbol.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                q.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase)).ToArray();
-
-        if (source.Length == 0)
-            return [new ListItem(new NoOpCommand()) { Title = "No instruments match 😔" }];
-
-        var items = new List<IListItem>();
-
-        // Favorites first, in their own section (and not repeated in the category sections).
-        var favorites = source.Where(q => FavoritesStore.Instance.IsFavorite(q.Symbol)).ToArray();
-        foreach (var q in favorites)
-            items.Add(BuildItem(q, "★ Favorites"));
-
-        foreach (var category in new[] { AssetCategory.Stock, AssetCategory.Crypto, AssetCategory.Currency })
+        var items = new List<IListItem>
         {
-            var inCategory = source.Where(q => q.Category == category && !FavoritesStore.Instance.IsFavorite(q.Symbol));
-            foreach (var q in inCategory)
-                items.Add(BuildItem(q, SectionLabel(category)));
-        }
-
-        items.Add(new ListItem(new RefreshCommand(this)) { Title = "Refresh 🔄" });
-
-        return items.ToArray();
-    }
-
-    private ListItem BuildItem(Quote q, string section) =>
-        new(new ToggleFavoriteCommand(q.Symbol, () => RaiseItemsChanged(0)))
-        {
-            Title = $"{q.Symbol} · {q.Name}",
-            Subtitle = $"{q.FormatPrice()}   {q.FormatChange()}",
-            Section = section,
-            MoreCommands =
-            [
-                new CommandContextItem(new CopyTextCommand(q.FormatPrice())) { Title = "Copy price" },
-            ],
+            new ListItem(_searchPage)
+            {
+                Title = Resources.Nav_Search_Title,
+                Icon = new IconInfo(SearchGlyph),
+            },
+            new ListItem(_watchlistPage)
+            {
+                Title = Resources.Nav_Watchlist_Title,
+                Subtitle = Resources.Nav_Watchlist_Subtitle,
+                Icon = new IconInfo(ListGlyph),
+            },
+            new ListItem(_favoritesPage)
+            {
+                Title = Resources.Nav_Favorites_Title,
+                Subtitle = Resources.Nav_Favorites_Subtitle,
+                Icon = new IconInfo(StarFillGlyph),
+            },
+            new ListItem(_portfolioPage)
+            {
+                Title = Resources.Nav_Portfolio_Title,
+                Icon = new IconInfo(PortfolioGlyph),
+            },
+            new ListItem(_dataSourcesPage)
+            {
+                Title = Resources.Nav_DataSources_Title,
+                Icon = new IconInfo(InfoGlyph),
+            },
+            new ListItem(_settingsPage)
+            {
+                Title = Resources.Nav_Settings_Title,
+                Icon = new IconInfo(SettingsGlyph),
+            },
         };
 
-    private static string SectionLabel(AssetCategory category) => category switch
-    {
-        AssetCategory.Stock => "Stocks",
-        AssetCategory.Crypto => "Crypto",
-        AssetCategory.Currency => "Currency",
-        _ => "Other",
-    };
+        // Surface the data state up front on the hub: no key → most of the app shows nothing; demo mode →
+        // the data is sample/simulated.
+        if (ApiKeyHint.StatusRow() is { } hint)
+            items.Add(hint);
 
-    internal void RefreshQuotes()
-    {
-        _quotes = null;
-        IsLoading = true;
-        RaiseItemsChanged(0);
-        Task.Run(LoadQuotes);
-    }
-
-    private void LoadQuotes()
-    {
-        _quotes = [.. _provider.GetQuotes()];
-        IsLoading = false;
-        RaiseItemsChanged(0);
-    }
-
-    private sealed partial class RefreshCommand : InvokableCommand
-    {
-        private readonly MarketsPage _page;
-
-        public RefreshCommand(MarketsPage page)
-        {
-            _page = page;
-            Name = "Refresh";
-        }
-
-        public override ICommandResult Invoke()
-        {
-            _page.RefreshQuotes();
-            return CommandResult.KeepOpen();
-        }
+        return [.. items];
     }
 }

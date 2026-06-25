@@ -10,15 +10,38 @@
     <SupportedOSPlatformVersion>10.0.26100.0</SupportedOSPlatformVersion>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
 
-<AppxPackageIdentityName>CostaFotiadis.MarketExtension</AppxPackageIdentityName>
+<AppxPackageIdentityName>CostaFotiadis.MarketsExtensionforCommandPalette</AppxPackageIdentityName>
     <AppxPackagePublisher>CN=3D57AA92-97A9-42D2-8CB0-4207D9145514</AppxPackagePublisher>
-    <AppxPackageVersion>0.0.1.0</AppxPackageVersion>
+    <AppxPackageVersion>1.0.0.0</AppxPackageVersion>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
+
+    <!-- The neutral (built-in) resources in Properties/Resources.resx are English, so mark the main
+         assembly en-US: ResourceManager then serves English directly without probing for an en
+         satellite. Ship another language by adding a Resources.<culture>.resx (satellite); see Helpers/Strings.cs. -->
+    <NeutralLanguage>en-US</NeutralLanguage>
   </PropertyGroup>
 
   <ItemGroup>
     <Content Include="Assets\**\*.png" />
+  </ItemGroup>
+
+  <!-- Strongly-typed string resources. Properties\Resources.resx is the neutral (English) string
+       table; Visual Studio's PublicResXFileCodeGenerator regenerates Properties\Resources.Designer.cs
+       (a public `Resources` class with one property per key) on edit. This is exactly how PowerToys'
+       own CmdPal extensions wire their strings. The Designer file is checked in so `dotnet build` (which
+       does NOT run the design-time generator) still compiles — regenerate it from VS after editing the
+       resx, or via the StronglyTypedResourceBuilder tool. -->
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <DependentUpon>Resources.resx</DependentUpon>
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+    </Compile>
   </ItemGroup>
 
   <Target Name="PrepareAssets" BeforeTargets="BeforeBuild">
@@ -55,9 +78,9 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CommandPalette.Extensions" />
-    <PackageReference Include="Sentry" />
     <PackageReference Include="Microsoft.Windows.CsWinRT" />
     <PackageReference Include="Shmuelie.WinRTServer" />
+    <PackageReference Include="System.Reactive" />
 
     <!-- Needed to enable building an MSIX package -->
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools.MSIX">
@@ -75,35 +98,26 @@
     <HasPackageAndPublishMenu>true</HasPackageAndPublishMenu>
   </PropertyGroup>
 
+  <!--
+    This extension intentionally does NOT trim or Native-AOT compile. It ships as a self-contained,
+    single-file, JIT package (the same shape AdbExtension publishes to the Store), and enabling
+    trimming/AOT is a deliberate non-goal. The trim/AOT analyzers + the CsWinRT AOT optimizer were
+    therefore removed: for a build that never trims, their warnings (IL2026/IL3050/CsWinRT####) are
+    pure noise, and turning them off lets us freely use reflection-based code (e.g. System.Reactive,
+    reflection-based JsonSerializer) with a clean build. (To revive AOT readiness, restore
+    <IsAotCompatible>true</IsAotCompatible> + the CsWinRT optimizer lines from git history.)
+  -->
   <PropertyGroup>
     <PublishSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</PublishSingleFile>
-    <IsAotCompatible>true</IsAotCompatible>
-
-    <CsWinRTAotOptimizerEnabled>true</CsWinRTAotOptimizerEnabled>
-    <CsWinRTAotWarningLevel>2</CsWinRTAotWarningLevel>
-    <!-- Suppress DynamicallyAccessedMemberTypes.PublicParameterlessConstructor in fallback code path of Windows SDK projection -->
-    <WarningsNotAsErrors>IL2081;$(WarningsNotAsErrors)</WarningsNotAsErrors>
-
-    <!-- When publishing trimmed, make sure to treat trimming warnings as build errors -->
-    <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
-
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
-    <!-- In Debug builds, trimming is disabled by default, but all the trim & 
-         AOT warnings are enabled. This gives debug builds a tighter inner loop,
-         while at least warning about future trim violations -->
     <PublishTrimmed>false</PublishTrimmed>
-    
-    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
-    <EnableAotAnalyzer>true</EnableAotAnalyzer>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'!='Debug'">
-    <PublishTrimmed>false</PublishTrimmed>
     <SelfContained>true</SelfContained>
   </PropertyGroup>
 
+  <!-- The Finnhub API key is no longer baked in at build time; it is provided exclusively at
+       runtime via the extension's settings (Settings/MarketSettingsManager.cs). The old
+       secrets.props import + GenerateSecrets BuildConfig-style target were removed. -->
 
 </Project>
