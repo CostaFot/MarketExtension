@@ -37,9 +37,11 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
             new CommandItem(new MarketsPage(_repository)) { Title = "Markets" },
         ];
 
-        // Dock band: a ticker strip of up to 3 favorited instruments. Pinned from the Dock.
+        // Dock bands, each pinnable from the Dock: a ticker strip of favorited instruments, and a
+        // one-line portfolio total (value + daily P&L in the preferred currency).
         _dockBands = [
             new CommandItem(new FavoritesDockPage(_repository)) { Title = "Markets" },
+            new CommandItem(new PortfolioDockPage(_repository)) { Title = "Markets Portfolio" },
         ];
     }
 
