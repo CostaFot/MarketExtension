@@ -277,8 +277,8 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
     entirely for users who'd rather not see it. It's deliberately
     **global, not per-symbol** (a free-tier limit is key-wide). The **dock band contributes to the signal**
     (its fetches go through the same providers) but doesn't render the banner — too cramped, and a
-    pseudo-button warning would look out of place. Build clean (0 warnings). ⚠️ Verified to **compile**;
-    a live smoke test (exhaust a free key, confirm the banner appears then clears on recovery) is worth doing.
+    pseudo-button warning would look out of place. Build clean (0 warnings). ✅ **Live-verified**: exhausted
+    a free key → the amber banner appeared, then cleared on recovery.
 - **Done (this round): Twelve Data provider — now the primary source.** Added
   `Data/TwelveData/TwelveDataMarketDataProvider.cs` behind the existing `IMarketDataProvider` seam with
   **zero UI/repository changes** — one API covering **stocks + crypto + forex**, registered FIRST and
@@ -350,8 +350,8 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   full priced set. Per the user's choices this pass: **daily P&L only** (cost basis stored but no UI),
   **no dock band that pass** (the Portfolio dock band shipped later — see its bullet above), and **all
   add/edit/remove on the symbol detail page** (rows just open it, like every
-  other list). Build clean (0 warnings). ⚠️ Verified to **compile**; a live smoke test (add a holding, see
-  the total roll up, edit/remove, confirm persistence) is worth doing. See "Portfolio screen (DONE…)".
+  other list). Build clean (0 warnings). ✅ **Live-verified**: added a holding, the total rolled up;
+  edit/remove and persistence work. See "Portfolio screen (DONE…)".
 - **Deferred:** richer **per-symbol** error UX — a typed `QuoteStatus` (Ok/Invalid/RateLimited/NoKey) on
   `DomainQuote` so each row could render its own state. Deliberately **not** built: the rate-limit signal
   shipped this round is global (one throttle flag for the whole key) because a free-tier limit is key-wide,
@@ -408,9 +408,9 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
     it unlocks: 429 **back-off** (`Retry`/`RetryWhen` + exponential delay), **debounced** search-as-you-type
     (`Throttle` — would let `SearchPage` drop its Enter-only rate-limit guard), and multi-provider **merge**
     in `MarketRepository` (`CombineLatest`/`Merge`). **Caveat:** Rx schedulers are mostly moot here (the
-    CmdPal host already marshals `RaiseItemsChanged`), so this bought **operators, not threading**. ⚠️
-    Verified to **compile** clean; a live smoke test of polling (open a priced page, watch prices refresh on
-    the interval; hide/reshow to confirm the loop restarts) is worth doing.
+    CmdPal host already marshals `RaiseItemsChanged`), so this bought **operators, not threading**. ✅
+    **Live-verified**: opened a priced page, prices refreshed on the interval; hide/reshow confirmed the
+    `Publish().RefCount()` loop tears down and restarts.
 
 ### Three-screen UX (done)
 
