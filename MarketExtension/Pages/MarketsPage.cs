@@ -13,15 +13,17 @@ namespace MarketExtension;
 // built once and reused, so their per-page price caches survive navigating in and out of the hub.
 internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
 {
-    private const string SearchGlyph = "\uE721";   // Segoe MDL2 Search
-    private const string ListGlyph = "\uE8FD";     // Segoe MDL2 List
-    private const string StarFillGlyph = "\uE735"; // Segoe MDL2 FavoriteStarFill
-    private const string InfoGlyph = "\uE946";     // Segoe MDL2 Info
-    private const string SettingsGlyph = "\uE713"; // Segoe MDL2 Setting
+    private const string SearchGlyph = "\uE721";    // Segoe MDL2 Search
+    private const string ListGlyph = "\uE8FD";      // Segoe MDL2 List
+    private const string StarFillGlyph = "\uE735";  // Segoe MDL2 FavoriteStarFill
+    private const string PortfolioGlyph = "\uE825"; // Segoe MDL2 Bank
+    private const string InfoGlyph = "\uE946";      // Segoe MDL2 Info
+    private const string SettingsGlyph = "\uE713";  // Segoe MDL2 Setting
 
     private readonly SearchPage _searchPage;
     private readonly WatchlistPage _watchlistPage;
     private readonly FavoritesPage _favoritesPage;
+    private readonly PortfolioPage _portfolioPage;
     private readonly DataSourcesPage _dataSourcesPage;
     private readonly IContentPage _settingsPage;
 
@@ -63,6 +65,7 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
         _searchPage = new SearchPage(repository);
         _watchlistPage = new WatchlistPage(repository);
         _favoritesPage = new FavoritesPage(repository);
+        _portfolioPage = new PortfolioPage();
         _dataSourcesPage = new DataSourcesPage();
 
         // The toolkit builds a navigable settings page straight from our settings (Finnhub API key +
@@ -91,6 +94,12 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
                 Title = "Favorites",
                 Subtitle = "Your starred instruments — shown on the dock",
                 Icon = new IconInfo(StarFillGlyph),
+            },
+            new ListItem(_portfolioPage)
+            {
+                Title = "Portfolio",
+                Subtitle = "Your holdings, total value, and daily P&L (coming soon)",
+                Icon = new IconInfo(PortfolioGlyph),
             },
             new ListItem(_dataSourcesPage)
             {

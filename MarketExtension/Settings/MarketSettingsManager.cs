@@ -56,6 +56,41 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
                       "requests (HTTP 429) so you know why prices may be stale. Turn off to hide it.",
     };
 
+    // The reporting currency for the (upcoming) Portfolio screen: the single currency its totals are shown
+    // in, so holdings priced in other currencies can be converted into it (conversion itself is future
+    // work — for now this just records the preference). The choice list mirrors the currencies the FX
+    // provider (Frankfurter/ECB) can convert between, which is also the set AssetIconResolver maps to
+    // flags. The first entry (USD) is the default — matching the app's current single-quote-currency
+    // assumption. ChoiceSetSetting renders a dropdown; its stored Value is the selected code (e.g. "USD").
+    private readonly ChoiceSetSetting _portfolioCurrency = new("portfolioCurrency",
+    [
+        new ChoiceSetSetting.Choice("US Dollar (USD)", "USD"),
+        new ChoiceSetSetting.Choice("Euro (EUR)", "EUR"),
+        new ChoiceSetSetting.Choice("British Pound (GBP)", "GBP"),
+        new ChoiceSetSetting.Choice("Japanese Yen (JPY)", "JPY"),
+        new ChoiceSetSetting.Choice("Swiss Franc (CHF)", "CHF"),
+        new ChoiceSetSetting.Choice("Australian Dollar (AUD)", "AUD"),
+        new ChoiceSetSetting.Choice("Canadian Dollar (CAD)", "CAD"),
+        new ChoiceSetSetting.Choice("New Zealand Dollar (NZD)", "NZD"),
+        new ChoiceSetSetting.Choice("Chinese Yuan (CNY)", "CNY"),
+        new ChoiceSetSetting.Choice("Hong Kong Dollar (HKD)", "HKD"),
+        new ChoiceSetSetting.Choice("Singapore Dollar (SGD)", "SGD"),
+        new ChoiceSetSetting.Choice("Swedish Krona (SEK)", "SEK"),
+        new ChoiceSetSetting.Choice("Norwegian Krone (NOK)", "NOK"),
+        new ChoiceSetSetting.Choice("Danish Krone (DKK)", "DKK"),
+        new ChoiceSetSetting.Choice("Polish Złoty (PLN)", "PLN"),
+        new ChoiceSetSetting.Choice("South African Rand (ZAR)", "ZAR"),
+        new ChoiceSetSetting.Choice("Mexican Peso (MXN)", "MXN"),
+        new ChoiceSetSetting.Choice("Indian Rupee (INR)", "INR"),
+        new ChoiceSetSetting.Choice("Brazilian Real (BRL)", "BRL"),
+        new ChoiceSetSetting.Choice("South Korean Won (KRW)", "KRW"),
+    ])
+    {
+        Label = "Portfolio currency",
+        Description = "The currency your portfolio totals are shown in. Holdings priced in other " +
+                      "currencies will be converted into it.",
+    };
+
     // Observable "is any pricing key configured" flag, driven by SettingsChanged (below). UI surfaces
     // (the missing-key hint) subscribe and re-render the instant the user adds/removes a key, instead of
     // re-querying on each GetItems. Distinct-until-changed means it emits only when the bool actually
@@ -101,6 +136,12 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     // so a toggle applies the next time a priced page re-renders (e.g. on navigating back to it).
     public bool ShowRateLimitErrors => _showRateLimitErrors.Value;
 
+    // The reporting currency the Portfolio screen rolls up into (ISO 4217 code, e.g. "USD"). Read
+    // pull-style so a change applies the next time the portfolio re-prices, no reload needed. Falls back
+    // to USD if somehow unset. Conversion of foreign-currency holdings into this is future work.
+    public string PortfolioCurrency =>
+        string.IsNullOrWhiteSpace(_portfolioCurrency.Value) ? "USD" : _portfolioCurrency.Value;
+
     private MarketSettingsManager()
     {
         FilePath = Path.Combine(Utilities.BaseSettingsPath("Microsoft.CmdPal"), "market.settings.json");
@@ -108,6 +149,7 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
         Settings.Add(_finnhubApiKey);
         Settings.Add(_refreshMinutes);
         Settings.Add(_showRateLimitErrors);
+        Settings.Add(_portfolioCurrency);
         LoadSettings();
         _hasAnyApiKey.Update(HasTwelveDataApiKey || HasFinnhubApiKey); // seed from persisted keys (no subscribers yet)
         Settings.SettingsChanged += (_, _) =>
