@@ -1,25 +1,27 @@
 # Market Extension
 
-A [PowerToys Command Palette](https://learn.microsoft.com/en-us/windows/powertoys/command-palette/overview) extension.
+A [PowerToys Command Palette](https://learn.microsoft.com/en-us/windows/powertoys/command-palette/overview) extension for live **stock, crypto, and currency** market data — with a watchlist, favorites, and a portfolio, right inside Command Palette.
 
-> Scaffolded from the **AdbExtension** template. Replace this README, the sample command/page,
-> and the assets in `MarketExtension/Assets/` with your own.
+## Features
+
+- Live quotes and price charts for stocks, crypto, and FX
+- Watchlist, favorites, and portfolio tracking (with multi-currency totals)
+- Dock bands for favorites and your portfolio
+- **Demo mode** to try it out offline with no API key
+- No telemetry — nothing leaves your machine
 
 ## Requirements
 
 - Windows 11
 - [PowerToys](https://github.com/microsoft/PowerToys) with Command Palette enabled
 
-## Development
+## Install
 
-```powershell
-dotnet build MarketExtension.sln
-```
+Download the latest `.msixbundle` from [Releases](https://github.com/CostaFot/MarketExtension/releases) and double-click it, then reload Command Palette.
 
-Then deploy the MSIX package and reload Command Palette to pick up changes.
+## API key
 
-- **Conventions, the Command Palette toolkit quick-reference, and the release process** are in [`CLAUDE.md`](CLAUDE.md).
-- **Worked examples** (real commands/pages from the AdbExtension this was derived from) live in [`reference/`](reference/) — not compiled; copy and adapt.
+Bring your own free [Twelve Data](https://twelvedata.com/) or [Finnhub](https://finnhub.io/) key and paste it into the extension's settings. Currency rates work with no key. No key at all? Turn on **Demo mode**.
 
 ## License
 
