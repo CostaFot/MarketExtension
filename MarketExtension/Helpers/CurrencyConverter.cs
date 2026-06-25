@@ -57,7 +57,15 @@ internal sealed class CurrencyConverter
             ? f / t
             : null;
 
-    private CurrencyConverter() { }
+    private CurrencyConverter()
+    {
+        // Demo mode swaps the rate source (live ECB fixings ↔ the static DemoUsdPerUnit table), so a flip
+        // invalidates every cached pair — drop them so the next PrimeAsync repopulates from the now-correct
+        // source. Without this, fresh entries (<1h TTL) from the old source would linger and PrimeAsync would
+        // skip them as "already fresh". replay:false — nothing is cached at construction anyway.
+        MarketSettingsManager.Instance.DemoModeChanged
+            .Subscribe(_ => _cache.Clear(), replayOnSubscribe: false);
+    }
 
     private readonly record struct CachedRate(decimal? Rate, long Tick);
 

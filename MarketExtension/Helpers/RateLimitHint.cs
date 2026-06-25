@@ -19,10 +19,16 @@ internal static class RateLimitHint
     private static OptionalColor CautionAmber => ColorHelpers.FromRgb(0xC8, 0x7C, 0x00);
 
     // The banner row, or null when we're not throttled (or the user hid it via the "Show rate-limit
-    // warnings" setting). Callers append it only when non-null:
+    // warnings" setting, or demo mode is on). Callers append it only when non-null:
     //
     //     if (RateLimitHint.Row() is { } banner) items.Add(banner);
+    //
+    // Demo mode makes no live requests, so throttling is meaningless there — and a signal set before demo
+    // was turned on would otherwise never clear (nothing calls ReportSuccess() offline). Guard on it here so
+    // the banner can never show while demoing, regardless of a stale signal. RateLimitSignal ALSO clears the
+    // flag when demo mode is enabled (so turning it back off doesn't flash the old banner).
     public static IListItem? Row() =>
+        !MarketSettingsManager.Instance.DemoMode &&
         RateLimitSignal.Instance.IsRateLimited.Value && MarketSettingsManager.Instance.ShowRateLimitErrors
             ? new ListItem(new NoOpCommand()) // informational only — Enter must not navigate (it's the first row)
             {

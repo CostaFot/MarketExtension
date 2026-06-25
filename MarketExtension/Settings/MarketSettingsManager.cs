@@ -60,8 +60,8 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     {
         Label = "Demo mode",
         Description = "Show built-in sample market data instead of live prices — no API key or internet " +
-                      "connection needed, ideal for trying out the extension. Applies on the next price " +
-                      "refresh (reopen a list to see it right away).",
+                      "connection needed, ideal for trying out the extension. Applies immediately across " +
+                      "the app.",
     };
 
     // The reporting currency for the (upcoming) Portfolio screen: the single currency its totals are shown
@@ -104,6 +104,14 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     // re-querying on each GetItems. Distinct-until-changed means it emits only when the bool actually
     // flips. The providers do NOT use this — they read the key values pull-style on each request.
     private readonly MutableStateFlow<bool> _hasAnyApiKey = new(false);
+
+    // Observable form of the Demo-mode toggle (below), driven by SettingsChanged. Unlike the other settings
+    // — read pull-style on the next refresh — flipping demo mode swaps the entire data SOURCE, so every
+    // cached price and FX rate the app is holding was produced by the OTHER source and is now wrong. Surfaces
+    // subscribe and reset the instant it flips: the priced pages drop their price cache (re-fetching if
+    // visible, else on next open), the dock bands re-price, and CurrencyConverter clears its rate cache.
+    // Distinct-until-changed → emits only when the toggle actually flips.
+    private readonly MutableStateFlow<bool> _demoModeFlow = new(false);
 
     // The key the Twelve Data provider should use — the user's setting, or empty when unset. Read as a
     // property (not cached) so a key change applies on the next request without a reload.
@@ -151,6 +159,11 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     // immediately when a list is reopened). Default off → ships live.
     public bool DemoMode => _demoMode.Value;
 
+    // Observable form of DemoMode: subscribe to reset cached data the instant the toggle flips (see the
+    // _demoModeFlow field note for what each surface does). Read .Value for a snapshot. Updated by the
+    // SettingsChanged handler in the ctor.
+    public StateFlow<bool> DemoModeChanged => _demoModeFlow;
+
     // The reporting currency the Portfolio screen rolls up into (ISO 4217 code, e.g. "USD"). Read
     // pull-style so a change applies the next time the portfolio re-prices, no reload needed. Falls back
     // to USD if somehow unset. Conversion of foreign-currency holdings into this is future work.
@@ -168,12 +181,16 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
         Settings.Add(_portfolioCurrency);
         LoadSettings();
         _hasAnyApiKey.Update(HasTwelveDataApiKey || HasFinnhubApiKey); // seed from persisted keys (no subscribers yet)
+        _demoModeFlow.Update(DemoMode); // seed from the persisted toggle (no subscribers yet)
         Settings.SettingsChanged += (_, _) =>
         {
             SaveSettings();
             // Publish the key-presence flag so the missing-key hint reacts immediately. Distinct-until-
             // changed swallows this unless a key was just added or cleared.
             _hasAnyApiKey.Update(HasTwelveDataApiKey || HasFinnhubApiKey);
+            // Publish the demo-mode flag so every surface resets the instant it flips (the cached prices +
+            // FX rates came from the other data source). Distinct-until-changed → only on a real flip.
+            _demoModeFlow.Update(DemoMode);
         };
     }
 }

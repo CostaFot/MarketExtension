@@ -17,7 +17,16 @@ internal sealed class RateLimitSignal
 
     private readonly MutableStateFlow<bool> _isRateLimited = new(false);
 
-    private RateLimitSignal() { }
+    private RateLimitSignal()
+    {
+        // In demo mode no live request is ever made, so a "throttled" signal is meaningless — and because
+        // nothing calls ReportSuccess() offline, a signal set before demo mode was switched on would
+        // otherwise linger. Clear it the moment demo mode turns on, so we start clean and stay clean while
+        // demoing; turning demo back off leaves it cleared, so the banner only returns on a fresh live 429.
+        // replay:false — only react to a flip, not the value at construction.
+        MarketSettingsManager.Instance.DemoModeChanged.Subscribe(
+            demo => { if (demo) ReportSuccess(); }, replayOnSubscribe: false);
+    }
 
     // Observable "are recent requests being throttled" flag. Read .Value for a snapshot, or Subscribe to
     // re-render when it flips (the priced pages do the latter to show/hide the banner reactively).

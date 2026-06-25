@@ -42,6 +42,9 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
             // we only need to re-list when the key presence actually flips.
             _subscriptions.Add(MarketSettingsManager.Instance.HasAnyApiKey
                 .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
+            // Same for demo mode: re-list so the status row swaps to/from the blue "Demo mode" row at once.
+            _subscriptions.Add(MarketSettingsManager.Instance.DemoModeChanged
+                .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
         }
         remove
         {

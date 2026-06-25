@@ -85,6 +85,29 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         Repository = repository;
         _instruments = instruments;
         Icon = new IconInfo("https://github.com/favicon.ico");
+        // Demo mode flips the data SOURCE, so every cached price is now wrong. Subscribe for the page's
+        // WHOLE life (not the visibility-scoped block above): these pages are long-lived singletons that
+        // reconcile against a surviving cache on reopen, so a HIDDEN page must drop its cache on a flip too —
+        // otherwise reopening it would repaint stale prices from the old source. replay:false so construction
+        // is a no-op (the cache is empty then anyway). Never disposed: the page lives for the whole process.
+        _ = MarketSettingsManager.Instance.DemoModeChanged
+            .Subscribe(_ => OnDataSourceChanged(), replayOnSubscribe: false);
+    }
+
+    // The data source changed (demo mode toggled): the cached prices were produced by the other source and
+    // are now wrong. Drop them and reset the freshness clock. If we're visible, re-fetch from the new source
+    // right away; if hidden, the cleared cache makes the next open do a full fetch (OnInstrumentsChanged
+    // finds everything "missing"), so the flip applies the instant the page is next seen.
+    private void OnDataSourceChanged()
+    {
+        lock (_cacheLock)
+        {
+            _priceCache.Clear();
+            _lastFullPriceTicks = 0;
+        }
+
+        if (_itemsChanged is not null) // visible (has subscribers) → reprice now from the new source
+            RefreshQuotes();
     }
 
     // Additional flows whose changes should merely re-render this page (no re-pricing). Default: none.

@@ -25,6 +25,7 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
     private IDisposable? _subscription;
     private IDisposable? _pollSubscription;
+    private IDisposable? _demoModeSubscription;
 
     event TypedEventHandler<object, IItemsChangedEventArgs> INotifyItemsChanged.ItemsChanged
     {
@@ -39,6 +40,12 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
             // pure event stream (no replay), so becoming visible doesn't double-fetch — the favorites
             // subscription above already paints.
             _pollSubscription = PollTicker.Subscribe(PollRefresh);
+            // Demo mode flips the data source — re-price from the new one at once if the band is open. A
+            // hidden band already re-fetches on its next open (the favorites-flow replay calls RefreshQuotes),
+            // so this only needs to cover a currently-visible/pinned band. replay:false — opening already
+            // paints via the favorites subscription above.
+            _demoModeSubscription = MarketSettingsManager.Instance.DemoModeChanged
+                .Subscribe(_ => RefreshQuotes(), replayOnSubscribe: false);
             Log.Info("Poll", $"Dock: started polling [{string.Join(", ", WatchlistStore.Instance.Favorites.Value.Select(i => i.Symbol))}]");
         }
         remove
@@ -48,6 +55,8 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
             _subscription = null;
             _pollSubscription?.Dispose();
             _pollSubscription = null;
+            _demoModeSubscription?.Dispose();
+            _demoModeSubscription = null;
             Log.Info("Poll", "Dock: stopped polling");
         }
     }

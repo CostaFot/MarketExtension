@@ -33,6 +33,7 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
     private IDisposable? _subscription;
     private IDisposable? _pollSubscription;
+    private IDisposable? _demoModeSubscription;
 
     event TypedEventHandler<object, IItemsChangedEventArgs> INotifyItemsChanged.ItemsChanged
     {
@@ -47,6 +48,12 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
             // event stream (no replay), so becoming visible doesn't double-fetch — the positions subscription
             // above already paints.
             _pollSubscription = PollTicker.Subscribe(PollRefresh);
+            // Demo mode flips the data source — re-roll the total from the new one at once if the band is
+            // open. A hidden band already re-fetches on its next open (the positions-flow replay calls
+            // RefreshPortfolio), so this only needs to cover a currently-visible/pinned band. replay:false —
+            // opening already paints via the positions subscription above.
+            _demoModeSubscription = MarketSettingsManager.Instance.DemoModeChanged
+                .Subscribe(_ => RefreshPortfolio(), replayOnSubscribe: false);
             Log.Info("Poll", $"PortfolioDock: started polling [{string.Join(", ", PortfolioStore.Instance.Positions.Value.Select(p => p.Instrument.Symbol))}]");
         }
         remove
@@ -56,6 +63,8 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
             _subscription = null;
             _pollSubscription?.Dispose();
             _pollSubscription = null;
+            _demoModeSubscription?.Dispose();
+            _demoModeSubscription = null;
             Log.Info("Poll", "PortfolioDock: stopped polling");
         }
     }

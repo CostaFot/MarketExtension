@@ -52,6 +52,10 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             // replay:false — the membership replay above already paints the initial list.
             _subscriptions.Add(MarketSettingsManager.Instance.HasAnyApiKey
                 .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
+            // Re-render when demo mode toggles so the status row (demo vs missing-key) flips at once. The next
+            // /search already routes to the new source; this just keeps the row in sync without a re-search.
+            _subscriptions.Add(MarketSettingsManager.Instance.DemoModeChanged
+                .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
             // Re-render when throttling starts/stops so the rate-limited banner appears/disappears at once.
             _subscriptions.Add(RateLimitSignal.Instance.IsRateLimited
                 .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
