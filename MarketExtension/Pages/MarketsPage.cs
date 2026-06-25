@@ -65,7 +65,7 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
         _searchPage = new SearchPage(repository);
         _watchlistPage = new WatchlistPage(repository);
         _favoritesPage = new FavoritesPage(repository);
-        _portfolioPage = new PortfolioPage();
+        _portfolioPage = new PortfolioPage(repository);
         _dataSourcesPage = new DataSourcesPage();
 
         // The toolkit builds a navigable settings page straight from our settings (Finnhub API key +
@@ -98,7 +98,7 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
             new ListItem(_portfolioPage)
             {
                 Title = "Portfolio",
-                Subtitle = "Your holdings, total value, and daily P&L (coming soon)",
+                Subtitle = "Your holdings, total value, and daily P&L",
                 Icon = new IconInfo(PortfolioGlyph),
             },
             new ListItem(_dataSourcesPage)

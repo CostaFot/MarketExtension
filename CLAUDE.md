@@ -307,6 +307,18 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   analog of `PricedListPage`'s keep-last-good). Caveat: on the **Finnhub fallback** path candles are
   premium-gated, so a free Finnhub key just re-fetches a 403 each tick; with **Twelve Data** primary its
   free-tier candles refresh for real.
+- **Done (this round): the Portfolio screen.** **Markets Portfolio** now tracks real holdings (a quantity
+  per symbol), priced live, with a totals summary on top and **daily P&L** per holding — behind the existing
+  data seam with **no provider/repository changes**. New: `Settings/PortfolioStore.cs` (modeled on
+  `WatchlistStore`, `market_portfolio.json`, two flows `Positions`/`Instruments` — the latter
+  **reference-equality so quantity-only edits re-emit**), `Models/DomainPosition`/`UiPosition`/`UiPortfolio`,
+  `Pages/SetQuantityPage.cs` (an adaptive-card `Input.Number` editor), and `Commands/PortfolioCommands.cs`.
+  `PortfolioPage` is a **`PricedListPage` subclass** that reuses all the caching/polling plumbing; a new
+  `PricedListPage.LeadingRows(...)` hook (default empty, others unaffected) renders the totals row from the
+  full priced set. Per the user's choices this pass: **daily P&L only** (cost basis stored but no UI),
+  **no dock band yet**, and **all add/edit/remove on the symbol detail page** (rows just open it, like every
+  other list). Build clean (0 warnings). ⚠️ Verified to **compile**; a live smoke test (add a holding, see
+  the total roll up, edit/remove, confirm persistence) is worth doing. See "Portfolio screen (DONE…)".
 - **Deferred:** richer **per-symbol** error UX — a typed `QuoteStatus` (Ok/Invalid/RateLimited/NoKey) on
   `DomainQuote` so each row could render its own state. Deliberately **not** built: the rate-limit signal
   shipped this round is global (one throttle flag for the whole key) because a free-tier limit is key-wide,
@@ -335,9 +347,13 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   credit (clickable via the new `Commands/OpenUrlCommand.cs` + `ProcessHelper.OpenUrl`) appears on every
   logo-bearing page; the dock band is an accepted gray area. Per-category Segoe glyph fallback for
   Currency/unknown. See "Asset logos (done)".
-- **Wishlist:** a **portfolio** screen + its own dock band (holdings, total value, daily P&L); and a
-  **per-symbol detail screen + live chart for any ticker** (drill-in from any list row, clickable from any
-  dock item). All designed below.
+- **Wishlist:** **(1) multi-currency portfolio conversion** — stop assuming USD: capture each instrument's
+  reporting currency and convert into the user's `PortfolioCurrency` via the keyless Frankfurter FX
+  provider, showing each holding in **both** its native and converted currency and the **total in the
+  preferred currency** (the current hardcoded `$` is a known gap — full design under "Portfolio screen");
+  **(2)** the **Portfolio dock band** (a one-line total-value + daily-P&L strip next to the favorites band —
+  the Portfolio *screen* itself is now done); and **(3)** **cost-basis / total-return** reporting (the
+  `CostBasis` field is already stored, just not surfaced). All designed below.
 - **Done (this round): migrated the observable layer to Rx.NET (`System.Reactive`).** Two parts:
   - **`StateFlow` → thin wrapper over `BehaviorSubject<T>`** (the blocker was gone once AOT/trim went off —
     the trim/AOT analyzers were removed, so `System.Reactive` 6.0.1 is taken **warning-free**, CA1001
@@ -490,43 +506,80 @@ until reopened. Implemented via the observable layer:
 - Complementary to the (still-pending) polling: polling catches *price* drift on a timer; this pushes
   *membership* changes immediately, and still works when polling is **Off**.
 
-### Portfolio screen + dock band (future wishlist)
+### Portfolio screen (DONE — screen built; dock band still deferred)
 
-A fourth top-level screen (**Markets Portfolio**) plus its own dock band, tracking actual *holdings*
-(not just symbols): total market value and **daily P&L**. Reuses the existing data seam with **no
-provider changes** — `MarketRepository.GetQuotesAsync` already returns per-instrument daily change.
+**Markets Portfolio** is live: a fourth screen off the Markets hub tracking actual *holdings* (a quantity
+per symbol), priced live, with a **totals summary** pinned on top and **daily P&L** per holding. Reuses
+the existing data seam with **no provider/repository changes** — `MarketRepository.GetQuotesAsync` already
+returns per-instrument daily change.
 
-**Data model** (keep the `Api`/`Domain`/`Ui` layering; formatting only in `Ui*`):
+**Scope shipped:** quantity + **daily P&L only**. `DomainPosition`/`PortfolioItem` carry an optional
+`CostBasis` (persisted, **no UI yet**), so unrealized/total return is a cheap follow-up.
+
+**Data model** (the usual `Api`/`Domain`/`Ui` layering; formatting only in `Ui*`):
 - `Settings/PortfolioStore.cs` — JSON-persisted holdings, modeled on `WatchlistStore` (singleton, lock,
   source-gen `PortfolioJsonContext` → `market_portfolio.json`). Each entry = symbol + name + category +
-  **quantity** (+ optional **cost basis** for total/unrealized P&L later); quantity is `decimal` so
-  crypto fractions work.
-- `Models/DomainPosition.cs` — a holding's provider-agnostic identity (`DomainInstrument` + quantity +
-  optional cost basis), **no prices**.
-- `Models/UiPosition.cs` + `UiPortfolio.cs` — presentation projection: combine a `DomainQuote` with the
-  quantity to expose `MarketValue` (qty × price), `DailyPnL` (qty × `DomainQuote.Change`),
-  `DailyPnLPercent`, and the `Format*()` helpers (the only place formatting lives, like `UiQuote`);
-  `UiPortfolio` rolls up the totals.
+  **quantity** (`decimal`, so crypto fractions work) + optional cost basis. **No first-run seed** (empty
+  by default). Exposes two `StateFlow`s: `Positions` (instrument + quantity — for rendering, the totals,
+  and the detail-page command bar) and `Instruments` (symbols to price — for the `PricedListPage`). Both
+  use **default reference equality, NOT `InstrumentListComparer`**, so EVERY mutation re-emits — including
+  a quantity-only edit that leaves the symbol set unchanged. That's what makes an edited quantity repaint:
+  the base reconcile finds nothing missing → no fetch → the re-render just reads the new quantity.
+- `Models/DomainPosition.cs` — `DomainInstrument` + quantity + optional cost basis, **no prices**.
+- `Models/UiPosition.cs` + `UiPortfolio.cs` — presentation: `UiPosition` combines a `DomainQuote` with the
+  quantity → `MarketValue` (qty × price), `DailyPnL` (qty × `DomainQuote.Change`), `Format*()` helpers (the
+  only place position formatting lives, like `UiQuote`); `UiPortfolio.From(...)` rolls up the totals.
 
-**Daily P&L:** per position = `Quantity × DomainQuote.Change` (Finnhub `/quote` `d` = today's per-unit
-change, `dp` = its percent). Portfolio total value = Σ market value; total daily P&L = Σ daily P&L; the
-aggregate **percent is `totalDailyPnL / (totalValue − totalDailyPnL)`** (vs. yesterday's close) — not an
-average of the per-position percents.
+**Daily P&L:** per position = `Quantity × DomainQuote.Change`. Total value = Σ market value; total daily
+P&L = Σ daily P&L; aggregate **percent = `totalDailyPnL / (totalValue − totalDailyPnL)`** (vs. yesterday's
+close) — not an average of the per-position percents (guards ÷0). `IsValid:false` holdings are excluded
+from the totals (shown as unpriced rows).
 
-**Screen** (`Pages/PortfolioPage.cs`): reuse `PricedListPage`'s async price/refresh plumbing (price the
-holdings via the repository, zip with quantities). Render a **totals summary** as the first item
-("Portfolio $12,345.67  ▲ +$120.50 (+0.98%)") then one row per holding ("AAPL · 10 sh" → value + daily
-P&L). Editing needs a quantity-input affordance the palette doesn't give for free — add via search → a
-small "set quantity" form/content page; Enter on a row to edit/remove. Like every other list, a row also
-opens the **shared symbol detail + chart** (below) — here via a context item, since Enter is taken by edit.
+**Screen** (`Pages/PortfolioPage.cs`): a **`PricedListPage` subclass** (like Watchlist/Favorites), so it
+inherits all the caching/polling/reconcile/keep-last-good plumbing — it just observes
+`PortfolioStore.Instruments`. Per-row quantity is read from the store in `BuildRow` (the way `WatchlistPage`
+reads `IsFavorite`). The **totals summary** is the first row, rendered via a new
+`PricedListPage.LeadingRows(pricedQuotes)` **hook** (default empty → Watchlist/Favorites unaffected), fed
+the **full unfiltered** priced set so the total reflects the whole portfolio even while search filters the
+rows. Rows render "AAPL · 10 sh" → market value + daily P&L.
 
-**Dock band** (`Pages/PortfolioDockPage.cs`): a second band registered in `GetDockBands()` next to the
-favorites band, showing the one-line portfolio summary (total value + daily P&L, green/red). Needs its
-own **non-empty `Command.Id`** (`com.costafotiadis.market.dock.portfolio` — see `reference/dock-support.md`)
-and inherits the same live-refresh story as the favorites band (the polling + push-on-change work above).
+**Management lives on the symbol detail page** (consistent with every other list — Portfolio rows just open
+`SymbolDetailPage` on Enter, **no context actions**). `SymbolDetailPage.BuildCommands` gained portfolio
+actions in the overflow: **Add to Portfolio** / **Edit holding** (both open `Pages/SetQuantityPage.cs`,
+which auto-labels itself by current membership) plus **Remove from Portfolio**
+(`Commands/PortfolioCommands.cs`) once held. The page also subscribes to `PortfolioStore.Positions`, so the
+bar flips Add→Edit/Remove the instant a quantity is saved.
 
-**Caveats:** assumes a single quote currency (USD); mixed-currency holdings need FX conversion (deferred —
-ties to the FX-provider item). Exclude `IsValid:false` quotes from totals (or show them as unpriced).
+**`Pages/SetQuantityPage.cs`** — the quantity editor: a `ContentPage` whose single `FormContent` is an
+adaptive card with one `Input.Number` (prefilled with the current holding, 0 when adding) + a Save action.
+`SubmitForm` parses + validates (> 0), calls `PortfolioStore.SetPosition`, toasts, and `GoBack()`s to the
+detail page. The single-`FormContent` auto-focus quirk (that plagues the chart) is **harmless/helpful
+here** — it drops the cursor straight into the number field.
+
+**Still deferred — the dock band** (`Pages/PortfolioDockPage.cs`): a second band in `GetDockBands()` next
+to favorites, one line of total value + daily P&L. **Not built this pass.** Would need its own non-empty
+`Command.Id` (`com.costafotiadis.market.dock.portfolio` — see `reference/dock-support.md`) and would inherit
+the favorites band's live-refresh story (the polling + push-on-change work above).
+
+**⚠️ Deferred — multi-currency conversion (PLANNED; the goal is to STOP assuming USD).** Today every value
+is summed and labeled `$` on the assumption each instrument is USD-quoted. That's correct for US stocks,
+USD-quoted crypto, and `XXXUSD` FX pairs, but **wrong for anything quoted in another currency** — e.g.
+**USDJPY**, whose price is in JPY, currently gets mislabeled `$`; a non-US stock would too. The planned
+design (per the user):
+- **Capture each instrument's reporting/native currency** in the data layer — an ISO-4217 `Currency` field
+  on `DomainQuote` (and/or `DomainInstrument`), populated by each provider. *Open piece (the real work):*
+  Twelve Data's `/quote` returns a `currency`; **Finnhub `/quote` does not** (would need `/stock/profile2`,
+  which carries `currency`); Frankfurter is inherently per-pair. So sourcing the native currency needs
+  provider changes.
+- **Convert** each holding's market value + daily P&L into the user's **`PortfolioCurrency`** (the existing
+  setting, currently inert) using the **keyless Frankfurter FX provider** (it already cross-converts via ECB
+  rates), with a small rate cache keyed by `nativeCurrency → preferredCurrency`.
+- **Display:** each holding row shows **both** its **native/local-currency** value **and** the **converted**
+  value; the **portfolio TOTAL is in the preferred currency** (using that currency's symbol — not a
+  hardcoded `$`). Requires threading a currency/format through `UiPosition`/`UiPortfolio` (replacing the
+  hardcoded `$#,##0.00`).
+- Until this lands, `IsValid:false` holdings stay excluded from the totals, and the USD/`$` assumption above
+  is the known gap.
 
 ### Symbol detail + live chart — for ANY instrument (CHART DONE; flicker fixed, Enter/focus bug open)
 

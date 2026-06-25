@@ -47,6 +47,9 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
             // Replay-on-subscribe paints the initial command bar; later pushes flip it in place.
             _subscriptions.Add(WatchlistStore.Instance.Watchlist.Subscribe(_ => RefreshCommands()));
             _subscriptions.Add(WatchlistStore.Instance.Favorites.Subscribe(_ => RefreshCommands()));
+            // Same for portfolio membership, so "Add to Portfolio" flips to "Edit holding"/"Remove" the
+            // instant a quantity is saved (or the holding removed) from anywhere.
+            _subscriptions.Add(PortfolioStore.Instance.Positions.Subscribe(_ => RefreshCommands()));
             // This accessor fires only when the page is actually shown — the right moment to kick the
             // first candle fetch (once). Building a row's SymbolDetailPage doesn't subscribe, so list
             // rows never trigger a fetch.
@@ -89,12 +92,15 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
     // Commands raises the property change the host watches, so the add/remove buttons flip in place.
     private void RefreshCommands() => Commands = BuildCommands();
 
-    // The two list-management actions, labelled add/remove for the instrument's current state. The first
-    // is the page's primary command (Enter), the second the secondary (Ctrl+Enter).
+    // The list-management actions, labelled for the instrument's current state. Watchlist is the page's
+    // primary command (Enter), favorite the secondary (Ctrl+Enter); the portfolio actions follow in the
+    // overflow menu — "Add to Portfolio" / "Set quantity" both open SetQuantityPage (which auto-labels
+    // itself Add vs Edit), and "Remove from Portfolio" appears once a holding exists.
     private IContextItem[] BuildCommands()
     {
         var inWatchlist = WatchlistStore.Instance.IsInWatchlist(_instrument.Symbol);
         var isFavorite = WatchlistStore.Instance.IsFavorite(_instrument.Symbol);
+        var inPortfolio = PortfolioStore.Instance.Contains(_instrument.Symbol);
 
         IContextItem watchlist = inWatchlist
             ? new CommandContextItem(new RemoveFromWatchlistCommand(_instrument))
@@ -104,7 +110,13 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
             ? new CommandContextItem(new RemoveFromFavoritesCommand(_instrument))
             : new CommandContextItem(new AddToFavoritesCommand(_instrument));
 
-        return [watchlist, favorite];
+        // SetQuantityPage is a page (it needs a number input), so it navigates when chosen; it sets its own
+        // Name to "Edit holding" or "Add to Portfolio" based on whether the holding exists.
+        IContextItem setQuantity = new CommandContextItem(new SetQuantityPage(_instrument));
+
+        return inPortfolio
+            ? [watchlist, favorite, setQuantity, new CommandContextItem(new RemoveFromPortfolioCommand(_instrument))]
+            : [watchlist, favorite, setQuantity];
     }
 
     // The adaptive-card chart body. Holds the current range + a per-range cache, fetches candles via

@@ -1,42 +1,75 @@
+using System.Collections.Generic;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 
 namespace MarketExtension;
 
-// PLACEHOLDER. Reached from the Markets hub. The real screen — actual holdings (quantity + cost
-// basis) with total market value and daily P&L, plus its own dock band — is designed in CLAUDE.md
-// under "Portfolio screen + dock band (future wishlist)" but not built yet. For now this is a plain
-// static Markdown "coming soon" card (modeled on DataSourcesPage): no data fetch, no providers, no
-// lifecycle. When it's built, this becomes a PricedListPage subclass; until then it just explains
-// what's coming so the hub row isn't a dead end.
-internal sealed partial class PortfolioPage : ContentPage
+// Top-level screen: the user's portfolio holdings, priced live, with a totals summary pinned on top.
+// Reached from the Markets hub. Subclasses PricedListPage (like Watchlist/Favorites) to inherit all of
+// its caching / polling / reconcile / keep-last-good plumbing — it just observes PortfolioStore.Instruments
+// (the symbols to price) instead of a watchlist subset.
+//
+// Each row shows the holding (symbol · quantity) with its market value and today's P&L; Enter opens the
+// shared SymbolDetailPage, which is where holdings are added/edited/removed (Add to Portfolio / Edit
+// holding / Remove), consistent with every other list. The quantity for a row is read from PortfolioStore
+// at render time — the same way WatchlistPage reads IsFavorite — and the totals summary is built from the
+// full priced set via the LeadingRows hook. A quantity-only edit re-emits PortfolioStore.Instruments
+// (default-equality flow), so the base re-renders with no fetch and the new quantity + total show at once.
+internal sealed partial class PortfolioPage : PricedListPage
 {
-    private readonly MarkdownContent _content = new(
-        """
-        # Portfolio
+    private const string PortfolioGlyph = "\uE825"; // Segoe MDL2 Bank
 
-        **Coming soon.**
-
-        This screen will track your actual holdings — not just symbols you watch,
-        but how much of each you hold — and roll them up into:
-
-        - **Total market value** across everything you own
-        - **Daily profit & loss**, in both dollars and percent
-        - A per-holding breakdown, each priced live
-
-        It'll share the same live price refresh as your Watchlist and Favorites,
-        and get its own dock band showing the one-line summary at a glance.
-
-        For now this is a placeholder. Use **Watchlist** and **Favorites** to
-        track instruments in the meantime.
-        """);
-
-    public PortfolioPage()
+    public PortfolioPage(MarketRepository repository) : base(repository, PortfolioStore.Instance.Instruments)
     {
-        Icon = new IconInfo("https://github.com/favicon.ico");
-        Title = "Portfolio";
+        Title = "Markets Portfolio";
         Name = "Open";
+        PlaceholderText = "Filter your holdings...";
     }
 
-    public override IContent[] GetContent() => [_content];
+    // The totals summary, pinned above the holdings. Built from the FULL priced set zipped with the current
+    // quantities, so it always reflects the WHOLE portfolio even while the search box filters rows below.
+    protected override IEnumerable<IListItem> LeadingRows(IReadOnlyList<UiQuote> pricedQuotes)
+    {
+        var positions = new List<UiPosition>();
+        foreach (var q in pricedQuotes)
+            if (PortfolioStore.Instance.TryGetQuantity(q.Symbol, out var qty))
+                positions.Add(UiPosition.From(q.Source, qty));
+
+        if (positions.Count == 0)
+            return [];
+
+        var portfolio = UiPortfolio.From(positions);
+        return
+        [
+            new ListItem(new NoOpCommand())
+            {
+                Title = $"Portfolio {portfolio.FormatTotalValue()}",
+                Subtitle = portfolio.FormatTotalChange(),
+                Icon = new IconInfo(PortfolioGlyph),
+            },
+        ];
+    }
+
+    protected override IListItem BuildRow(UiQuote q)
+    {
+        var instrument = new DomainInstrument(q.Symbol, q.Name, q.Category);
+        PortfolioStore.Instance.TryGetQuantity(q.Symbol, out var qty);
+        var position = UiPosition.From(q.Source, qty);
+
+        return new ListItem(new SymbolDetailPage(instrument, Repository))
+        {
+            Title = position.FormatHolding(),
+            Subtitle = $"{position.FormatMarketValue()}   {position.FormatDailyPnL()}",
+            Icon = AssetIconResolver.Resolve(q),
+        };
+    }
+
+    protected override IListItem[] EmptyState() =>
+    [
+        new ListItem(new NoOpCommand())
+        {
+            Title = "No holdings yet",
+            Subtitle = "Open any instrument's detail page and choose Add to Portfolio to start tracking holdings",
+        },
+    ];
 }

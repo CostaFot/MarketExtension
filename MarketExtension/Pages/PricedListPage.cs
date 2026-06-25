@@ -97,6 +97,11 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
     // Shown when the underlying set is empty.
     protected abstract IListItem[] EmptyState();
 
+    // Rows to render ABOVE the priced list — e.g. the Portfolio screen's totals summary. Receives the
+    // FULL priced set (NOT filtered by the search box) so a summary always reflects the whole list even
+    // while the user filters rows below it. Default: none, so Watchlist/Favorites are unaffected.
+    protected virtual IEnumerable<IListItem> LeadingRows(IReadOnlyList<UiQuote> pricedQuotes) => [];
+
     public override void UpdateSearchText(string oldSearch, string newSearch)
         => RaiseItemsChanged(0);
 
@@ -117,7 +122,9 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         if (cached.Length == 0)
             return []; // first prices still loading — let the spinner show
 
-        var rows = cached.Where(Matches).Select(BuildRow).ToList();
+        var rows = new List<IListItem>();
+        rows.AddRange(LeadingRows(cached)); // e.g. the Portfolio totals summary — computed from the full set
+        rows.AddRange(cached.Where(Matches).Select(BuildRow));
         rows.Add(new ListItem(new RefreshCommand(this)) { Title = "Refresh 🔄" });
         rows.Add(AssetIconResolver.AttributionRow()); // Elbstream logo credit (rows above show logos)
         if (ApiKeyHint.MissingKeyRow() is { } hint) // no key → explain why prices are blank
