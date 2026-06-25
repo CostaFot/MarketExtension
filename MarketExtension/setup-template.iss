@@ -1,6 +1,6 @@
 ; Inno Setup Script for Markets Extension for Command Palette
 
-#define AppVersion "0.0.1.0"
+#define AppVersion "1.0.0.0"
 
 [Setup]
 AppId={{6b38c9aa-bbee-45e9-81e9-cf25707910e7}}
