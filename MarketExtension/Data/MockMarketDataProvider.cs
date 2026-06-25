@@ -71,6 +71,10 @@ internal sealed class MockMarketDataProvider : IMarketDataProvider
         [
             // Use the incoming instrument's identity (name/category) but the seed's price + native currency,
             // so e.g. HSBA.L prices in GBP exactly like a real London quote would.
+            // ⚠️ LIMITATION (wishlisted in CLAUDE.md): only the ~10 seeded symbols price; any other ticker
+            // falls through to an invalid (blank) quote, so an off-seed watchlist/portfolio looks empty in
+            // demo mode. The wishlist item is to SYNTHESIZE plausible data for any symbol (hash-derived
+            // price, category/currency inferred from the symbol shape) so demo mode fully stands in for live.
             .. instruments.Select(i => Seed.TryGetValue(i.Symbol, out var s)
                 ? new DomainQuote(i.Symbol, i.Name, i.Category, s.Price, s.Change, s.Pct, IsValid: true,
                     Currency: s.Currency)

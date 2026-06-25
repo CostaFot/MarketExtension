@@ -240,8 +240,9 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   holding to exercise. The list screens show an explicit blue **"Demo mode — showing sample data"** status row
   while it's on (replacing the red missing-key nudge), so it's obvious the prices are simulated, not live —
   `ApiKeyHint` became a unified `StatusRow()` (demo row → missing-key row → null). Reads pull-style → applies
-  on the next refresh/reopen, no reload. Build clean (0 warnings). ⏳ Not yet live-verified. See "Demo mode
-  (offline testing)".
+  on the next refresh/reopen, no reload. Build clean (0 warnings). ✅ **Live-verified**: flipping the toggle
+  swaps to sample data across the app, the blue status row shows, and the mock takes precedence everywhere
+  (even with live keys set). See "Demo mode (offline testing)".
 - **Done (this round): cost-basis / total-return reporting** — the last open portfolio wishlist item. The
   optional `CostBasis` (average price paid per unit, in the holding's **native** currency) was already stored
   but unsurfaced; it's now **captured and displayed** end-to-end with **no provider/repository/model-shape
@@ -261,9 +262,9 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   - **Display** — Portfolio rows append "Total ▲ +$… (+…%)" after daily P&L when a basis is set; the totals
     summary row **and** the Portfolio dock band append the total-return note to their subtitle. Holdings with
     no basis (or unpriced/unconvertible) simply contribute nothing to the return rollup. Build clean (0
-    warnings). ⏳ **Not yet live-verified** (next: add a holding with a cost basis and confirm the per-row +
-    summary + dock totals, incl. a non-native-currency holding's converted return). See "Portfolio screen +
-    dock band (done)".
+    warnings). ⏳ **Total-return display not yet explicitly spot-checked** — easiest via Demo mode now: add the
+    GBP `HSBA.L` holding with a cost basis and confirm the per-row + summary + dock converted return. See
+    "Portfolio screen + dock band (done)".
 - **Done (this round): the Portfolio dock band.** A second Dock band next to the favorites band, showing the
   portfolio's **total value + daily P&L rolled up into the `PortfolioCurrency`** as a single summary button
   (clicking it opens the full `PortfolioPage`). New `Pages/PortfolioDockPage.cs` (a `ListPage`, modeled on
@@ -418,13 +419,25 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   credit (clickable via the new `Commands/OpenUrlCommand.cs` + `ProcessHelper.OpenUrl`) appears on every
   logo-bearing page; the dock band is an accepted gray area. Per-category Segoe glyph fallback for
   Currency/unknown. See "Asset logos (done)".
-- **Wishlist — all three items now DONE.** ~~**(1) multi-currency portfolio conversion**~~ — **DONE** (see
+- **Wishlist — original three DONE.** ~~**(1) multi-currency portfolio conversion**~~ — **DONE** (see
   "Multi-currency portfolio conversion (done)"). ~~**(2) the Portfolio dock band**~~ — **DONE** (a one-line
   total-value + daily-P&L strip next to the favorites band; see the "Done (this round): the Portfolio dock
   band" bullet + "Portfolio screen + dock band (done)"). ~~**(3) cost-basis / total-return** reporting~~ —
   **DONE** this round (the stored `CostBasis` is now captured in the editor and surfaced as total return on
   the rows, totals summary, and dock band; see the "Done (this round): cost-basis / total-return reporting"
   bullet above).
+- **Wishlist (new): Demo mode should fabricate data for ANY symbol, not just a seeded handful.** Today
+  `MockMarketDataProvider` only knows the ~10 symbols in its static `Seed` dictionary — any other ticker
+  returns an `IsValid:false` quote (blank row) and is absent from search, so a watchlist/portfolio of
+  off-seed symbols looks broken in demo mode. Make demo mode **synthesize plausible data for any requested
+  symbol** instead: derive a deterministic price/daily-change from a hash of the symbol (stable across
+  refreshes), **infer category + native currency from the symbol shape** (6 letters → FX with the quote
+  currency; a known/short coin ticker → Crypto in USD; a `.L`/`.DE`/… suffix → that exchange's currency;
+  else Stock in USD), and synthesize a name. Candles already work for any symbol (the random walk doesn't
+  need a seed entry), so this is mostly `GetQuotesAsync` + a smarter `SearchAsync` (which would also need a
+  small corpus or generator to return matches for free-text). Keep the curated `Seed` as nice-looking
+  "known" overrides on top of the generator. Goal: demo mode is a complete stand-in for the live providers,
+  not a fixed demo set.
 - **Done (this round): migrated the observable layer to Rx.NET (`System.Reactive`).** Two parts:
   - **`StateFlow` → thin wrapper over `BehaviorSubject<T>`** (the blocker was gone once AOT/trim went off —
     the trim/AOT analyzers were removed, so `System.Reactive` 6.0.1 is taken **warning-free**, CA1001
@@ -666,7 +679,8 @@ per-row subtitle ("Total ▲ +$… (+…%)"), the totals summary row, and the Po
 same FX rate as the value, so per-row returns sum to the total. `PortfolioStore.SetPosition` applies the
 basis verbatim (null clears) and `GetPosition` returns the full holding for rendering. Holdings without a
 recorded basis (or unpriced/unconvertible ones) contribute to value/daily-P&L but not the return rollup. ⏳
-Not yet live-verified.
+Total-return display not yet explicitly spot-checked — easiest via **Demo mode** (add the GBP `HSBA.L` holding
+with a cost basis and confirm the per-row + summary + dock converted return).
 
 ### Multi-currency portfolio conversion (done)
 
@@ -760,7 +774,9 @@ non-USD holding to convert. Candles are a deterministic per-`(symbol,range)` ran
 **Network in demo mode: none.** Quotes, candles, search, and FX conversion are *all* served from the mock /
 the static rate table — the `IsExclusive` routing means even a user with live API keys set hits **zero**
 network for market data while demo mode is on. (Logos are still fetched by the host from Elbstream's CDN —
-that's the host rendering an `IconInfo` URL, not an app data call, and is unaffected.) ⏳ Not yet live-verified.
+that's the host rendering an `IconInfo` URL, not an app data call, and is unaffected.) ✅ **Live-verified**:
+toggling demo mode swaps the whole app to sample data, the mock wins everywhere even with live keys set, and
+the blue "Demo mode" status row makes it obvious.
 
 ### Symbol detail + live chart — for ANY instrument (CHART DONE; flicker fixed, Enter/focus bug open)
 
