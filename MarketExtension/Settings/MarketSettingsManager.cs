@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -30,36 +31,36 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
 
     private readonly TextSetting _twelveDataApiKey = new("twelveDataApiKey", string.Empty)
     {
-        Label = Strings.Get("Settings_TwelveData_Label"),
-        Description = Strings.Get("Settings_TwelveData_Desc"),
-        Placeholder = Strings.Get("Settings_ApiKey_Placeholder"),
+        Label = Resources.Settings_TwelveData_Label,
+        Description = Resources.Settings_TwelveData_Desc,
+        Placeholder = Resources.Settings_ApiKey_Placeholder,
     };
 
     private readonly TextSetting _finnhubApiKey = new("finnhubApiKey", string.Empty)
     {
-        Label = Strings.Get("Settings_Finnhub_Label"),
-        Description = Strings.Get("Settings_Finnhub_Desc"),
-        Placeholder = Strings.Get("Settings_ApiKey_Placeholder"),
+        Label = Resources.Settings_Finnhub_Label,
+        Description = Resources.Settings_Finnhub_Desc,
+        Placeholder = Resources.Settings_ApiKey_Placeholder,
     };
 
     private readonly TextSetting _refreshMinutes = new(
         "refreshMinutes", DefaultRefreshMinutes.ToString(CultureInfo.InvariantCulture))
     {
-        Label = Strings.Get("Settings_Refresh_Label"),
-        Description = Strings.Get("Settings_Refresh_Desc"),
+        Label = Resources.Settings_Refresh_Label,
+        Description = Resources.Settings_Refresh_Desc,
         Placeholder = DefaultRefreshMinutes.ToString(CultureInfo.InvariantCulture),
     };
 
     private readonly ToggleSetting _showRateLimitErrors = new("showRateLimitErrors", true)
     {
-        Label = Strings.Get("Settings_RateLimit_Label"),
-        Description = Strings.Get("Settings_RateLimit_Desc"),
+        Label = Resources.Settings_RateLimit_Label,
+        Description = Resources.Settings_RateLimit_Desc,
     };
 
     private readonly ToggleSetting _demoMode = new("demoMode", false)
     {
-        Label = Strings.Get("Settings_Demo_Label"),
-        Description = Strings.Get("Settings_Demo_Desc"),
+        Label = Resources.Settings_Demo_Label,
+        Description = Resources.Settings_Demo_Desc,
     };
 
     // The reporting currency for the (upcoming) Portfolio screen: the single currency its totals are shown
@@ -70,8 +71,8 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     // assumption. ChoiceSetSetting renders a dropdown; its stored Value is the selected code (e.g. "USD").
     private readonly ChoiceSetSetting _portfolioCurrency = new("portfolioCurrency", BuildCurrencyChoices())
     {
-        Label = Strings.Get("Settings_PortfolioCurrency_Label"),
-        Description = Strings.Get("Settings_PortfolioCurrency_Desc"),
+        Label = Resources.Settings_PortfolioCurrency_Label,
+        Description = Resources.Settings_PortfolioCurrency_Desc,
     };
 
     // The supported reporting currencies (ISO-4217), in display order — the set the FX provider (ECB) can

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -11,9 +12,9 @@ internal sealed partial class WatchlistPage : PricedListPage
 {
     public WatchlistPage(MarketRepository repository) : base(repository, WatchlistStore.Instance.Watchlist)
     {
-        Title = Strings.Get("Page_Watchlist_Title");
-        Name = Strings.Get("Action_Open");
-        PlaceholderText = Strings.Get("Watchlist_Placeholder");
+        Title = Resources.Page_Watchlist_Title;
+        Name = Resources.Action_Open;
+        PlaceholderText = Resources.Watchlist_Placeholder;
     }
 
     // A favorite toggled here doesn't change the watchlist set, so observe the Favorites flow too and
@@ -39,16 +40,16 @@ internal sealed partial class WatchlistPage : PricedListPage
     [
         new ListItem(new NoOpCommand())
         {
-            Title = Strings.Get("Watchlist_Empty_Title"),
-            Subtitle = Strings.Get("Watchlist_Empty_Subtitle"),
+            Title = Resources.Watchlist_Empty_Title,
+            Subtitle = Resources.Watchlist_Empty_Subtitle,
         },
     ];
 
     private static string SectionLabel(AssetCategory category) => category switch
     {
-        AssetCategory.Stock => Strings.Get("Section_Stocks"),
-        AssetCategory.Crypto => Strings.Get("Section_Crypto"),
-        AssetCategory.Currency => Strings.Get("Section_Currency"),
-        _ => Strings.Get("Section_Other"),
+        AssetCategory.Stock => Resources.Section_Stocks,
+        AssetCategory.Crypto => Resources.Section_Crypto,
+        AssetCategory.Currency => Resources.Section_Currency,
+        _ => Resources.Section_Other,
     };
 }

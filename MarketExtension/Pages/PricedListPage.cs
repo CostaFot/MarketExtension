@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 using Windows.Foundation;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -164,7 +165,7 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         var rows = new List<IListItem>();
         rows.AddRange(LeadingRows(cached)); // e.g. the Portfolio totals summary — computed from the full set
         rows.AddRange(cached.Where(Matches).Select(BuildRow));
-        rows.Add(new ListItem(new RefreshCommand(this)) { Title = Strings.Get("Action_Refresh") + " 🔄" });
+        rows.Add(new ListItem(new RefreshCommand(this)) { Title = Resources.Action_Refresh + " 🔄" });
         rows.Add(AssetIconResolver.AttributionRow()); // Elbstream logo credit (rows above show logos)
         if (ApiKeyHint.StatusRow() is { } hint) // no key → explain blanks; demo mode → flag sample data
             rows.Add(hint);
@@ -325,7 +326,7 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
         public RefreshCommand(PricedListPage page)
         {
             _page = page;
-            Name = Strings.Get("Action_Refresh");
+            Name = Resources.Action_Refresh;
         }
 
         public override ICommandResult Invoke()

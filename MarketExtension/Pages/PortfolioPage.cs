@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -31,9 +32,9 @@ internal sealed partial class PortfolioPage : PricedListPage
 
     public PortfolioPage(MarketRepository repository) : base(repository, PortfolioStore.Instance.Instruments)
     {
-        Title = Strings.Get("Page_Portfolio_Title");
-        Name = Strings.Get("Action_Open");
-        PlaceholderText = Strings.Get("Portfolio_Placeholder");
+        Title = Resources.Page_Portfolio_Title;
+        Name = Resources.Action_Open;
+        PlaceholderText = Resources.Portfolio_Placeholder;
     }
 
     // The totals summary, pinned above the holdings. Built from the FULL priced set zipped with the current
@@ -54,7 +55,7 @@ internal sealed partial class PortfolioPage : PricedListPage
         [
             new ListItem(new NoOpCommand())
             {
-                Title = Strings.Format("Portfolio_TotalsRow_Title", portfolio.FormatTotalValue()),
+                Title = Strings.Format(Resources.Portfolio_TotalsRow_Title, portfolio.FormatTotalValue()),
                 Subtitle = portfolio.FormatTotalChange() + portfolio.FormatTotalReturnNote() + portfolio.FormatUnconvertedNote(),
                 Icon = new IconInfo(PortfolioGlyph),
             },
@@ -71,7 +72,7 @@ internal sealed partial class PortfolioPage : PricedListPage
         var subtitle = $"{position.FormatValue()}   {position.FormatDailyPnL()}";
         var totalReturn = position.FormatTotalReturn();
         if (totalReturn.Length > 0)
-            subtitle += "   " + Strings.Format("Portfolio_Row_TotalReturnPrefix", totalReturn);
+            subtitle += "   " + Strings.Format(Resources.Portfolio_Row_TotalReturnPrefix, totalReturn);
 
         return new ListItem(new SymbolDetailPage(instrument, Repository))
         {
@@ -116,8 +117,8 @@ internal sealed partial class PortfolioPage : PricedListPage
     [
         new ListItem(new NoOpCommand())
         {
-            Title = Strings.Get("Portfolio_Empty_Title"),
-            Subtitle = Strings.Get("Portfolio_Empty_Subtitle"),
+            Title = Resources.Portfolio_Empty_Title,
+            Subtitle = Resources.Portfolio_Empty_Subtitle,
         },
     ];
 }

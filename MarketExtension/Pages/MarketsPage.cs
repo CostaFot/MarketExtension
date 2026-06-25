@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 using Windows.Foundation;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -61,9 +62,9 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
     public MarketsPage(MarketRepository repository)
     {
         Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
-        Title = Strings.Get("Page_Markets_Title");
-        Name = Strings.Get("Action_Open");
-        PlaceholderText = Strings.Get("Hub_Placeholder");
+        Title = Resources.Page_Markets_Title;
+        Name = Resources.Action_Open;
+        PlaceholderText = Resources.Hub_Placeholder;
 
         _searchPage = new SearchPage(repository);
         _watchlistPage = new WatchlistPage(repository);
@@ -82,34 +83,34 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
         {
             new ListItem(_searchPage)
             {
-                Title = Strings.Get("Nav_Search_Title"),
+                Title = Resources.Nav_Search_Title,
                 Icon = new IconInfo(SearchGlyph),
             },
             new ListItem(_watchlistPage)
             {
-                Title = Strings.Get("Nav_Watchlist_Title"),
-                Subtitle = Strings.Get("Nav_Watchlist_Subtitle"),
+                Title = Resources.Nav_Watchlist_Title,
+                Subtitle = Resources.Nav_Watchlist_Subtitle,
                 Icon = new IconInfo(ListGlyph),
             },
             new ListItem(_favoritesPage)
             {
-                Title = Strings.Get("Nav_Favorites_Title"),
-                Subtitle = Strings.Get("Nav_Favorites_Subtitle"),
+                Title = Resources.Nav_Favorites_Title,
+                Subtitle = Resources.Nav_Favorites_Subtitle,
                 Icon = new IconInfo(StarFillGlyph),
             },
             new ListItem(_portfolioPage)
             {
-                Title = Strings.Get("Nav_Portfolio_Title"),
+                Title = Resources.Nav_Portfolio_Title,
                 Icon = new IconInfo(PortfolioGlyph),
             },
             new ListItem(_dataSourcesPage)
             {
-                Title = Strings.Get("Nav_DataSources_Title"),
+                Title = Resources.Nav_DataSources_Title,
                 Icon = new IconInfo(InfoGlyph),
             },
             new ListItem(_settingsPage)
             {
-                Title = Strings.Get("Nav_Settings_Title"),
+                Title = Resources.Nav_Settings_Title,
                 Icon = new IconInfo(SettingsGlyph),
             },
         };

@@ -1,5 +1,6 @@
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -37,14 +38,14 @@ internal sealed partial class AddToWatchlistCommand : MembershipCommand
 {
     public AddToWatchlistCommand(DomainInstrument instrument) : base(instrument)
     {
-        Name = Strings.Get("Cmd_AddToWatchlist");
+        Name = Resources.Cmd_AddToWatchlist;
         Icon = new IconInfo(AddGlyph);
     }
 
     protected override string Apply()
     {
         WatchlistStore.Instance.AddToWatchlist(Instrument);
-        return Strings.Format("Toast_AddedToWatchlist", Instrument.Symbol);
+        return Strings.Format(Resources.Toast_AddedToWatchlist, Instrument.Symbol);
     }
 }
 
@@ -52,14 +53,14 @@ internal sealed partial class RemoveFromWatchlistCommand : MembershipCommand
 {
     public RemoveFromWatchlistCommand(DomainInstrument instrument) : base(instrument)
     {
-        Name = Strings.Get("Cmd_RemoveFromWatchlist");
+        Name = Resources.Cmd_RemoveFromWatchlist;
         Icon = new IconInfo(DeleteGlyph);
     }
 
     protected override string Apply()
     {
         WatchlistStore.Instance.RemoveFromWatchlist(Instrument.Symbol);
-        return Strings.Format("Toast_RemovedFromWatchlist", Instrument.Symbol);
+        return Strings.Format(Resources.Toast_RemovedFromWatchlist, Instrument.Symbol);
     }
 }
 
@@ -67,14 +68,14 @@ internal sealed partial class AddToFavoritesCommand : MembershipCommand
 {
     public AddToFavoritesCommand(DomainInstrument instrument) : base(instrument)
     {
-        Name = Strings.Get("Cmd_AddToFavorites");
+        Name = Resources.Cmd_AddToFavorites;
         Icon = new IconInfo(StarGlyph);
     }
 
     protected override string Apply()
     {
         WatchlistStore.Instance.AddToFavorites(Instrument);
-        return Strings.Format("Toast_AddedToFavorites", Instrument.Symbol);
+        return Strings.Format(Resources.Toast_AddedToFavorites, Instrument.Symbol);
     }
 }
 
@@ -82,13 +83,13 @@ internal sealed partial class RemoveFromFavoritesCommand : MembershipCommand
 {
     public RemoveFromFavoritesCommand(DomainInstrument instrument) : base(instrument)
     {
-        Name = Strings.Get("Cmd_RemoveFromFavorites");
+        Name = Resources.Cmd_RemoveFromFavorites;
         Icon = new IconInfo(StarFillGlyph);
     }
 
     protected override string Apply()
     {
         WatchlistStore.Instance.RemoveFromFavorites(Instrument.Symbol);
-        return Strings.Format("Toast_RemovedFromFavorites", Instrument.Symbol);
+        return Strings.Format(Resources.Toast_RemovedFromFavorites, Instrument.Symbol);
     }
 }

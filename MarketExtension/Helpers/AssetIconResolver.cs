@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -60,10 +61,10 @@ internal static class AssetIconResolver
     // elbstream.com. A list-item title renders at the host's standard (well above 12pt) size, satisfying
     // Elbstream's "clearly visible, min 12pt" requirement.
     public static IListItem AttributionRow() =>
-        new ListItem(new OpenUrlCommand("https://elbstream.com", Strings.Get("Attribution_OpenName")))
+        new ListItem(new OpenUrlCommand("https://elbstream.com", Resources.Attribution_OpenName))
         {
-            Title = Strings.Get("Attribution_Title"),
-            Subtitle = Strings.Get("Attribution_Subtitle"),
+            Title = Resources.Attribution_Title,
+            Subtitle = Resources.Attribution_Subtitle,
             Icon = new IconInfo(LinkGlyph),
         };
 }

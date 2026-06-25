@@ -1,3 +1,5 @@
+using MarketExtension.Properties;
+
 namespace MarketExtension;
 
 // UI layer: the presentation projection of a priced holding — a DomainQuote combined with the quantity
@@ -72,8 +74,8 @@ internal sealed record UiPosition(DomainQuote Source, decimal Quantity, string P
     public string FormatHolding() => $"{Symbol} · {FormatQuantity()} {UnitLabel}";
 
     private string UnitLabel => Category == AssetCategory.Stock
-        ? Strings.Get("Ui_Position_Unit_Shares")
-        : Strings.Get("Ui_Position_Unit_Units");
+        ? Resources.Ui_Position_Unit_Shares
+        : Resources.Ui_Position_Unit_Units;
 
     // Native value, with a converted approximation appended when the currencies differ and a rate is known:
     //   USD holding, USD preferred → "$1,234.56"

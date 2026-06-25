@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 using Windows.Foundation;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -68,7 +69,7 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
     {
         _repository = repository;
         Id = "com.costafotiadis.market.dock.favorites"; // dock bands require a non-empty command Id
-        Title = Strings.Get("Command_Markets");
+        Title = Resources.Command_Markets;
         Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
     }
 
@@ -83,8 +84,8 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
         {
             return [new ListItem(new NoOpCommand { Id = "com.costafotiadis.market.dock.empty" })
             {
-                Title = Strings.Get("Favorites_Empty_Title"),
-                Subtitle = Strings.Get("Favorites_Empty_Subtitle"),
+                Title = Resources.Favorites_Empty_Title,
+                Subtitle = Resources.Favorites_Empty_Subtitle,
             }];
         }
 

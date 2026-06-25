@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -67,7 +68,7 @@ internal sealed record UiPortfolio(
     {
         var amount = $"{(IsUp ? "▲" : "▼")} {CurrencyFormat.FormatSigned(TotalDailyPnL, Currency)}";
         var percent = TotalDailyPnLPercent.ToString("+0.00;-0.00", CultureInfo.InvariantCulture);
-        return Strings.Format("Ui_Portfolio_DailyChange", amount, percent);
+        return Strings.Format(Resources.Ui_Portfolio_DailyChange, amount, percent);
     }
 
     // A trailing total-return note for the summary subtitle, e.g. " · Total ▲ +$2,300.00 (+18.40%)", in the
@@ -78,7 +79,7 @@ internal sealed record UiPortfolio(
             return string.Empty;
         var amount = $"{(IsTotalReturnUp ? "▲" : "▼")} {CurrencyFormat.FormatSigned(TotalReturn, Currency)}";
         var percent = TotalReturnPercent.ToString("+0.00;-0.00", CultureInfo.InvariantCulture);
-        return Strings.Format("Ui_Portfolio_TotalReturnNote", amount, percent);
+        return Strings.Format(Resources.Ui_Portfolio_TotalReturnNote, amount, percent);
     }
 
     // A trailing note for the summary subtitle when some priced holdings couldn't be converted into the
@@ -86,7 +87,7 @@ internal sealed record UiPortfolio(
     public string FormatUnconvertedNote() => UnconvertedCount switch
     {
         0 => string.Empty,
-        1 => Strings.Get("Ui_Portfolio_Unconverted_One"),
-        _ => Strings.Format("Ui_Portfolio_Unconverted_Many", UnconvertedCount),
+        1 => Resources.Ui_Portfolio_Unconverted_One,
+        _ => Strings.Format(Resources.Ui_Portfolio_Unconverted_Many, UnconvertedCount),
     };
 }

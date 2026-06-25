@@ -26,6 +26,24 @@
     <Content Include="Assets\**\*.png" />
   </ItemGroup>
 
+  <!-- Strongly-typed string resources. Properties\Resources.resx is the neutral (English) string
+       table; Visual Studio's PublicResXFileCodeGenerator regenerates Properties\Resources.Designer.cs
+       (a public `Resources` class with one property per key) on edit. This is exactly how PowerToys'
+       own CmdPal extensions wire their strings. The Designer file is checked in so `dotnet build` (which
+       does NOT run the design-time generator) still compiles — regenerate it from VS after editing the
+       resx, or via the StronglyTypedResourceBuilder tool. -->
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <DependentUpon>Resources.resx</DependentUpon>
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+    </Compile>
+  </ItemGroup>
+
   <Target Name="PrepareAssets" BeforeTargets="BeforeBuild">
     <!-- Copy scale-specific assets to base filenames expected by store validations -->
     <Copy SourceFiles="$(MSBuildProjectDirectory)\Assets\Square150x150Logo.scale-200.png"

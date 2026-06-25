@@ -1,5 +1,6 @@
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -17,7 +18,7 @@ internal sealed partial class RemoveFromPortfolioCommand : InvokableCommand
     public RemoveFromPortfolioCommand(DomainInstrument instrument)
     {
         _instrument = instrument;
-        Name = Strings.Get("Cmd_RemoveFromPortfolio");
+        Name = Resources.Cmd_RemoveFromPortfolio;
         Icon = new IconInfo(DeleteGlyph);
     }
 
@@ -26,7 +27,7 @@ internal sealed partial class RemoveFromPortfolioCommand : InvokableCommand
         PortfolioStore.Instance.Remove(_instrument.Symbol);
         return CommandResult.ShowToast(new ToastArgs
         {
-            Message = Strings.Format("Toast_RemovedFromPortfolio", _instrument.Symbol),
+            Message = Strings.Format(Resources.Toast_RemovedFromPortfolio, _instrument.Symbol),
             Result = CommandResult.KeepOpen(),
         });
     }

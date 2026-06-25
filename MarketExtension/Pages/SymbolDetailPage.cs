@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 using Windows.Foundation;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -82,7 +83,7 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
         Id = $"com.costafotiadis.market.detail.{instrument.Symbol}";
         Icon = AssetIconResolver.Resolve(instrument);
         Title = $"{instrument.Symbol} · {instrument.Name}";
-        Name = Strings.Get("Action_ViewDetails");
+        Name = Resources.Action_ViewDetails;
         Commands = BuildCommands(); // initial bar; refreshed again on subscribe and on every change
     }
 
@@ -295,8 +296,8 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
                 data["chartUrl"] = string.Empty;
                 data["hasChart"] = false;
                 data["showStatus"] = true;
-                data["statusText"] = Strings.Format("Chart_Loading", range.Label());
-                data["attributionText"] = Strings.Get("Attribution_Title");
+                data["statusText"] = Strings.Format(Resources.Chart_Loading, range.Label());
+                data["attributionText"] = Resources.Attribution_Title;
                 return data.ToJsonString();
             }
 
@@ -310,8 +311,8 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
             data["showStatus"] = !hasChart;
             data["statusText"] = hasChart
                 ? string.Empty
-                : Strings.Get("Chart_NoData");
-            data["attributionText"] = Strings.Get("Attribution_Title");
+                : Resources.Chart_NoData;
+            data["attributionText"] = Resources.Attribution_Title;
             return data.ToJsonString();
         }
 

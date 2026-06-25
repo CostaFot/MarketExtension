@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -11,9 +12,9 @@ internal sealed partial class FavoritesPage : PricedListPage
 {
     public FavoritesPage(MarketRepository repository) : base(repository, WatchlistStore.Instance.Favorites)
     {
-        Title = Strings.Get("Page_Favorites_Title");
-        Name = Strings.Get("Action_Open");
-        PlaceholderText = Strings.Get("Favorites_Placeholder");
+        Title = Resources.Page_Favorites_Title;
+        Name = Resources.Action_Open;
+        PlaceholderText = Resources.Favorites_Placeholder;
     }
 
     protected override IListItem BuildRow(UiQuote q)
@@ -32,8 +33,8 @@ internal sealed partial class FavoritesPage : PricedListPage
     [
         new ListItem(new NoOpCommand())
         {
-            Title = Strings.Get("Favorites_Empty_Title"),
-            Subtitle = Strings.Get("Favorites_Empty_Subtitle"),
+            Title = Resources.Favorites_Empty_Title,
+            Subtitle = Resources.Favorites_Empty_Subtitle,
         },
     ];
 }

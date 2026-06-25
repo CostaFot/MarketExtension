@@ -1,5 +1,6 @@
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -53,8 +54,8 @@ internal sealed partial class DataSourcesPage : ContentPage
     public DataSourcesPage()
     {
         Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
-        Title = Strings.Get("Page_DataSources_Title");
-        Name = Strings.Get("Action_Open");
+        Title = Resources.Page_DataSources_Title;
+        Name = Resources.Action_Open;
     }
 
     public override IContent[] GetContent() => [_content];

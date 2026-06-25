@@ -1,5 +1,6 @@
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -32,13 +33,13 @@ internal static class RateLimitHint
         RateLimitSignal.Instance.IsRateLimited.Value && MarketSettingsManager.Instance.ShowRateLimitErrors
             ? new ListItem(new NoOpCommand()) // informational only — Enter must not navigate (it's the first row)
             {
-                Title = Strings.Get("RateLimit_Title"),
-                Subtitle = Strings.Get("RateLimit_Subtitle"),
+                Title = Resources.RateLimit_Title,
+                Subtitle = Resources.RateLimit_Subtitle,
                 Icon = new IconInfo(WarningGlyph),
-                Tags = [new Tag(Strings.Get("RateLimit_Tag"))
+                Tags = [new Tag(Resources.RateLimit_Tag)
                 {
                     Foreground = CautionAmber,
-                    ToolTip = Strings.Get("RateLimit_Tooltip"),
+                    ToolTip = Resources.RateLimit_Tooltip,
                 }],
             }
             : null;

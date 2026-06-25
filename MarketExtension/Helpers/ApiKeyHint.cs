@@ -1,5 +1,6 @@
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -55,13 +56,13 @@ internal static class ApiKeyHint
     private static ListItem DemoRow() =>
         new ListItem(SettingsPage)
         {
-            Title = Strings.Get("Status_Demo_Title"),
-            Subtitle = Strings.Get("Status_Demo_Subtitle"),
+            Title = Resources.Status_Demo_Title,
+            Subtitle = Resources.Status_Demo_Subtitle,
             Icon = new IconInfo(DemoGlyph),
-            Tags = [new Tag(Strings.Get("Status_Demo_Tag"))
+            Tags = [new Tag(Resources.Status_Demo_Tag)
             {
                 Foreground = DemoBlue,
-                ToolTip = Strings.Get("Status_Demo_Tooltip"),
+                ToolTip = Resources.Status_Demo_Tooltip,
             }],
         };
 
@@ -70,13 +71,13 @@ internal static class ApiKeyHint
     private static ListItem MissingKeyRow() =>
         new ListItem(SettingsPage)
         {
-            Title = Strings.Get("Status_NoKey_Title"),
-            Subtitle = Strings.Get("Status_NoKey_Subtitle"),
+            Title = Resources.Status_NoKey_Title,
+            Subtitle = Resources.Status_NoKey_Subtitle,
             Icon = new IconInfo(WarningGlyph),
-            Tags = [new Tag(Strings.Get("Status_NoKey_Tag"))
+            Tags = [new Tag(Resources.Status_NoKey_Tag)
             {
                 Foreground = WarningRed,
-                ToolTip = Strings.Get("Status_NoKey_Tooltip"),
+                ToolTip = Resources.Status_NoKey_Tooltip,
             }],
         };
 }

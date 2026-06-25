@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -30,9 +31,9 @@ internal sealed partial class SetQuantityPage : ContentPage
         Id = $"com.costafotiadis.market.portfolio.setquantity.{instrument.Symbol}";
         Icon = new IconInfo(editing ? EditGlyph : AddGlyph);
         Title = editing
-            ? Strings.Format("SetQty_Title_Edit", instrument.Symbol)
-            : Strings.Format("SetQty_Title_Add", instrument.Symbol);
-        Name = editing ? Strings.Get("SetQty_Name_Edit") : Strings.Get("SetQty_Name_Add");
+            ? Strings.Format(Resources.SetQty_Title_Edit, instrument.Symbol)
+            : Strings.Format(Resources.SetQty_Title_Add, instrument.Symbol);
+        Name = editing ? Resources.SetQty_Name_Edit : Resources.SetQty_Name_Add;
     }
 
     public override IContent[] GetContent() => [_form];
@@ -65,11 +66,11 @@ internal sealed partial class SetQuantityPage : ContentPage
                 // is treated as cleared on submit — so total return is simply omitted until a real price is set.
                 ["costBasis"] = existing?.CostBasis ?? 0m,
                 // Localized card labels, bound by the template below (kept out of the const JSON so they translate).
-                ["quantityLabel"] = Strings.Get("SetQty_Card_Quantity"),
-                ["quantityError"] = Strings.Get("SetQty_Card_QuantityError"),
-                ["costBasisLabel"] = Strings.Get("SetQty_Card_CostBasis"),
-                ["costBasisHelp"] = Strings.Get("SetQty_Card_Help"),
-                ["saveLabel"] = Strings.Get("SetQty_Card_Save"),
+                ["quantityLabel"] = Resources.SetQty_Card_Quantity,
+                ["quantityError"] = Resources.SetQty_Card_QuantityError,
+                ["costBasisLabel"] = Resources.SetQty_Card_CostBasis,
+                ["costBasisHelp"] = Resources.SetQty_Card_Help,
+                ["saveLabel"] = Resources.SetQty_Card_Save,
             };
             return data.ToJsonString();
         }
@@ -77,9 +78,9 @@ internal sealed partial class SetQuantityPage : ContentPage
         public override ICommandResult SubmitForm(string inputs, string data)
         {
             if (!TryReadDecimal(inputs, "quantity", out var quantity))
-                return Error(Strings.Get("SetQty_Error_Number"));
+                return Error(Resources.SetQty_Error_Number);
             if (quantity <= 0m)
-                return Error(Strings.Get("SetQty_Error_Positive"));
+                return Error(Resources.SetQty_Error_Positive);
 
             // Cost basis is optional: a missing/blank/≤0 value means "not recorded" → store null (clears any
             // previous basis), which just hides total return. A positive value is the average price paid per
@@ -88,11 +89,11 @@ internal sealed partial class SetQuantityPage : ContentPage
 
             PortfolioStore.Instance.SetPosition(_instrument, quantity, costBasis);
             var basisNote = costBasis is { } b
-                ? Strings.Format("SetQty_BasisNote", b.ToString("0.########", CultureInfo.InvariantCulture))
+                ? Strings.Format(Resources.SetQty_BasisNote, b.ToString("0.########", CultureInfo.InvariantCulture))
                 : string.Empty;
             return CommandResult.ShowToast(new ToastArgs
             {
-                Message = Strings.Format("SetQty_Toast_Set",
+                Message = Strings.Format(Resources.SetQty_Toast_Set,
                     _instrument.Symbol, quantity.ToString("0.########", CultureInfo.InvariantCulture), basisNote),
                 Result = CommandResult.GoBack(), // back to the detail page; its subscription refreshes the bar
             });

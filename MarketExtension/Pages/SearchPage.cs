@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 using Windows.Foundation;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -78,9 +79,9 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         _watchlistPage = new WatchlistPage(repository);
         _favoritesPage = new FavoritesPage(repository);
         Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
-        Title = Strings.Get("Page_Search_Title");
-        Name = Strings.Get("Action_Search");
-        PlaceholderText = Strings.Get("Search_Placeholder");
+        Title = Resources.Page_Search_Title;
+        Name = Resources.Action_Search;
+        PlaceholderText = Resources.Search_Placeholder;
     }
 
     // Typing only re-lists — never calls the API. The online search is Enter-only.
@@ -97,14 +98,14 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         {
             new ListItem(_watchlistPage)
             {
-                Title = Strings.Get("Nav_Watchlist_Title"),
-                Subtitle = Strings.Get("Nav_Watchlist_Subtitle"),
+                Title = Resources.Nav_Watchlist_Title,
+                Subtitle = Resources.Nav_Watchlist_Subtitle,
                 Icon = new IconInfo(ListGlyph),
             },
             new ListItem(_favoritesPage)
             {
-                Title = Strings.Get("Nav_Favorites_Title"),
-                Subtitle = Strings.Get("Nav_Favorites_Subtitle"),
+                Title = Resources.Nav_Favorites_Title,
+                Subtitle = Resources.Nav_Favorites_Subtitle,
                 Icon = new IconInfo(StarFillGlyph),
             },
         };
@@ -124,8 +125,8 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             // First item → pressing Enter runs the one /search call (see RunSearchCommand).
             new ListItem(new RunSearchCommand(this))
             {
-                Title = Strings.Format("Search_Action_Title", SearchText),
-                Subtitle = Strings.Get("Search_Action_Subtitle"),
+                Title = Strings.Format(Resources.Search_Action_Title, SearchText),
+                Subtitle = Resources.Search_Action_Subtitle,
                 Icon = new IconInfo(SearchGlyph),
             },
         };
@@ -137,8 +138,8 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
             {
                 items.Add(new ListItem(new NoOpCommand())
                 {
-                    Title = Strings.Format("Search_NoMatches", SearchText),
-                    Section = Strings.Get("Search_ResultsSection"),
+                    Title = Strings.Format(Resources.Search_NoMatches, SearchText),
+                    Section = Resources.Search_ResultsSection,
                 });
             }
 
@@ -169,17 +170,17 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         {
             Title = (isFavorite ? "★ " : "") + $"{instrument.Symbol} · {instrument.Name}",
             Subtitle = MembershipSubtitle(inWatchlist, isFavorite),
-            Section = Strings.Get("Search_ResultsSection"),
+            Section = Resources.Search_ResultsSection,
             Icon = AssetIconResolver.Resolve(instrument),
         };
     }
 
     private static string MembershipSubtitle(bool inWatchlist, bool isFavorite) => (inWatchlist, isFavorite) switch
     {
-        (true, true) => Strings.Get("Membership_WatchlistFavorite"),
-        (true, false) => Strings.Get("Membership_Watchlist"),
-        (false, true) => Strings.Get("Membership_Favorite"),
-        (false, false) => Strings.Get("Membership_None"),
+        (true, true) => Resources.Membership_WatchlistFavorite,
+        (true, false) => Resources.Membership_Watchlist,
+        (false, true) => Resources.Membership_Favorite,
+        (false, false) => Resources.Membership_None,
     };
 
     // Runs the single online /search call for the current SearchText, then re-lists with results.
@@ -210,7 +211,7 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         public RunSearchCommand(SearchPage page)
         {
             _page = page;
-            Name = Strings.Get("Action_Search");
+            Name = Resources.Action_Search;
             Icon = new IconInfo(SearchGlyph);
         }
 

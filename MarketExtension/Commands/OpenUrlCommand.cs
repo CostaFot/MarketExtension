@@ -1,6 +1,7 @@
 using System;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using MarketExtension.Properties;
 
 namespace MarketExtension;
 
@@ -28,7 +29,7 @@ internal sealed partial class OpenUrlCommand : InvokableCommand
         {
             return CommandResult.ShowToast(new ToastArgs
             {
-                Message = Strings.Format("Toast_OpenUrlFailed", _url, ex.Message),
+                Message = Strings.Format(Resources.Toast_OpenUrlFailed, _url, ex.Message),
                 Result = CommandResult.KeepOpen(),
             });
         }
