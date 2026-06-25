@@ -61,7 +61,7 @@ internal class StateFlow<T>
         //     (throw is non-fatal to the subscription), matching the old hand-rolled flow.
         //  2. Isolation: BehaviorSubject fans out with a foreach, so one subscriber throwing would skip the
         //     rest for that emission. Swallowing here keeps subscribers independent.
-        // Errors still reach Sentry via Log.Error (survives Release), tagged StateFlow.
+        // Errors are logged via Log.Error (Debug builds only), tagged StateFlow.
         void Guarded(T value)
         {
             try { onNext(value); }

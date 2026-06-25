@@ -92,7 +92,7 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults — the **first-run seed** for `WatchlistStore` (no longer always-shown; removable once seeded). |
 | `Settings/WatchlistStore.cs` | JSON-persisted tracked instruments, each carrying **two independent flags** `InWatchlist`/`IsFavorite` (favorites = the dock subset). Stores **full `DomainInstrument` identity** so searched non-catalog symbols re-price; an entry with both flags false is dropped. Source-gen `WatchlistItem`/`WatchlistJsonContext` → `market_watchlist.json`; seeds `InstrumentCatalog` on first run, else migrates the legacy `market_favorites.json` (old pins → watchlisted **and** favorited). Exposes its `Watchlist`/`Favorites` subsets as **observable `StateFlow`s** (each mutation calls `PublishState()` → re-publishes both); pages and the dock **subscribe** and re-render themselves. Replaces the old `FavoritesStore` + `Watchlist.cs`. |
 | `Helpers/StateFlow.cs` | A tiny **Kotlin-StateFlow analog**, now a **thin wrapper over `System.Reactive`'s `BehaviorSubject<T>`** (the migration off the old hand-rolled version is **done** — AOT/trim is off, so the Rx dependency is taken warning-free; see the Rx done bullet). Used by the **state holders** (`WatchlistStore`, `MarketSettingsManager`) — observable *state with a current value*, which `IObservable` (no `Value`) and a bare `BehaviorSubject` (no read-only face) can't express alone. Public API unchanged: `StateFlow<T>` (read-only `Value` + `Subscribe` with **replay-on-subscribe** + distinct-until-changed; a `Subscribe(onNext, replayOnSubscribe:false)` overload opts out of the replay via `Skip(1)` — used by the priced pages' secondary flows, e.g. `HasAnyApiKey`) and writable `MutableStateFlow<T>` (`Update`). `SetValue` does **source-side** distinct-until-changed (an equal value isn't pushed, so re-publishing an unchanged subset doesn't wake its subscribers); `BehaviorSubject.OnNext` fans handlers out **outside** its lock (handlers re-read the store safely). The old hand-rolled **subscriber-count seam** (`OnActive`/`OnInactive` + the refcount + a custom `Subscription` wrapper) was **removed** once its only user, `PollTicker`, went pure Rx — Rx's `Publish().RefCount()` is the proper home for that, and Rx subscriptions are already idempotent on dispose. Plus `InstrumentListComparer` (symbol-sequence dedup for the store's two flows). |
-| `Helpers/PollTicker.cs` | The **live-price poll ticker** — now **pure Rx** (no longer a `StateFlow<long>`). A process-wide singleton `IObservable<long>` = `Observable.Generate(...)` (self-rescheduling timer; per-step delay re-read from `MarketSettingsManager` each iteration so interval/on-off applies without reload, `0` = off idles on a 30 s re-check and the tick is filtered out) wrapped in **`Publish().RefCount()`** — the WhileSubscribed seam that starts the loop on the first subscriber and tears it down on the last (Generate never completes, so disposal is silent and resubscribe restarts cleanly). `Defer`/`Finally` log the start/stop at the refcount edges. Surfaces attach via the **guarded** `PollTicker.Subscribe(onTick)` (the raw stream is private): the handler is wrapped in try/catch (swallow + `Log.Error`→Sentry) so a throwing tick handler can't trip Rx's `SafeObserver` into tearing down the shared multicast stream (which would kill polling for every surface). Handlers still offload heavy work via `Task.Run`. |
+| `Helpers/PollTicker.cs` | The **live-price poll ticker** — now **pure Rx** (no longer a `StateFlow<long>`). A process-wide singleton `IObservable<long>` = `Observable.Generate(...)` (self-rescheduling timer; per-step delay re-read from `MarketSettingsManager` each iteration so interval/on-off applies without reload, `0` = off idles on a 30 s re-check and the tick is filtered out) wrapped in **`Publish().RefCount()`** — the WhileSubscribed seam that starts the loop on the first subscriber and tears it down on the last (Generate never completes, so disposal is silent and resubscribe restarts cleanly). `Defer`/`Finally` log the start/stop at the refcount edges. Surfaces attach via the **guarded** `PollTicker.Subscribe(onTick)` (the raw stream is private): the handler is wrapped in try/catch (swallow + `Log.Error`) so a throwing tick handler can't trip Rx's `SafeObserver` into tearing down the shared multicast stream (which would kill polling for every surface). Handlers still offload heavy work via `Task.Run`. |
 | `Helpers/HttpRetry.cs` | **Shared 429 back-off** at the HTTP seam. `SendAsync(send, tag, ct)` takes a request **thunk** (each retry must re-issue a fresh `HttpResponseMessage`) and, on HTTP `429`, honors a short `Retry-After` else backs off `1s`→`2s` (max 3 attempts, **bails** if the wait would exceed an `8s` cap — per-minute windows don't clear in seconds, so hammering only burns quota). Returns the final response (success / non-429 error / surviving 429) so callers inspect status exactly as before — a **drop-in** at each `GetAsync`. Also the single choke point that feeds `RateLimitSignal` (2xx → off, surviving 429 → on). Used by Finnhub + Twelve Data (not keyless Frankfurter). |
 | `Helpers/RateLimitSignal.cs` | Process-wide **"are we throttled" flag** — a `MutableStateFlow<bool>` behind a read-only `StateFlow<bool>` (same state-holder idiom as `WatchlistStore`/`MarketSettingsManager`). `ReportRateLimited()`/`ReportSuccess()` flip it (distinct-until-changed); priced surfaces **subscribe** and re-render. Intentionally **global, not per-symbol** (a free-tier limit is key-wide). |
 | `Helpers/RateLimitHint.cs` | The **rate-limited banner row** (parallels `ApiKeyHint.StatusRow()`): `Row()` returns an amber "Rate-limited — showing last known prices" `ListItem` (Enter = **`NoOpCommand`**, purely informational — it's the default-selected first row, so it must not navigate) when `RateLimitSignal` is set **and** the `ShowRateLimitErrors` setting is on, else `null`. Pinned to the **top** so it's seen without scrolling: `PricedListPage.GetItems` inserts it at index 0; `SearchPage.SearchItems` inserts it at index 1 (just under the Enter-to-search action, which must stay first). |
@@ -133,7 +133,7 @@ UI/repository changes (only a registration line + a settings key).
   `GetQuotesAsync` **batches every instrument into ONE `/quote` call** (comma-joined). Response shape
   differs by count: **>1 symbol** → object keyed by symbol (`Dictionary<string, ApiTwelveDataQuoteDto>`);
   **1 symbol** → a bare quote object. A global error (bad key/429) can come back as a bare
-  `{"status":"error"}` even on HTTP 200 → the parse degrades to all-invalid (kept off the Sentry path).
+  `{"status":"error"}` even on HTTP 200 → the parse degrades to all-invalid (kept off the error path).
 - Symbol formats: stock `AAPL`, crypto `BTC/USD`, FX `EUR/USD`. `ToTwelveDataSymbol` maps our neutral
   symbols (bare ticker / bare coin `BTC`→`BTC/USD` / 6-letter `EURUSD`→`EUR/USD`); `SearchAsync`
   normalizes results **back** (crypto → base coin, FX → 6-letter) so they round-trip and match the icon
@@ -224,13 +224,24 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 
 - `Log.Info/Warn/Error(tag, message)` (`Helpers/Log.cs`) — tagged by component (`Finnhub`,
   `Repository`, `ComServer`, `Startup`).
-- `Info`/`Warn` are `[Conditional("DEBUG")]` → **compiled out of Release** (the MSIX ships silent).
-  `Error` also reports to **Sentry**, which survives into Release (no-op until a DSN is set in `Program.cs`).
+- `Info`/`Warn`/`Error` are all `[Conditional("DEBUG")]` → **compiled out of Release** (the MSIX ships
+  silent, with **no telemetry channel** — nothing leaves the machine). Sentry was removed entirely.
 - Watch live (Debug builds): VS **Debug → Attach to Process → `MarketExtension.exe`** (Managed) →
   Output window; or Sysinternals **DebugView** ("Capture Global Win32"). **NEVER log the API token.**
 
 ## Current Status / Next Steps
 
+- **Done (this round): removed Sentry entirely — the app ships with NO telemetry.** The optional crash
+  reporter (SDK init in `Program.cs`, the `CaptureException`/`CaptureMessage` calls in `Log.Error`, the
+  `Sentry` package in the csproj + `Directory.Packages.props`) is **gone**. Rationale: it was a one-off in
+  this extension — **no** other CmdPal extension uses Sentry (0 references across the whole PowerToys repo;
+  none in the AdbExtension this was scaffolded from), and a market app that holds the user's API key
+  shouldn't carry anything that *looks* like it could exfiltrate it (even though the audit found it never
+  did — keys live only in request query strings handed to plain, un-instrumented `HttpClient`s, and no
+  `Log.Error` ever interpolated a URL/key). `Log.Error` is now `[Conditional("DEBUG")]` like `Info`/`Warn`,
+  so all logging is Debug-only and a Release MSIX emits nothing off-machine. To re-add telemetry later,
+  restore the package + a `SentrySdk.Init` and add a `BeforeSend` scrubber for `token=`/`apikey=`. Build
+  clean (0 warnings).
 - **Done (this round): Demo mode now applies INSTANTLY (no waiting for the next refresh) + no rate-limit
   banner while demoing.** Flipping the `Demo mode` toggle used to be **pull-style** — surfaces only picked up
   the new data source on their next price refresh / reopen, so a hidden priced page (a long-lived singleton
@@ -1237,6 +1248,5 @@ This was scaffolded from AdbExtension. Already changed: COM GUID (`6b38c9aa-bbee
   all 7 chrome spots), and the MSIX tile/Store PNGs regenerated from the square source via VS's Visual
   Assets generator. No `<ApplicationIcon>`/`.ico` (matches AdbExtension — the deployed app icon comes from
   the manifest assets; the bare exe keeps the default apphost icon, which is fine).
-- **Sentry**: set your own DSN in `Program.cs` or leave it empty to disable.
 - **API key**: none needed at build time — each user pastes their own Finnhub key into the extension's settings at runtime (see the "API Key" section above).
 - **Description**: update the placeholder description in `Package.appxmanifest`.

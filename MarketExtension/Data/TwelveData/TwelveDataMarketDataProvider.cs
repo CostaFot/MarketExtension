@@ -142,7 +142,7 @@ internal sealed class TwelveDataMarketDataProvider : IMarketDataProvider
             // A global error (bad key, rate limit) can come back as a bare {"code":…,"status":"error"}
             // object even on HTTP 200, which won't shape-match the multi-symbol map. Surface a 429 to the
             // banner, then degrade to "no quotes" (all invalid) rather than throwing — keeps it out of the
-            // error/Sentry path.
+            // error path.
             ReportIfGlobalRateLimit(json);
             Log.Warn("TwelveData", $"quote: could not parse response ({ex.Message}) — treating as unavailable");
         }

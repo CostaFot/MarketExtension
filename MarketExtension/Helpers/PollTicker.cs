@@ -27,7 +27,7 @@ namespace MarketExtension;
 // into the shared stream. This matters because the published stream is multicast — an unguarded throw
 // would be caught by Rx's SafeObserver, which DISPOSES that subscription AND rethrows back through the
 // Publish subject, terminating the stream for EVERY surface (polling dead until reload). The guard
-// swallows + Sentry-logs instead. Handlers should still offload heavy work (all PollRefresh()s Task.Run),
+// swallows + logs (Log.Error) instead. Handlers should still offload heavy work (all PollRefresh()s Task.Run),
 // but they no longer have to be throw-proof.
 //
 // ⚠️ That guard covers the SUBSCRIBER side only. The SOURCE operators below (timeSelector, Where, iterate,
@@ -68,7 +68,7 @@ internal static class PollTicker
             .RefCount();
 
     // Run onTick on every poll tick while subscribed. The handler is wrapped so a throw is contained
-    // (swallowed + Sentry-logged) and can't tear down the shared stream — see the type comment above.
+    // (swallowed + logged) and can't tear down the shared stream — see the type comment above.
     public static IDisposable Subscribe(Action onTick)
     {
         ArgumentNullException.ThrowIfNull(onTick);

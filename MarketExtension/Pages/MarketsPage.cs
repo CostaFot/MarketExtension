@@ -18,7 +18,7 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
     private const string ListGlyph = "\uE8FD";      // Segoe MDL2 List
     private const string StarFillGlyph = "\uE735";  // Segoe MDL2 FavoriteStarFill
     private const string PortfolioGlyph = "\uE825"; // Segoe MDL2 Bank
-    private const string InfoGlyph = "\uE946";      // Segoe MDL2 Info
+    private const string InfoGlyph = "\uE9F9";      // Segoe MDL2 ReportDocument
     private const string SettingsGlyph = "\uE713";  // Segoe MDL2 Setting
 
     private readonly SearchPage _searchPage;

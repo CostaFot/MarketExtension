@@ -1,5 +1,4 @@
 using Microsoft.CommandPalette.Extensions;
-using Sentry;
 using Shmuelie.WinRTServer;
 using Shmuelie.WinRTServer.CsWinRT;
 using System;
@@ -16,15 +15,6 @@ public class Program
     [MTAThread]
     public static void Main(string[] args)
     {
-        // Optional crash/usage telemetry. Leave the DSN empty to disable Sentry, or set
-        // your own DSN (do NOT reuse another project's DSN). Remove this block entirely
-        // if you don't want Sentry.
-        using var sentry = SentrySdk.Init(options =>
-        {
-            options.Dsn = ""; // <-- your Sentry DSN here (empty = disabled)
-            options.AutoSessionTracking = true;
-        });
-
         Log.Info("Startup", "MarketExtension starting");
 
         if (args.Length > 0 && args[0] == "-RegisterProcessAsComServer")
