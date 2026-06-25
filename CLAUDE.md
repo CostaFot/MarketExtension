@@ -1,4 +1,4 @@
-# Market Extension for Command Palette — Claude Guide
+# Markets Extension for Command Palette — Claude Guide
 
 ## Documentation
 

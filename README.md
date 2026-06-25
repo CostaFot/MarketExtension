@@ -1,4 +1,4 @@
-# Market Extension
+# Markets Extension
 
 A [PowerToys Command Palette](https://learn.microsoft.com/en-us/windows/powertoys/command-palette/overview) extension for live **stock, crypto, and currency** market data — with a watchlist, favorites, and a portfolio, right inside Command Palette.
 

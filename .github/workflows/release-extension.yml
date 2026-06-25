@@ -14,7 +14,7 @@ on:
         type: string
 
 env:
-  DISPLAY_NAME: Market Extension
+  DISPLAY_NAME: Markets Extension
   EXTENSION_NAME: MarketExtension
   FOLDER_NAME: MarketExtension
   GITHUB_REPO_URL: https://github.com/CostaFot/MarketExtension
