@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using System.Threading;
 
 namespace MarketExtension;
 
@@ -11,34 +10,27 @@ namespace MarketExtension;
 // subscriber the moment they subscribe, then pushes the new value on each change. Deduplicates with an
 // equality comparer (distinct-until-changed).
 //
-// Implemented as a thin wrapper over System.Reactive's BehaviorSubject<T> (which already gives us the
-// current value, replay-on-subscribe, and thread-safe observer fan-out). The hand-rolled version this
-// replaced avoided System.Reactive only because the build was once AOT/trim-clean; that constraint is
-// gone (AOT/trim is a deliberate non-goal now — see CLAUDE.md), so we take the dependency to unlock Rx's
+// A thin wrapper over System.Reactive's BehaviorSubject<T>, which already provides the current value,
+// replay-on-subscribe, fan-out, and thread-safe, idempotent subscriptions. The hand-rolled version this
+// replaced avoided System.Reactive only because the build was once AOT/trim-clean; that constraint is gone
+// (AOT/trim is a deliberate non-goal now — see CLAUDE.md), so we take the dependency to unlock Rx's
 // operator library for the deferred work (429 Retry/RetryWhen back-off, Throttle'd search, Merge'd
-// providers, Observable.Timer polling). The PUBLIC API is unchanged, so pages, the dock, and PollTicker
-// don't change.
+// providers). The PUBLIC API is unchanged, so the state holders (WatchlistStore, MarketSettingsManager)
+// and their page/dock subscribers don't change.
 //
 // This is the read-only face consumers see (read Value / Subscribe). Only the writable MutableStateFlow
 // subclass can change the value — mirroring Kotlin's MutableStateFlow/StateFlow split, so the store
-// mutates while pages and the dock merely observe.
-//
-// Subscriber-count awareness: OnActive() fires when the subscriber count goes 0 -> 1 and OnInactive()
-// when it returns 1 -> 0. That is the WhileSubscribed / Rx RefCount() seam — PollTicker starts its poll
-// loop on OnActive and stops it on OnInactive, so it only does work while something is actually watching.
-// (BehaviorSubject has no refcount hook, so we keep counting subscribers by hand here — this IS the
-// Publish().RefCount() seam, kept explicit so the hooks stay a clean override point.) Plain flows leave
-// both hooks no-op.
+// mutates while pages and the dock merely observe. (An earlier OnActive/OnInactive subscriber-count seam
+// lived here too; it was removed once its only user, PollTicker, moved to pure Rx Publish().RefCount() —
+// see PollTicker.cs.)
 [SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable",
     Justification = "The BehaviorSubject is owned by process-lifetime singletons (WatchlistStore, " +
-                    "MarketSettingsManager, PollTicker) whose flows are observed for the life of the " +
-                    "process; it is intentionally never completed or disposed.")]
-internal partial class StateFlow<T>
+                    "MarketSettingsManager) whose flows are observed for the life of the process; it is " +
+                    "intentionally never completed or disposed.")]
+internal class StateFlow<T>
 {
     private readonly BehaviorSubject<T> _subject;
     private readonly IEqualityComparer<T> _comparer;
-    private readonly Lock _countGate = new();
-    private int _count;
 
     protected StateFlow(T initial, IEqualityComparer<T>? comparer = null)
     {
@@ -49,27 +41,35 @@ internal partial class StateFlow<T>
     public T Value => _subject.Value;
 
     // Subscribe and immediately receive the current value (StateFlow replay — BehaviorSubject does this).
-    // Dispose to unsubscribe; disposal is idempotent. Handlers run on whatever thread mutates the value
-    // (BehaviorSubject fans out OUTSIDE its internal lock) — the toolkit marshals the RaiseItemsChanged
-    // that handlers ultimately call.
+    // Dispose to unsubscribe; Rx subscriptions are idempotent on dispose. Handlers run on whatever thread
+    // mutates the value (BehaviorSubject fans out OUTSIDE its internal lock) — the toolkit marshals the
+    // RaiseItemsChanged that handlers ultimately call.
     public IDisposable Subscribe(Action<T> onNext) => Subscribe(onNext, replayOnSubscribe: true);
 
-    // As above, but pass replayOnSubscribe:false to suppress the initial replay and only receive
-    // *future* values. The poll ticker uses this: a page's first price load is already driven by its
-    // membership flow's replay, so a replayed tick would just double-fetch on every open. OnActive still
-    // fires on the 0 -> 1 transition regardless (so the producer starts), only the replay is skipped —
-    // Skip(1) drops the value BehaviorSubject replays synchronously on subscribe.
+    // As above, but pass replayOnSubscribe:false to suppress the initial replay and only receive *future*
+    // values (Skip(1) drops the value BehaviorSubject replays synchronously on subscribe). Used where a
+    // surface's initial paint is already driven by another flow's replay, so replaying here would just
+    // duplicate work — e.g. the priced pages re-rendering on a HasAnyApiKey change.
     public IDisposable Subscribe(Action<T> onNext, bool replayOnSubscribe)
     {
         ArgumentNullException.ThrowIfNull(onNext);
 
-        bool becameActive;
-        lock (_countGate) becameActive = ++_count == 1;
-        if (becameActive) OnActive(); // wake any producer before the replay-on-subscribe below
+        // Guard the handler so a throw can never escape into Rx. Two reasons:
+        //  1. Symmetry: the replayOnSubscribe:false path runs through Skip(1) — an Rx operator whose
+        //     SafeObserver DISPOSES the subscription if OnNext throws (silently unsubscribing the surface),
+        //     while the raw-BehaviorSubject replay path does not. Guarding makes both paths behave the same
+        //     (throw is non-fatal to the subscription), matching the old hand-rolled flow.
+        //  2. Isolation: BehaviorSubject fans out with a foreach, so one subscriber throwing would skip the
+        //     rest for that emission. Swallowing here keeps subscribers independent.
+        // Errors still reach Sentry via Log.Error (survives Release), tagged StateFlow.
+        void Guarded(T value)
+        {
+            try { onNext(value); }
+            catch (Exception ex) { Log.Error("StateFlow", "subscriber handler threw", ex); }
+        }
 
         IObservable<T> source = replayOnSubscribe ? _subject : _subject.Skip(1);
-        var inner = source.Subscribe(onNext); // BehaviorSubject replays the current value here (unless skipped)
-        return new Subscription(this, inner);
+        return source.Subscribe(Guarded);
     }
 
     // Writable entry point for subclasses. Returns true if the value actually changed (i.e. listeners
@@ -81,33 +81,6 @@ internal partial class StateFlow<T>
         if (_comparer.Equals(_subject.Value, value)) return false; // distinct-until-changed
         _subject.OnNext(value);
         return true;
-    }
-
-    // Called on the 0 -> 1 subscriber transition (the flow "becomes active"). No-op by default.
-    protected virtual void OnActive() { }
-
-    // Called on the 1 -> 0 subscriber transition (the flow "goes idle"). No-op by default.
-    protected virtual void OnInactive() { }
-
-    private void Unsubscribe()
-    {
-        bool becameIdle;
-        lock (_countGate) becameIdle = --_count == 0;
-        if (becameIdle) OnInactive();
-    }
-
-    private sealed partial class Subscription(StateFlow<T> flow, IDisposable inner) : IDisposable
-    {
-        private StateFlow<T>? _flow = flow;
-
-        public void Dispose()
-        {
-            // Null out atomically so a double-dispose can't decrement the count twice.
-            var owner = Interlocked.Exchange(ref _flow, null);
-            if (owner is null) return;
-            inner.Dispose();   // detach from the BehaviorSubject
-            owner.Unsubscribe();
-        }
     }
 }
 

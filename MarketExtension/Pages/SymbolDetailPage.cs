@@ -52,10 +52,11 @@ internal sealed partial class SymbolDetailPage : ContentPage, INotifyItemsChange
             // rows never trigger a fetch.
             _chartForm.Start();
             // Live refresh: re-fetch the visible range on each poll tick while the page is shown, sharing
-            // the one PollTicker (and its OnActive/OnInactive refcount) with the priced list pages + dock.
-            // replayOnSubscribe:false so opening the page doesn't double-fetch — Start() already did the
-            // first load. Disposed in `remove` with the rest, so a hidden page neither polls nor leaks.
-            _subscriptions.Add(PollTicker.Instance.Subscribe(_ => _chartForm.PollRefresh(), replayOnSubscribe: false));
+            // the one PollTicker (and its Publish().RefCount() lifecycle) with the priced list pages + dock.
+            // The ticker is a pure event stream (no replay), so opening the page doesn't double-fetch —
+            // Start() already did the first load. Disposed in `remove` with the rest, so a hidden page
+            // neither polls nor leaks.
+            _subscriptions.Add(PollTicker.Subscribe(_chartForm.PollRefresh));
         }
         remove
         {

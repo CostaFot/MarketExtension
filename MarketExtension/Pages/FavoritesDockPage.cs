@@ -35,9 +35,10 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
             // it opens, and any later star/unstar from a palette page refreshes it at once (no waiting
             // for a reopen). Disposed in `remove` so a hidden band does no work and doesn't leak.
             _subscription = WatchlistStore.Instance.Favorites.Subscribe(_ => RefreshQuotes());
-            // Live polling: each tick silently re-prices favorites in place (no spinner). replay:false so
-            // becoming visible doesn't double-fetch — the favorites subscription above already paints.
-            _pollSubscription = PollTicker.Instance.Subscribe(_ => PollRefresh(), replayOnSubscribe: false);
+            // Live polling: each tick silently re-prices favorites in place (no spinner). The ticker is a
+            // pure event stream (no replay), so becoming visible doesn't double-fetch — the favorites
+            // subscription above already paints.
+            _pollSubscription = PollTicker.Subscribe(PollRefresh);
             Log.Info("Poll", $"Dock: started polling [{string.Join(", ", WatchlistStore.Instance.Favorites.Value.Select(i => i.Symbol))}]");
         }
         remove

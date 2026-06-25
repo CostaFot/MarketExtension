@@ -86,8 +86,8 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Data/MockMarketDataProvider.cs` | Offline fallback (`Supports` all). `SearchAsync` filters its seed keys. |
 | `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults — the **first-run seed** for `WatchlistStore` (no longer always-shown; removable once seeded). |
 | `Settings/WatchlistStore.cs` | JSON-persisted tracked instruments, each carrying **two independent flags** `InWatchlist`/`IsFavorite` (favorites = the dock subset). Stores **full `DomainInstrument` identity** so searched non-catalog symbols re-price; an entry with both flags false is dropped. Source-gen `WatchlistItem`/`WatchlistJsonContext` → `market_watchlist.json`; seeds `InstrumentCatalog` on first run, else migrates the legacy `market_favorites.json` (old pins → watchlisted **and** favorited). Exposes its `Watchlist`/`Favorites` subsets as **observable `StateFlow`s** (each mutation calls `PublishState()` → re-publishes both); pages and the dock **subscribe** and re-render themselves. Replaces the old `FavoritesStore` + `Watchlist.cs`. |
-| `Helpers/StateFlow.cs` | A tiny **Kotlin-StateFlow analog**, now a **thin wrapper over `System.Reactive`'s `BehaviorSubject<T>`** (the migration off the old hand-rolled version is **done** — AOT/trim is off, so the Rx dependency is taken warning-free; see the Rx wishlist bullet). Public API unchanged: `StateFlow<T>` (read-only `Value` + `Subscribe` with **replay-on-subscribe** + distinct-until-changed; a `Subscribe(onNext, replayOnSubscribe:false)` overload opts out of the replay via `Skip(1)` — used by the poll ticker) and writable `MutableStateFlow<T>` (`Update`). `SetValue` does **source-side** distinct-until-changed (an equal value isn't pushed, so re-publishing an unchanged subset doesn't wake its subscribers); `BehaviorSubject.OnNext` fans handlers out **outside** its lock (handlers re-read the store safely). The **subscriber-count hooks** `OnActive`/`OnInactive` (0↔1 transitions = the WhileSubscribed / Rx `RefCount()` seam) are still **hand-counted here** (BehaviorSubject has no refcount hook) and drive the ticker poll loop. Plus `InstrumentListComparer` (symbol-sequence dedup for the store's two flows). |
-| `Helpers/PollTicker.cs` | The **live-price poll ticker** — the concrete `PolledStateFlow` the `OnActive`/`OnInactive` seam was built for. A process-wide singleton `StateFlow<long>` that emits an incrementing tick on a `Task.Delay` loop **while any priced surface is subscribed** (timer starts in `OnActive`, cancels via CTS in `OnInactive`). Re-reads `MarketSettingsManager` each iteration (interval change applies without reload; `0` = off idles on a 30 s re-check). Priced surfaces subscribe with `replayOnSubscribe:false` and silently re-price on each tick. |
+| `Helpers/StateFlow.cs` | A tiny **Kotlin-StateFlow analog**, now a **thin wrapper over `System.Reactive`'s `BehaviorSubject<T>`** (the migration off the old hand-rolled version is **done** — AOT/trim is off, so the Rx dependency is taken warning-free; see the Rx done bullet). Used by the **state holders** (`WatchlistStore`, `MarketSettingsManager`) — observable *state with a current value*, which `IObservable` (no `Value`) and a bare `BehaviorSubject` (no read-only face) can't express alone. Public API unchanged: `StateFlow<T>` (read-only `Value` + `Subscribe` with **replay-on-subscribe** + distinct-until-changed; a `Subscribe(onNext, replayOnSubscribe:false)` overload opts out of the replay via `Skip(1)` — used by the priced pages' secondary flows, e.g. `HasAnyApiKey`) and writable `MutableStateFlow<T>` (`Update`). `SetValue` does **source-side** distinct-until-changed (an equal value isn't pushed, so re-publishing an unchanged subset doesn't wake its subscribers); `BehaviorSubject.OnNext` fans handlers out **outside** its lock (handlers re-read the store safely). The old hand-rolled **subscriber-count seam** (`OnActive`/`OnInactive` + the refcount + a custom `Subscription` wrapper) was **removed** once its only user, `PollTicker`, went pure Rx — Rx's `Publish().RefCount()` is the proper home for that, and Rx subscriptions are already idempotent on dispose. Plus `InstrumentListComparer` (symbol-sequence dedup for the store's two flows). |
+| `Helpers/PollTicker.cs` | The **live-price poll ticker** — now **pure Rx** (no longer a `StateFlow<long>`). A process-wide singleton `IObservable<long>` = `Observable.Generate(...)` (self-rescheduling timer; per-step delay re-read from `MarketSettingsManager` each iteration so interval/on-off applies without reload, `0` = off idles on a 30 s re-check and the tick is filtered out) wrapped in **`Publish().RefCount()`** — the WhileSubscribed seam that starts the loop on the first subscriber and tears it down on the last (Generate never completes, so disposal is silent and resubscribe restarts cleanly). `Defer`/`Finally` log the start/stop at the refcount edges. Surfaces attach via the **guarded** `PollTicker.Subscribe(onTick)` (the raw stream is private): the handler is wrapped in try/catch (swallow + `Log.Error`→Sentry) so a throwing tick handler can't trip Rx's `SafeObserver` into tearing down the shared multicast stream (which would kill polling for every surface). Handlers still offload heavy work via `Task.Run`. |
 | `Data/Finnhub/ApiFinnhubQuoteDto.cs` | Raw `/quote` DTO + the **single** `FinnhubJsonContext` (all `[JsonSerializable]` live here — see AOT/trim gotcha). |
 | `Data/Finnhub/ApiFinnhubSearchDto.cs` | Raw `/search` DTOs (`ApiFinnhubSearchDto` / `...ResultDto`); registered on `FinnhubJsonContext` in the quote file. |
 | `Data/Finnhub/ApiFinnhubCandleDto.cs` | Raw `/stock/candle` + `/crypto/candle` DTO (parallel `c/h/l/o/t/v` arrays + `s` status); registered on `FinnhubJsonContext` in the quote file. **Premium** (free key → 403). |
@@ -252,8 +252,8 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   abandoned — see the "Symbol detail + live chart" section).
 - **Done (this round):** **live price polling** — prices now auto-refresh on a timer while a priced
   surface is visible (Markets Watchlist / Favorites + the Favorites dock band). Realized via
-  `Helpers/PollTicker.cs` (a singleton `StateFlow<long>` ticker using the `OnActive`/`OnInactive`
-  subscriber-count seam), the new `Subscribe(replayOnSubscribe:false)` overload, and per-surface
+  `Helpers/PollTicker.cs` (a singleton ticker — originally a `StateFlow<long>` on the `OnActive`/`OnInactive`
+  subscriber-count seam, **now pure Rx** `Observable.Generate(...).Publish().RefCount()`), and per-surface
   **silent** `PollRefresh()` methods that re-price in place with **no spinner/flicker** (cache not
   cleared, prices swap when the fetch lands). Honors the existing interval setting (default 5 min,
   `0` = off, applied without reload). A **keep-last-good guard** in `PricedListPage.LoadQuotes(silent)`
@@ -270,8 +270,8 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   live API. See "Frankfurter specifics (FX)". (Caveats: ECB is **daily-only** — no intraday FX bars; FX
   pairs reach existing installs via the catalog seed / local search, since Finnhub `/search` is US-equity.)
 - **Done (this round): symbol-detail chart live refresh** — the open chart now re-fetches its **visible
-  range** on each `PollTicker` tick (not just one fetch per tab tap), sharing the same ticker + `OnActive`/
-  `OnInactive` refcount as the priced list pages and dock. `SymbolDetailPage` subscribes the chart in its
+  range** on each `PollTicker` tick (not just one fetch per tab tap), sharing the same ticker +
+  `Publish().RefCount()` lifecycle as the priced list pages and dock. `SymbolDetailPage` subscribes the chart in its
   visible-lifecycle hook (`replayOnSubscribe:false`, so opening the page doesn't double-fetch — `Start()`
   already did the first load) and disposes it on hide with the rest. `SymbolChartForm.PollRefresh()`
   re-prices in place: **silent** (no "Loading…" write, so no flicker), **bypasses the per-range cache** so
@@ -307,25 +307,32 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 - **Wishlist:** a **portfolio** screen + its own dock band (holdings, total value, daily P&L); and a
   **per-symbol detail screen + live chart for any ticker** (drill-in from any list row, clickable from any
   dock item). All designed below.
-- **Done (this round): StateFlow migrated to Rx.NET (`System.Reactive`).** `Helpers/StateFlow.cs` is now a
-  **thin wrapper over `BehaviorSubject<T>`** (the blocker was gone once AOT/trim went off — the trim/AOT
-  analyzers were removed, so `System.Reactive` 6.0.1 is taken **warning-free**, CA1001 suppressed on the
-  process-lifetime singleton). The **public API is identical** (`Value`, both `Subscribe` overloads, `Update`,
-  the `OnActive`/`OnInactive` hooks, `InstrumentListComparer`), so **pages, the dock, and `PollTicker` did
-  not change** — verified by a clean build (0 warnings). Mechanics preserved 1:1: `BehaviorSubject` gives
-  value + replay-on-subscribe + thread-safe fan-out; `replayOnSubscribe:false` → `Skip(1)`; `SetValue` keeps
-  **source-side** distinct-until-changed (equal value not pushed → unchanged subset doesn't wake subscribers);
-  handlers fan out **outside** the subject's lock (so the store re-read is deadlock-free); the
-  `OnActive`/`OnInactive` **refcount is still hand-counted** (BehaviorSubject has no refcount hook — this is
-  the explicit `Publish().RefCount()`/`WhileSubscribed` seam). Wiring: `System.Reactive` added to
-  `Directory.Packages.props` (CPM) + a `PackageReference` in the csproj. **This was the swap only** — the
-  payoff (Rx's **operator library**) lands with the deferred work it unlocks: 429 **back-off**
-  (`Retry`/`RetryWhen` + exponential delay), the poll loop (`Observable.Timer`/`Interval`), **debounced**
-  search-as-you-type (`Throttle` — would let `SearchPage` drop its Enter-only rate-limit guard), and
-  multi-provider **merge** in `MarketRepository` (`CombineLatest`/`Merge`). **Caveat:** Rx schedulers are
-  mostly moot here (the CmdPal host already marshals `RaiseItemsChanged`), so this bought **operators, not
-  threading** — adopt them as the back-off/search work makes them pay for themselves. ⚠️ Verified to
-  **compile** clean; live runtime re-verification of polling/membership push is worth a quick smoke test.
+- **Done (this round): migrated the observable layer to Rx.NET (`System.Reactive`).** Two parts:
+  - **`StateFlow` → thin wrapper over `BehaviorSubject<T>`** (the blocker was gone once AOT/trim went off —
+    the trim/AOT analyzers were removed, so `System.Reactive` 6.0.1 is taken **warning-free**, CA1001
+    suppressed on the process-lifetime singleton). The **public API is preserved** (`Value`, both `Subscribe`
+    overloads, `Update`, `InstrumentListComparer`), so the **state-holder consumers (`WatchlistStore`,
+    `MarketSettingsManager`) and every page/dock subscriber did not change** —
+    verified by a clean build (0 warnings). Mechanics preserved 1:1: `BehaviorSubject` gives value +
+    replay-on-subscribe + thread-safe fan-out; `replayOnSubscribe:false` → `Skip(1)`; `SetValue` keeps
+    **source-side** distinct-until-changed (equal value not pushed → unchanged subset doesn't wake
+    subscribers); handlers fan out **outside** the subject's lock (so the store re-read is deadlock-free).
+  - **`PollTicker` → pure Rx** (`Observable.Generate(...).Publish().RefCount()`), since it was the one
+    consumer that was a *poor* `StateFlow` fit (an event stream abusing `StateFlow<long>` + a counter, only
+    to borrow the refcount seam). It no longer inherits `StateFlow`; `RefCount()` provides the
+    WhileSubscribed lifecycle, deleting the `CancellationTokenSource`, the lock, the `OnActive`/`OnInactive`
+    overrides, and the CA1001 suppression. The 3 subscribers dropped `, replayOnSubscribe: false` (a pure
+    event stream has no replay to suppress). Net effect: with no consumer left, `StateFlow`'s entire
+    subscriber-count seam (`OnActive`/`OnInactive` + the hand-rolled refcount + custom `Subscription`
+    wrapper) was **deleted** — `StateFlow` is now a genuinely thin `BehaviorSubject` wrapper.
+  - **Wiring:** `System.Reactive` added to `Directory.Packages.props` (CPM) + a `PackageReference` in the
+    csproj. **This was the swap only** — the payoff (Rx's **operator library**) lands with the deferred work
+    it unlocks: 429 **back-off** (`Retry`/`RetryWhen` + exponential delay), **debounced** search-as-you-type
+    (`Throttle` — would let `SearchPage` drop its Enter-only rate-limit guard), and multi-provider **merge**
+    in `MarketRepository` (`CombineLatest`/`Merge`). **Caveat:** Rx schedulers are mostly moot here (the
+    CmdPal host already marshals `RaiseItemsChanged`), so this bought **operators, not threading**. ⚠️
+    Verified to **compile** clean; a live smoke test of polling (open a priced page, watch prices refresh on
+    the interval; hide/reshow to confirm the loop restarts) is worth doing.
 
 ### Three-screen UX (done)
 
@@ -371,25 +378,29 @@ the user gets explicit feedback and can keep editing.
 
 Priced surfaces used to fetch **once** when they became visible (the StateFlow replay-on-subscribe that
 drives the first load). They now also auto-refresh on a timer while visible: **default 5 min, settings-
-configurable** (0 = off). Built as designed, on the StateFlow subscriber-count seam.
+configurable** (0 = off). Built on the ticker's subscriber-count lifecycle (now Rx `Publish().RefCount()`).
 
 - **Where (in scope):** `Pages/PricedListPage.cs` (Markets Watchlist + Markets Favorites),
   `Pages/FavoritesDockPage.cs`, and **the `SymbolDetailPage` chart** (its visible range re-fetches on each
   tick via `SymbolChartForm.PollRefresh()` — see the chart section). `SearchPage` is exempt (identity-only
   results, no prices).
-- **The ticker = `Helpers/PollTicker.cs`.** A process-wide singleton `PollTicker : StateFlow<long>` that
-  emits an incrementing tick on a `Task.Delay` loop. The loop **starts in `OnActive`** (the 0→1
-  subscriber transition) and is **cancelled via a `CancellationTokenSource` in `OnInactive`** (1→0), so
-  polling runs only while something is watching. (We used `StateFlow<long>` + a tick counter rather than
-  a generic `PolledStateFlow<T>` carrying data, because re-emitting the membership list would be
-  swallowed by the flows' distinct-until-changed; an incrementing `long` always gets through.) The loop
-  re-reads `MarketSettingsManager` each iteration (interval/on-off applies without a reload); when off it
-  idles on a 30 s re-check so toggling it back on resumes. The CTS is swapped under a lock so a rapid
-  inactive→active bounce can't leave two loops running.
-- **No double-fetch on open.** Surfaces subscribe with `Subscribe(_ => PollRefresh(), replayOnSubscribe:
-  false)` — the new overload skips the replay, so opening a page doesn't fire an extra fetch (the
-  membership flow's replay already paints the initial prices); the ticker only drives *subsequent*
-  refreshes.
+- **The ticker = `Helpers/PollTicker.cs`** — **pure Rx** (originally `PollTicker : StateFlow<long>`; the Rx
+  migration converted it). A process-wide singleton `IObservable<long>` = `Observable.Generate(...)`
+  (a self-rescheduling timer that emits a tick after each per-step delay) wrapped in **`Publish().RefCount()`**.
+  `RefCount()` IS the OnActive/OnInactive seam: the Generate loop **starts on the first subscriber** (0→1)
+  and is **torn down on the last unsubscribe** (1→0), so polling runs only while something is watching.
+  Generate's `condition` is always true so the source **never completes** — teardown is therefore a silent
+  disposal (no OnCompleted/OnError reaches the shared subject), and a later resubscribe restarts cleanly
+  (so a rapid inactive→active bounce just reconnects; no two-loops hazard, no manual CTS/lock). The
+  `timeSelector` re-reads `MarketSettingsManager` each iteration (interval/on-off applies without a reload);
+  when off it idles on a 30 s re-check and a `.Where` drops the tick, so toggling it back on resumes. (The
+  old design used `StateFlow<long>` + a tick counter because re-emitting the membership list would be
+  swallowed by distinct-until-changed; the Rx version sidesteps that entirely — a tick is a proper event,
+  not deduped state.)
+- **No double-fetch on open.** The ticker is a **pure event stream** (not a `BehaviorSubject`), so there is
+  no replay to suppress: surfaces just `Subscribe(_ => PollRefresh())` and opening a page doesn't fire an
+  extra fetch (the membership flow's replay already paints the initial prices); the ticker only drives
+  *subsequent* refreshes.
 - **Silent, flicker-free refresh.** Each surface's `PollRefresh()` re-prices **without** clearing its
   cache or setting `IsLoading`, so the on-screen prices stay put and are swapped in place once the new
   quotes land (contrast the manual "Refresh 🔄" row, which still clears + spins). `PricedListPage`
@@ -594,8 +605,8 @@ For reference, the Perf Monitor source this chart was ported from
   approximation = bake High/Low/Open/Close text + on-chart min/max labels (the `o/h/l/v` arrays are
   already parsed in `ApiFinnhubCandleDto`, just not yet promoted past `Close` into `CandlePoint`).
 - **Live auto-refresh — ✅ DONE.** The open chart now re-fetches its **visible range** (not just 1D) on
-  each `PollTicker` tick and repaints the `FormContent` in place, sharing the one ticker + `OnActive`/
-  `OnInactive` refcount with the priced list pages. `SymbolDetailPage` subscribes the chart in its
+  each `PollTicker` tick and repaints the `FormContent` in place, sharing the one ticker +
+  `Publish().RefCount()` lifecycle with the priced list pages. `SymbolDetailPage` subscribes the chart in its
   visible-lifecycle hook (`replayOnSubscribe:false` — no double-fetch on open) and `SymbolChartForm.
   PollRefresh()` does the silent re-price: bypasses the per-range cache so the on-screen range actually
   refreshes, reuses the generation guard so a tab tap still wins, and keeps the last good chart on a

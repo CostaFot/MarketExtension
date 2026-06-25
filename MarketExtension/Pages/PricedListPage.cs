@@ -52,10 +52,10 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
             // Secondary flows: a change just re-renders (e.g. the Watchlist's ★ when favorites change).
             foreach (var trigger in RelistTriggers)
                 _subscriptions.Add(trigger.Subscribe(_ => RaiseItemsChanged(0)));
-            // Live polling: while visible, each tick silently re-prices the set in place. replay:false so
-            // opening the page doesn't double-fetch (the membership replay above already did the first
-            // load); the ticker runs its timer only while a surface is subscribed.
-            _subscriptions.Add(PollTicker.Instance.Subscribe(_ => PollRefresh(), replayOnSubscribe: false));
+            // Live polling: while visible, each tick silently re-prices the set in place. The ticker is a
+            // pure event stream (no replay), so opening the page doesn't double-fetch (the membership replay
+            // above already did the first load); the ticker runs its timer only while a surface is subscribed.
+            _subscriptions.Add(PollTicker.Subscribe(PollRefresh));
             // Re-render when a key is added/cleared so the missing-key hint appears/disappears at once.
             // replay:false — the membership flow above already drives the initial paint.
             _subscriptions.Add(MarketSettingsManager.Instance.HasAnyApiKey

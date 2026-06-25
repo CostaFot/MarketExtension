@@ -1,105 +1,81 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Reactive.Linq;
 
 namespace MarketExtension;
 
-// The live-price poll ticker — the concrete realization of the "PolledStateFlow" seam StateFlow<T> was
-// built for (its OnActive/OnInactive subscriber-count hooks = Kotlin's WhileSubscribed / Rx RefCount()).
+// The live-price poll ticker — emits a tick WHILE at least one priced surface is subscribed and stops
+// when the last one unsubscribes. Priced surfaces (PricedListPage, FavoritesDockPage, the SymbolDetailPage
+// chart) subscribe and re-price their current set on each tick.
 //
-// It is a StateFlow<long> that emits a monotonically increasing tick on a timer WHILE at least one
-// surface is subscribed, and stops the timer when the last one unsubscribes. Priced surfaces
-// (PricedListPage, FavoritesDockPage) subscribe with replayOnSubscribe:false and re-price their current
-// set on each tick. A plain counter (not the instrument list) is used because the membership flows dedup
-// identical symbol sequences (distinct-until-changed) — an incrementing long always gets through.
+// Pure Rx (no longer a StateFlow<long>):
+//   * Observable.Generate drives a self-rescheduling timer whose per-step delay is re-read from
+//     MarketSettingsManager each iteration, so an interval / on-off change applies without a reload. When
+//     auto-refresh is off it idles on a short re-check and the tick is filtered out (Where), so toggling
+//     it back on later resumes on the next iteration.
+//   * Publish().RefCount() IS the WhileSubscribed / RefCount() seam the old OnActive/OnInactive hooks
+//     hand-rolled: the Generate loop starts on the first subscriber (0 -> 1) and is torn down on the last
+//     unsubscribe (1 -> 0). Generate's condition is always true so the source never completes — disposal
+//     is therefore silent (no OnCompleted/OnError reaches the shared subject), so a later resubscribe
+//     cleanly restarts the loop. Defer logs the start; Finally logs the stop, both at the refcount edges.
 //
-// One process-wide instance is shared by every priced surface, so the timer lives while ANY of them is
-// visible and goes quiet only when they all hide (a pinned dock band keeps it warm). The loop re-reads
-// the interval from MarketSettingsManager each iteration, so a settings change applies without a reload;
-// when auto-refresh is off (interval 0) it idles on a short re-check so toggling it on later resumes.
+// This replaces the hand-rolled StateFlow<long> + CancellationTokenSource version: the tick-counter/dedup
+// workaround, the manual subscriber-count refcount, the CTS lifecycle + lock, and the CA1001 suppression
+// are all now Rx's job. (The tick value restarts from 0 on each active cycle — only ever used for a Debug
+// log line, never read by subscribers.)
 //
-// AOT/trim-safe: only Task.Delay / CancellationTokenSource / System.Threading.Lock — no reflection, no
-// JSON, no new serializer context (see CLAUDE.md AOT section).
-[SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable",
-    Justification = "Process-lifetime singleton; the CTS is created/disposed per active-poll cycle in " +
-                    "OnActive/OnInactive and the instance itself is never disposed.")]
-internal sealed class PollTicker : StateFlow<long>
+// Subscribe via PollTicker.Subscribe(onTick): the handler is guarded so a synchronous throw can't escape
+// into the shared stream. This matters because the published stream is multicast — an unguarded throw
+// would be caught by Rx's SafeObserver, which DISPOSES that subscription AND rethrows back through the
+// Publish subject, terminating the stream for EVERY surface (polling dead until reload). The guard
+// swallows + Sentry-logs instead. Handlers should still offload heavy work (all PollRefresh()s Task.Run),
+// but they no longer have to be throw-proof.
+//
+// ⚠️ That guard covers the SUBSCRIBER side only. The SOURCE operators below (timeSelector, Where, iterate,
+// Do) are NOT guarded: a throw in any of them OnErrors the Publish subject, poisoning it for every surface
+// (polling dead until reload — the exact failure mode above). They are safe today because they only do
+// non-throwing MarketSettingsManager property reads; keep them that way. Any new logic here that could
+// throw (e.g. parsing a malformed setting) must guard itself or use .Catch/.Retry.
+internal static class PollTicker
 {
-    public static readonly PollTicker Instance = new();
-
     // How long to idle before re-checking settings while auto-refresh is off, so the user can turn it on
     // mid-view and have polling resume without reloading the extension.
     private static readonly TimeSpan OffRecheckInterval = TimeSpan.FromSeconds(30);
 
-    private readonly Lock _gate = new();
-    private CancellationTokenSource? _cts;
-
-    private PollTicker() : base(0) { }
-
-    // First subscriber arrived: (re)start the poll loop. Cancelling any prior CTS first guards a rapid
-    // inactive -> active bounce from leaving two loops running.
-    protected override void OnActive()
-    {
-        lock (_gate)
-        {
-            _cts?.Cancel();
-            _cts?.Dispose();
-            _cts = new CancellationTokenSource();
-            _ = PollLoop(_cts.Token);
-        }
-
-        Log.Info("Poll", "Poll loop started — a priced surface became visible");
-    }
-
-    // Last subscriber left: stop the loop. The in-flight Task.Delay throws OperationCanceledException,
-    // which PollLoop swallows.
-    protected override void OnInactive()
-    {
-        lock (_gate)
-        {
-            _cts?.Cancel();
-            _cts?.Dispose();
-            _cts = null;
-        }
-
-        Log.Info("Poll", "Poll loop stopped — all priced surfaces hidden");
-    }
-
-    private async Task PollLoop(CancellationToken ct)
-    {
-        try
-        {
-            while (!ct.IsCancellationRequested)
+    // One process-wide ticker shared by every priced surface, so the timer lives while ANY of them is
+    // visible and goes quiet only when they all hide (a pinned dock band keeps it warm). Private so every
+    // subscription goes through the guarded Subscribe below — no surface can attach an unguarded handler.
+    private static readonly IObservable<long> Ticks =
+        Observable.Defer(() =>
             {
-                // Re-read live each iteration so an interval/on-off change applies without a reload.
-                var settings = MarketSettingsManager.Instance;
-                var delay = settings.AutoRefreshEnabled ? settings.RefreshInterval : OffRecheckInterval;
+                Log.Info("Poll", "Poll loop started — a priced surface became visible");
+                return Observable
+                    .Generate(
+                        initialState: 0L,
+                        condition: _ => true,
+                        iterate: tick => tick + 1,
+                        resultSelector: tick => tick,
+                        timeSelector: _ =>
+                        {
+                            // Re-read live each iteration so an interval/on-off change applies without a reload.
+                            var settings = MarketSettingsManager.Instance;
+                            return settings.AutoRefreshEnabled ? settings.RefreshInterval : OffRecheckInterval;
+                        })
+                    .Where(_ => MarketSettingsManager.Instance.AutoRefreshEnabled)
+                    .Do(tick => Log.Info("Poll", $"Tick #{tick} — signalling visible surfaces to refresh"));
+            })
+            .Finally(() => Log.Info("Poll", "Poll loop stopped — all priced surfaces hidden"))
+            .Publish()
+            .RefCount();
 
-                await Task.Delay(delay, ct).ConfigureAwait(false);
-
-                if (!settings.AutoRefreshEnabled)
-                    continue;
-
-                try
-                {
-                    SetValue(Value + 1); // emit a tick -> every visible priced surface re-prices in place
-                    Log.Info("Poll", $"Tick #{Value} — signalling visible surfaces to refresh");
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    // A subscriber's tick handler threw on this (the poll-loop) thread. Swallow it so one bad
-                    // tick can't kill the whole loop: SetValue notifies subscribers synchronously, and a
-                    // pinned dock keeps the subscriber count >= 1, so OnActive (which restarts the loop on a
-                    // 0 -> 1 transition) would never fire again — polling would stay dead until an extension
-                    // reload. Report to Sentry (Log.Error survives Release) and keep ticking.
-                    Log.Error("Poll", "tick handler threw — continuing poll loop", ex);
-                }
-            }
-        }
-        catch (OperationCanceledException)
+    // Run onTick on every poll tick while subscribed. The handler is wrapped so a throw is contained
+    // (swallowed + Sentry-logged) and can't tear down the shared stream — see the type comment above.
+    public static IDisposable Subscribe(Action onTick)
+    {
+        ArgumentNullException.ThrowIfNull(onTick);
+        return Ticks.Subscribe(_ =>
         {
-            // Cancelled in OnInactive (or on a rapid restart) — just stop.
-        }
+            try { onTick(); }
+            catch (Exception ex) { Log.Error("Poll", "tick handler threw — continuing poll loop", ex); }
+        });
     }
 }
