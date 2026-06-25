@@ -25,7 +25,7 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
     {
         Id = "com.costafotiadis.market";
         DisplayName = "Market Extension";
-        Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base.png");
+        Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
 
         // Surface the extension's settings (Twelve Data + Finnhub API keys + price refresh interval)
         // in the Command Palette Settings UI. See Settings/MarketSettingsManager.cs.

@@ -52,7 +52,7 @@ internal sealed partial class DataSourcesPage : ContentPage
 
     public DataSourcesPage()
     {
-        Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base.png");
+        Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
         Title = "Data Sources";
         Name = "Open";
     }

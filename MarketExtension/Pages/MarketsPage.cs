@@ -60,7 +60,7 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
 
     public MarketsPage(MarketRepository repository)
     {
-        Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base.png");
+        Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
         Title = "Markets";
         Name = "Open";
         PlaceholderText = "Search, Watchlist, Favorites...";

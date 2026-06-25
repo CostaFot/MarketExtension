@@ -77,7 +77,7 @@ internal sealed partial class SearchPage : DynamicListPage, INotifyItemsChanged
         _repository = repository;
         _watchlistPage = new WatchlistPage(repository);
         _favoritesPage = new FavoritesPage(repository);
-        Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base.png");
+        Icon = IconHelpers.FromRelativePath("Assets\\markets_logo_base_square.png");
         Title = "Markets Search";
         Name = "Search";
         PlaceholderText = "Type a symbol or name and press Enter to search...";
