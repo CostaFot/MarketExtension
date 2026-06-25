@@ -1,0 +1,446 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- German (de) translations of Properties/Resources.resx.
+       Same keys as the neutral English table; loaded as a satellite assembly
+       (de/MarketExtension.resources.dll). Missing keys fall back to English. Format
+       placeholders ({0}, {1}, ...) and the ★ / · / leading-space concat strings are preserved. -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Action_Open" xml:space="preserve">
+    <value>Öffnen</value>
+  </data>
+  <data name="Action_Refresh" xml:space="preserve">
+    <value>Aktualisieren</value>
+  </data>
+  <data name="Action_Search" xml:space="preserve">
+    <value>Suchen</value>
+  </data>
+  <data name="Action_ViewDetails" xml:space="preserve">
+    <value>Details anzeigen</value>
+  </data>
+  <data name="Extension_DisplayName" xml:space="preserve">
+    <value>Markterweiterung</value>
+  </data>
+  <data name="Command_Markets" xml:space="preserve">
+    <value>Märkte</value>
+  </data>
+  <data name="Command_MarketsPortfolio" xml:space="preserve">
+    <value>Märkte-Portfolio</value>
+  </data>
+  <data name="Page_Markets_Title" xml:space="preserve">
+    <value>Märkte</value>
+  </data>
+  <data name="Page_Search_Title" xml:space="preserve">
+    <value>Märkte-Suche</value>
+  </data>
+  <data name="Page_Watchlist_Title" xml:space="preserve">
+    <value>Märkte-Beobachtungsliste</value>
+  </data>
+  <data name="Page_Favorites_Title" xml:space="preserve">
+    <value>Märkte-Favoriten</value>
+  </data>
+  <data name="Page_Portfolio_Title" xml:space="preserve">
+    <value>Märkte-Portfolio</value>
+  </data>
+  <data name="Page_DataSources_Title" xml:space="preserve">
+    <value>Datenquellen</value>
+  </data>
+  <data name="Hub_Placeholder" xml:space="preserve">
+    <value>Suche, Beobachtungsliste, Favoriten…</value>
+  </data>
+  <data name="Nav_Search_Title" xml:space="preserve">
+    <value>Suchen</value>
+  </data>
+  <data name="Nav_Search_Subtitle" xml:space="preserve">
+    <value>Aktie, Krypto oder Währung nachschlagen</value>
+  </data>
+  <data name="Nav_Watchlist_Title" xml:space="preserve">
+    <value>Beobachtungsliste</value>
+  </data>
+  <data name="Nav_Watchlist_Subtitle" xml:space="preserve">
+    <value>Instrumente, die Sie verfolgen</value>
+  </data>
+  <data name="Nav_Favorites_Title" xml:space="preserve">
+    <value>Favoriten</value>
+  </data>
+  <data name="Nav_Favorites_Subtitle" xml:space="preserve">
+    <value>Markierte Instrumente, im Dock angezeigt</value>
+  </data>
+  <data name="Nav_Portfolio_Title" xml:space="preserve">
+    <value>Portfolio</value>
+  </data>
+  <data name="Nav_DataSources_Title" xml:space="preserve">
+    <value>Datenquellen</value>
+  </data>
+  <data name="Nav_Settings_Title" xml:space="preserve">
+    <value>Einstellungen</value>
+  </data>
+  <data name="Search_Placeholder" xml:space="preserve">
+    <value>Nach Symbol oder Name suchen, dann Enter</value>
+  </data>
+  <data name="Watchlist_Placeholder" xml:space="preserve">
+    <value>Beobachtungsliste filtern…</value>
+  </data>
+  <data name="Favorites_Placeholder" xml:space="preserve">
+    <value>Favoriten filtern…</value>
+  </data>
+  <data name="Portfolio_Placeholder" xml:space="preserve">
+    <value>Positionen filtern…</value>
+  </data>
+  <data name="Search_Action_Title" xml:space="preserve">
+    <value>Märkte nach „{0}“ durchsuchen</value>
+  </data>
+  <data name="Search_Action_Subtitle" xml:space="preserve">
+    <value>Zum Suchen Enter drücken</value>
+  </data>
+  <data name="Search_NoMatches" xml:space="preserve">
+    <value>Keine Treffer für „{0}“</value>
+  </data>
+  <data name="Search_ResultsSection" xml:space="preserve">
+    <value>Suchergebnisse</value>
+  </data>
+  <data name="Membership_WatchlistFavorite" xml:space="preserve">
+    <value>Auf Beobachtungsliste · ★ Favorit · Enter für Details</value>
+  </data>
+  <data name="Membership_Watchlist" xml:space="preserve">
+    <value>Auf Beobachtungsliste · Enter für Details</value>
+  </data>
+  <data name="Membership_Favorite" xml:space="preserve">
+    <value>★ Favorit · Enter für Details</value>
+  </data>
+  <data name="Membership_None" xml:space="preserve">
+    <value>Enter für Details</value>
+  </data>
+  <data name="Section_Stocks" xml:space="preserve">
+    <value>Aktien</value>
+  </data>
+  <data name="Section_Crypto" xml:space="preserve">
+    <value>Krypto</value>
+  </data>
+  <data name="Section_Currency" xml:space="preserve">
+    <value>Devisen</value>
+  </data>
+  <data name="Section_Other" xml:space="preserve">
+    <value>Sonstige</value>
+  </data>
+  <data name="Watchlist_Empty_Title" xml:space="preserve">
+    <value>Ihre Beobachtungsliste ist leer</value>
+  </data>
+  <data name="Watchlist_Empty_Subtitle" xml:space="preserve">
+    <value>Öffnen Sie ein Instrument und fügen Sie es auf seiner Detailseite hinzu</value>
+  </data>
+  <data name="Favorites_Empty_Title" xml:space="preserve">
+    <value>Noch keine Favoriten</value>
+  </data>
+  <data name="Favorites_Empty_Subtitle" xml:space="preserve">
+    <value>Öffnen Sie ein Instrument und markieren Sie es auf seiner Detailseite</value>
+  </data>
+  <data name="Portfolio_Empty_Title" xml:space="preserve">
+    <value>Noch keine Positionen</value>
+  </data>
+  <data name="Portfolio_Empty_Subtitle" xml:space="preserve">
+    <value>Fügen Sie Positionen über die Detailseite eines Instruments hinzu</value>
+  </data>
+  <data name="Status_Demo_Title" xml:space="preserve">
+    <value>Demomodus — Beispieldaten werden angezeigt</value>
+  </data>
+  <data name="Status_Demo_Subtitle" xml:space="preserve">
+    <value>Simulierte Preise. Zum Deaktivieren Enter in den Einstellungen drücken.</value>
+  </data>
+  <data name="Status_Demo_Tag" xml:space="preserve">
+    <value>Demomodus</value>
+  </data>
+  <data name="Status_Demo_Tooltip" xml:space="preserve">
+    <value>Beispieldaten werden angezeigt, keine Live-Preise</value>
+  </data>
+  <data name="Status_NoKey_Title" xml:space="preserve">
+    <value>Kein API-Schlüssel festgelegt</value>
+  </data>
+  <data name="Status_NoKey_Subtitle" xml:space="preserve">
+    <value>Enter drücken, um einen in den Einstellungen hinzuzufügen.</value>
+  </data>
+  <data name="Status_NoKey_Tag" xml:space="preserve">
+    <value>Aktion erforderlich</value>
+  </data>
+  <data name="Status_NoKey_Tooltip" xml:space="preserve">
+    <value>Kein API-Schlüssel festgelegt — Funktionalität eingeschränkt</value>
+  </data>
+  <data name="RateLimit_Title" xml:space="preserve">
+    <value>Ratenbegrenzt — letzte bekannte Preise werden angezeigt</value>
+  </data>
+  <data name="RateLimit_Subtitle" xml:space="preserve">
+    <value>Wird automatisch aktualisiert, sobald die Begrenzung aufgehoben ist.</value>
+  </data>
+  <data name="RateLimit_Tag" xml:space="preserve">
+    <value>Ratenbegrenzt</value>
+  </data>
+  <data name="RateLimit_Tooltip" xml:space="preserve">
+    <value>Anfragen werden gedrosselt — Preise sind möglicherweise veraltet</value>
+  </data>
+  <data name="Attribution_Title" xml:space="preserve">
+    <value>Logos bereitgestellt von Elbstream</value>
+  </data>
+  <data name="Attribution_Subtitle" xml:space="preserve">
+    <value>Logo-Bilder über elbstream.com</value>
+  </data>
+  <data name="Attribution_OpenName" xml:space="preserve">
+    <value>Elbstream öffnen</value>
+  </data>
+  <data name="Cmd_AddToWatchlist" xml:space="preserve">
+    <value>Zur Beobachtungsliste hinzufügen</value>
+  </data>
+  <data name="Cmd_RemoveFromWatchlist" xml:space="preserve">
+    <value>Von Beobachtungsliste entfernen</value>
+  </data>
+  <data name="Cmd_AddToFavorites" xml:space="preserve">
+    <value>Zu Favoriten hinzufügen</value>
+  </data>
+  <data name="Cmd_RemoveFromFavorites" xml:space="preserve">
+    <value>Aus Favoriten entfernen</value>
+  </data>
+  <data name="Cmd_RemoveFromPortfolio" xml:space="preserve">
+    <value>Aus Portfolio entfernen</value>
+  </data>
+  <data name="Toast_AddedToWatchlist" xml:space="preserve">
+    <value>{0} zur Beobachtungsliste hinzugefügt</value>
+  </data>
+  <data name="Toast_RemovedFromWatchlist" xml:space="preserve">
+    <value>{0} von Beobachtungsliste entfernt</value>
+  </data>
+  <data name="Toast_AddedToFavorites" xml:space="preserve">
+    <value>{0} zu Favoriten hinzugefügt</value>
+  </data>
+  <data name="Toast_RemovedFromFavorites" xml:space="preserve">
+    <value>{0} aus Favoriten entfernt</value>
+  </data>
+  <data name="Toast_RemovedFromPortfolio" xml:space="preserve">
+    <value>{0} aus Portfolio entfernt</value>
+  </data>
+  <data name="Toast_OpenUrlFailed" xml:space="preserve">
+    <value>{0} konnte nicht geöffnet werden: {1}</value>
+  </data>
+  <data name="Chart_Loading" xml:space="preserve">
+    <value>{0}-Chart wird geladen…</value>
+  </data>
+  <data name="Chart_NoData" xml:space="preserve">
+    <value>Keine Chartdaten für diesen Zeitraum.</value>
+  </data>
+  <data name="SetQty_Title_Edit" xml:space="preserve">
+    <value>{0}-Position bearbeiten</value>
+  </data>
+  <data name="SetQty_Title_Add" xml:space="preserve">
+    <value>{0} zum Portfolio hinzufügen</value>
+  </data>
+  <data name="SetQty_Name_Edit" xml:space="preserve">
+    <value>Position bearbeiten</value>
+  </data>
+  <data name="SetQty_Name_Add" xml:space="preserve">
+    <value>Zum Portfolio hinzufügen</value>
+  </data>
+  <data name="SetQty_Toast_Set" xml:space="preserve">
+    <value>{0} auf {1}{2} festgelegt</value>
+  </data>
+  <data name="SetQty_BasisNote" xml:space="preserve">
+    <value> zu {0}/Einheit</value>
+  </data>
+  <data name="SetQty_Error_Number" xml:space="preserve">
+    <value>Geben Sie eine Zahl größer als 0 ein.</value>
+  </data>
+  <data name="SetQty_Error_Positive" xml:space="preserve">
+    <value>Die Menge muss größer als 0 sein. Um eine Position zu entfernen, verwenden Sie „Aus Portfolio entfernen“.</value>
+  </data>
+  <data name="SetQty_Card_Quantity" xml:space="preserve">
+    <value>Gehaltene Menge</value>
+  </data>
+  <data name="SetQty_Card_QuantityError" xml:space="preserve">
+    <value>Geben Sie eine Menge größer als 0 ein</value>
+  </data>
+  <data name="SetQty_Card_CostBasis" xml:space="preserve">
+    <value>Durchschnittliche Kosten pro Einheit (optional)</value>
+  </data>
+  <data name="SetQty_Card_Help" xml:space="preserve">
+    <value>Durchschnittspreis, den Sie gezahlt haben, in der Währung des Instruments. Bei Unbekanntheit 0 lassen.</value>
+  </data>
+  <data name="SetQty_Card_Save" xml:space="preserve">
+    <value>Speichern</value>
+  </data>
+  <data name="Portfolio_TotalsRow_Title" xml:space="preserve">
+    <value>Portfolio {0}</value>
+  </data>
+  <data name="Portfolio_Row_TotalReturnPrefix" xml:space="preserve">
+    <value>Gesamt {0}</value>
+  </data>
+  <data name="Ui_Portfolio_DailyChange" xml:space="preserve">
+    <value>{0} ({1}%) heute</value>
+  </data>
+  <data name="Ui_Portfolio_TotalReturnNote" xml:space="preserve">
+    <value> · Gesamt {0} ({1}%)</value>
+  </data>
+  <data name="Ui_Portfolio_Unconverted_One" xml:space="preserve">
+    <value> · 1 Position nicht umgerechnet</value>
+  </data>
+  <data name="Ui_Portfolio_Unconverted_Many" xml:space="preserve">
+    <value> · {0} Positionen nicht umgerechnet</value>
+  </data>
+  <data name="Ui_Position_Unit_Shares" xml:space="preserve">
+    <value>Stk.</value>
+  </data>
+  <data name="Ui_Position_Unit_Units" xml:space="preserve">
+    <value>Einh.</value>
+  </data>
+  <data name="Settings_TwelveData_Label" xml:space="preserve">
+    <value>Twelve Data API-Schlüssel</value>
+  </data>
+  <data name="Settings_TwelveData_Desc" xml:space="preserve">
+    <value>Twelve Data API-Schlüssel. Wird zuerst verwendet, wenn festgelegt.</value>
+  </data>
+  <data name="Settings_Finnhub_Label" xml:space="preserve">
+    <value>Finnhub API-Schlüssel</value>
+  </data>
+  <data name="Settings_Finnhub_Desc" xml:space="preserve">
+    <value>Finnhub API-Schlüssel.</value>
+  </data>
+  <data name="Settings_ApiKey_Placeholder" xml:space="preserve">
+    <value>Fügen Sie Ihren API-Schlüssel ein</value>
+  </data>
+  <data name="Settings_Refresh_Label" xml:space="preserve">
+    <value>Preisaktualisierungsintervall (Minuten)</value>
+  </data>
+  <data name="Settings_Refresh_Desc" xml:space="preserve">
+    <value>Preisaktualisierungsintervall in Minuten (0 = aus).</value>
+  </data>
+  <data name="Settings_RateLimit_Label" xml:space="preserve">
+    <value>Ratenbegrenzungswarnungen anzeigen</value>
+  </data>
+  <data name="Settings_RateLimit_Desc" xml:space="preserve">
+    <value>Zeigt ein Banner an, wenn Preise aufgrund der Ratenbegrenzung des Anbieters veraltet sind.</value>
+  </data>
+  <data name="Settings_Demo_Label" xml:space="preserve">
+    <value>Demomodus</value>
+  </data>
+  <data name="Settings_Demo_Desc" xml:space="preserve">
+    <value>Integrierte Beispieldaten anstelle von Live-Preisen anzeigen. Ideal zum Ausprobieren der Erweiterung.</value>
+  </data>
+  <data name="Settings_PortfolioCurrency_Label" xml:space="preserve">
+    <value>Portfolio-Währung</value>
+  </data>
+  <data name="Settings_PortfolioCurrency_Desc" xml:space="preserve">
+    <value>Währung für Portfolio-Summen. Andere Positionen werden in sie umgerechnet.</value>
+  </data>
+  <data name="Currency_USD" xml:space="preserve">
+    <value>US-Dollar (USD)</value>
+  </data>
+  <data name="Currency_EUR" xml:space="preserve">
+    <value>Euro (EUR)</value>
+  </data>
+  <data name="Currency_GBP" xml:space="preserve">
+    <value>Britisches Pfund (GBP)</value>
+  </data>
+  <data name="Currency_JPY" xml:space="preserve">
+    <value>Japanischer Yen (JPY)</value>
+  </data>
+  <data name="Currency_CHF" xml:space="preserve">
+    <value>Schweizer Franken (CHF)</value>
+  </data>
+  <data name="Currency_AUD" xml:space="preserve">
+    <value>Australischer Dollar (AUD)</value>
+  </data>
+  <data name="Currency_CAD" xml:space="preserve">
+    <value>Kanadischer Dollar (CAD)</value>
+  </data>
+  <data name="Currency_NZD" xml:space="preserve">
+    <value>Neuseeland-Dollar (NZD)</value>
+  </data>
+  <data name="Currency_CNY" xml:space="preserve">
+    <value>Chinesischer Yuan (CNY)</value>
+  </data>
+  <data name="Currency_HKD" xml:space="preserve">
+    <value>Hongkong-Dollar (HKD)</value>
+  </data>
+  <data name="Currency_SGD" xml:space="preserve">
+    <value>Singapur-Dollar (SGD)</value>
+  </data>
+  <data name="Currency_SEK" xml:space="preserve">
+    <value>Schwedische Krone (SEK)</value>
+  </data>
+  <data name="Currency_NOK" xml:space="preserve">
+    <value>Norwegische Krone (NOK)</value>
+  </data>
+  <data name="Currency_DKK" xml:space="preserve">
+    <value>Dänische Krone (DKK)</value>
+  </data>
+  <data name="Currency_PLN" xml:space="preserve">
+    <value>Polnischer Złoty (PLN)</value>
+  </data>
+  <data name="Currency_ZAR" xml:space="preserve">
+    <value>Südafrikanischer Rand (ZAR)</value>
+  </data>
+  <data name="Currency_MXN" xml:space="preserve">
+    <value>Mexikanischer Peso (MXN)</value>
+  </data>
+  <data name="Currency_INR" xml:space="preserve">
+    <value>Indische Rupie (INR)</value>
+  </data>
+  <data name="Currency_BRL" xml:space="preserve">
+    <value>Brasilianischer Real (BRL)</value>
+  </data>
+  <data name="Currency_KRW" xml:space="preserve">
+    <value>Südkoreanischer Won (KRW)</value>
+  </data>
+</root>

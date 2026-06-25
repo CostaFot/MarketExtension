@@ -1,0 +1,447 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- Korean (ko) translations of Properties/Resources.resx.
+       Same keys as the neutral English table; loaded as a satellite assembly
+       (ko/MarketExtension.resources.dll). Missing keys fall back to English. Format
+       placeholders ({0}, {1}, ...) and the ★ / · / leading-space concat strings are preserved.
+       Subject particles use the 을(를) / (으)로 convention since the symbol's final char is unknown. -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Action_Open" xml:space="preserve">
+    <value>열기</value>
+  </data>
+  <data name="Action_Refresh" xml:space="preserve">
+    <value>새로 고침</value>
+  </data>
+  <data name="Action_Search" xml:space="preserve">
+    <value>검색</value>
+  </data>
+  <data name="Action_ViewDetails" xml:space="preserve">
+    <value>세부 정보 보기</value>
+  </data>
+  <data name="Extension_DisplayName" xml:space="preserve">
+    <value>마켓 확장</value>
+  </data>
+  <data name="Command_Markets" xml:space="preserve">
+    <value>마켓</value>
+  </data>
+  <data name="Command_MarketsPortfolio" xml:space="preserve">
+    <value>마켓 포트폴리오</value>
+  </data>
+  <data name="Page_Markets_Title" xml:space="preserve">
+    <value>마켓</value>
+  </data>
+  <data name="Page_Search_Title" xml:space="preserve">
+    <value>마켓 검색</value>
+  </data>
+  <data name="Page_Watchlist_Title" xml:space="preserve">
+    <value>마켓 관심목록</value>
+  </data>
+  <data name="Page_Favorites_Title" xml:space="preserve">
+    <value>마켓 즐겨찾기</value>
+  </data>
+  <data name="Page_Portfolio_Title" xml:space="preserve">
+    <value>마켓 포트폴리오</value>
+  </data>
+  <data name="Page_DataSources_Title" xml:space="preserve">
+    <value>데이터 소스</value>
+  </data>
+  <data name="Hub_Placeholder" xml:space="preserve">
+    <value>검색, 관심목록, 즐겨찾기…</value>
+  </data>
+  <data name="Nav_Search_Title" xml:space="preserve">
+    <value>검색</value>
+  </data>
+  <data name="Nav_Search_Subtitle" xml:space="preserve">
+    <value>주식, 암호화폐 또는 통화 검색</value>
+  </data>
+  <data name="Nav_Watchlist_Title" xml:space="preserve">
+    <value>관심목록</value>
+  </data>
+  <data name="Nav_Watchlist_Subtitle" xml:space="preserve">
+    <value>추적 중인 종목</value>
+  </data>
+  <data name="Nav_Favorites_Title" xml:space="preserve">
+    <value>즐겨찾기</value>
+  </data>
+  <data name="Nav_Favorites_Subtitle" xml:space="preserve">
+    <value>별표 표시된 종목, 독에 표시됨</value>
+  </data>
+  <data name="Nav_Portfolio_Title" xml:space="preserve">
+    <value>포트폴리오</value>
+  </data>
+  <data name="Nav_DataSources_Title" xml:space="preserve">
+    <value>데이터 소스</value>
+  </data>
+  <data name="Nav_Settings_Title" xml:space="preserve">
+    <value>설정</value>
+  </data>
+  <data name="Search_Placeholder" xml:space="preserve">
+    <value>심볼 또는 이름으로 검색한 후 Enter</value>
+  </data>
+  <data name="Watchlist_Placeholder" xml:space="preserve">
+    <value>관심목록 필터링…</value>
+  </data>
+  <data name="Favorites_Placeholder" xml:space="preserve">
+    <value>즐겨찾기 필터링…</value>
+  </data>
+  <data name="Portfolio_Placeholder" xml:space="preserve">
+    <value>보유 종목 필터링…</value>
+  </data>
+  <data name="Search_Action_Title" xml:space="preserve">
+    <value>마켓에서 '{0}' 검색</value>
+  </data>
+  <data name="Search_Action_Subtitle" xml:space="preserve">
+    <value>검색하려면 Enter</value>
+  </data>
+  <data name="Search_NoMatches" xml:space="preserve">
+    <value>'{0}'에 대한 일치 항목 없음</value>
+  </data>
+  <data name="Search_ResultsSection" xml:space="preserve">
+    <value>검색 결과</value>
+  </data>
+  <data name="Membership_WatchlistFavorite" xml:space="preserve">
+    <value>관심목록에 있음 · ★ 즐겨찾기 · Enter로 세부 정보</value>
+  </data>
+  <data name="Membership_Watchlist" xml:space="preserve">
+    <value>관심목록에 있음 · Enter로 세부 정보</value>
+  </data>
+  <data name="Membership_Favorite" xml:space="preserve">
+    <value>★ 즐겨찾기 · Enter로 세부 정보</value>
+  </data>
+  <data name="Membership_None" xml:space="preserve">
+    <value>Enter로 세부 정보</value>
+  </data>
+  <data name="Section_Stocks" xml:space="preserve">
+    <value>주식</value>
+  </data>
+  <data name="Section_Crypto" xml:space="preserve">
+    <value>암호화폐</value>
+  </data>
+  <data name="Section_Currency" xml:space="preserve">
+    <value>외환</value>
+  </data>
+  <data name="Section_Other" xml:space="preserve">
+    <value>기타</value>
+  </data>
+  <data name="Watchlist_Empty_Title" xml:space="preserve">
+    <value>관심목록이 비어 있습니다</value>
+  </data>
+  <data name="Watchlist_Empty_Subtitle" xml:space="preserve">
+    <value>종목을 열고 세부 정보 페이지에서 추가하세요</value>
+  </data>
+  <data name="Favorites_Empty_Title" xml:space="preserve">
+    <value>아직 즐겨찾기가 없습니다</value>
+  </data>
+  <data name="Favorites_Empty_Subtitle" xml:space="preserve">
+    <value>종목을 열고 세부 정보 페이지에서 별표를 지정하세요</value>
+  </data>
+  <data name="Portfolio_Empty_Title" xml:space="preserve">
+    <value>아직 보유 종목이 없습니다</value>
+  </data>
+  <data name="Portfolio_Empty_Subtitle" xml:space="preserve">
+    <value>종목의 세부 정보 페이지에서 보유 종목을 추가하세요</value>
+  </data>
+  <data name="Status_Demo_Title" xml:space="preserve">
+    <value>데모 모드 — 샘플 데이터 표시 중</value>
+  </data>
+  <data name="Status_Demo_Subtitle" xml:space="preserve">
+    <value>시뮬레이션된 가격입니다. 설정에서 끄려면 Enter를 누르세요.</value>
+  </data>
+  <data name="Status_Demo_Tag" xml:space="preserve">
+    <value>데모 모드</value>
+  </data>
+  <data name="Status_Demo_Tooltip" xml:space="preserve">
+    <value>실시간 가격이 아닌 샘플 데이터를 표시하고 있습니다</value>
+  </data>
+  <data name="Status_NoKey_Title" xml:space="preserve">
+    <value>API 키가 설정되지 않았습니다</value>
+  </data>
+  <data name="Status_NoKey_Subtitle" xml:space="preserve">
+    <value>설정에서 추가하려면 Enter를 누르세요.</value>
+  </data>
+  <data name="Status_NoKey_Tag" xml:space="preserve">
+    <value>조치 필요</value>
+  </data>
+  <data name="Status_NoKey_Tooltip" xml:space="preserve">
+    <value>API 키가 설정되지 않음 — 기능이 제한됩니다</value>
+  </data>
+  <data name="RateLimit_Title" xml:space="preserve">
+    <value>요청 제한됨 — 마지막으로 확인된 가격 표시 중</value>
+  </data>
+  <data name="RateLimit_Subtitle" xml:space="preserve">
+    <value>제한이 해제되면 자동으로 새로 고쳐집니다.</value>
+  </data>
+  <data name="RateLimit_Tag" xml:space="preserve">
+    <value>요청 제한됨</value>
+  </data>
+  <data name="RateLimit_Tooltip" xml:space="preserve">
+    <value>요청이 제한되고 있습니다 — 가격이 오래되었을 수 있습니다</value>
+  </data>
+  <data name="Attribution_Title" xml:space="preserve">
+    <value>로고 제공: Elbstream</value>
+  </data>
+  <data name="Attribution_Subtitle" xml:space="preserve">
+    <value>로고 이미지 제공: elbstream.com</value>
+  </data>
+  <data name="Attribution_OpenName" xml:space="preserve">
+    <value>Elbstream 열기</value>
+  </data>
+  <data name="Cmd_AddToWatchlist" xml:space="preserve">
+    <value>관심목록에 추가</value>
+  </data>
+  <data name="Cmd_RemoveFromWatchlist" xml:space="preserve">
+    <value>관심목록에서 제거</value>
+  </data>
+  <data name="Cmd_AddToFavorites" xml:space="preserve">
+    <value>즐겨찾기에 추가</value>
+  </data>
+  <data name="Cmd_RemoveFromFavorites" xml:space="preserve">
+    <value>즐겨찾기에서 제거</value>
+  </data>
+  <data name="Cmd_RemoveFromPortfolio" xml:space="preserve">
+    <value>포트폴리오에서 제거</value>
+  </data>
+  <data name="Toast_AddedToWatchlist" xml:space="preserve">
+    <value>{0}을(를) 관심목록에 추가했습니다</value>
+  </data>
+  <data name="Toast_RemovedFromWatchlist" xml:space="preserve">
+    <value>{0}을(를) 관심목록에서 제거했습니다</value>
+  </data>
+  <data name="Toast_AddedToFavorites" xml:space="preserve">
+    <value>{0}을(를) 즐겨찾기에 추가했습니다</value>
+  </data>
+  <data name="Toast_RemovedFromFavorites" xml:space="preserve">
+    <value>{0}을(를) 즐겨찾기에서 제거했습니다</value>
+  </data>
+  <data name="Toast_RemovedFromPortfolio" xml:space="preserve">
+    <value>{0}을(를) 포트폴리오에서 제거했습니다</value>
+  </data>
+  <data name="Toast_OpenUrlFailed" xml:space="preserve">
+    <value>{0}을(를) 열 수 없습니다: {1}</value>
+  </data>
+  <data name="Chart_Loading" xml:space="preserve">
+    <value>{0} 차트 로드 중…</value>
+  </data>
+  <data name="Chart_NoData" xml:space="preserve">
+    <value>이 기간에 대한 차트 데이터가 없습니다.</value>
+  </data>
+  <data name="SetQty_Title_Edit" xml:space="preserve">
+    <value>{0} 보유 종목 편집</value>
+  </data>
+  <data name="SetQty_Title_Add" xml:space="preserve">
+    <value>{0}을(를) 포트폴리오에 추가</value>
+  </data>
+  <data name="SetQty_Name_Edit" xml:space="preserve">
+    <value>보유 종목 편집</value>
+  </data>
+  <data name="SetQty_Name_Add" xml:space="preserve">
+    <value>포트폴리오에 추가</value>
+  </data>
+  <data name="SetQty_Toast_Set" xml:space="preserve">
+    <value>{0}을(를) {1}{2}(으)로 설정했습니다</value>
+  </data>
+  <data name="SetQty_BasisNote" xml:space="preserve">
+    <value> (단가 {0})</value>
+  </data>
+  <data name="SetQty_Error_Number" xml:space="preserve">
+    <value>0보다 큰 숫자를 입력하세요.</value>
+  </data>
+  <data name="SetQty_Error_Positive" xml:space="preserve">
+    <value>수량은 0보다 커야 합니다. 보유 종목을 제거하려면 '포트폴리오에서 제거'를 사용하세요.</value>
+  </data>
+  <data name="SetQty_Card_Quantity" xml:space="preserve">
+    <value>보유 수량</value>
+  </data>
+  <data name="SetQty_Card_QuantityError" xml:space="preserve">
+    <value>0보다 큰 수량을 입력하세요</value>
+  </data>
+  <data name="SetQty_Card_CostBasis" xml:space="preserve">
+    <value>단위당 평균 매입가 (선택 사항)</value>
+  </data>
+  <data name="SetQty_Card_Help" xml:space="preserve">
+    <value>지불한 평균 가격이며, 종목의 통화로 표시됩니다. 모를 경우 0으로 두세요.</value>
+  </data>
+  <data name="SetQty_Card_Save" xml:space="preserve">
+    <value>저장</value>
+  </data>
+  <data name="Portfolio_TotalsRow_Title" xml:space="preserve">
+    <value>포트폴리오 {0}</value>
+  </data>
+  <data name="Portfolio_Row_TotalReturnPrefix" xml:space="preserve">
+    <value>총 {0}</value>
+  </data>
+  <data name="Ui_Portfolio_DailyChange" xml:space="preserve">
+    <value>오늘 {0} ({1}%)</value>
+  </data>
+  <data name="Ui_Portfolio_TotalReturnNote" xml:space="preserve">
+    <value> · 총 {0} ({1}%)</value>
+  </data>
+  <data name="Ui_Portfolio_Unconverted_One" xml:space="preserve">
+    <value> · 1개 종목 미환산</value>
+  </data>
+  <data name="Ui_Portfolio_Unconverted_Many" xml:space="preserve">
+    <value> · {0}개 종목 미환산</value>
+  </data>
+  <data name="Ui_Position_Unit_Shares" xml:space="preserve">
+    <value>주</value>
+  </data>
+  <data name="Ui_Position_Unit_Units" xml:space="preserve">
+    <value>단위</value>
+  </data>
+  <data name="Settings_TwelveData_Label" xml:space="preserve">
+    <value>Twelve Data API 키</value>
+  </data>
+  <data name="Settings_TwelveData_Desc" xml:space="preserve">
+    <value>Twelve Data API 키. 설정된 경우 먼저 사용됩니다.</value>
+  </data>
+  <data name="Settings_Finnhub_Label" xml:space="preserve">
+    <value>Finnhub API 키</value>
+  </data>
+  <data name="Settings_Finnhub_Desc" xml:space="preserve">
+    <value>Finnhub API 키.</value>
+  </data>
+  <data name="Settings_ApiKey_Placeholder" xml:space="preserve">
+    <value>API 키 붙여넣기</value>
+  </data>
+  <data name="Settings_Refresh_Label" xml:space="preserve">
+    <value>가격 새로 고침 간격 (분)</value>
+  </data>
+  <data name="Settings_Refresh_Desc" xml:space="preserve">
+    <value>가격 새로 고침 간격(분 단위, 0 = 끔).</value>
+  </data>
+  <data name="Settings_RateLimit_Label" xml:space="preserve">
+    <value>요청 제한 경고 표시</value>
+  </data>
+  <data name="Settings_RateLimit_Desc" xml:space="preserve">
+    <value>공급자의 요청 제한으로 가격이 오래되었을 때 배너를 표시합니다.</value>
+  </data>
+  <data name="Settings_Demo_Label" xml:space="preserve">
+    <value>데모 모드</value>
+  </data>
+  <data name="Settings_Demo_Desc" xml:space="preserve">
+    <value>실시간 가격 대신 내장된 샘플 데이터를 표시합니다. 확장을 사용해 보기에 적합합니다.</value>
+  </data>
+  <data name="Settings_PortfolioCurrency_Label" xml:space="preserve">
+    <value>포트폴리오 통화</value>
+  </data>
+  <data name="Settings_PortfolioCurrency_Desc" xml:space="preserve">
+    <value>포트폴리오 합계의 통화. 다른 보유 종목은 이 통화로 환산됩니다.</value>
+  </data>
+  <data name="Currency_USD" xml:space="preserve">
+    <value>미국 달러 (USD)</value>
+  </data>
+  <data name="Currency_EUR" xml:space="preserve">
+    <value>유로 (EUR)</value>
+  </data>
+  <data name="Currency_GBP" xml:space="preserve">
+    <value>영국 파운드 (GBP)</value>
+  </data>
+  <data name="Currency_JPY" xml:space="preserve">
+    <value>일본 엔 (JPY)</value>
+  </data>
+  <data name="Currency_CHF" xml:space="preserve">
+    <value>스위스 프랑 (CHF)</value>
+  </data>
+  <data name="Currency_AUD" xml:space="preserve">
+    <value>호주 달러 (AUD)</value>
+  </data>
+  <data name="Currency_CAD" xml:space="preserve">
+    <value>캐나다 달러 (CAD)</value>
+  </data>
+  <data name="Currency_NZD" xml:space="preserve">
+    <value>뉴질랜드 달러 (NZD)</value>
+  </data>
+  <data name="Currency_CNY" xml:space="preserve">
+    <value>중국 위안 (CNY)</value>
+  </data>
+  <data name="Currency_HKD" xml:space="preserve">
+    <value>홍콩 달러 (HKD)</value>
+  </data>
+  <data name="Currency_SGD" xml:space="preserve">
+    <value>싱가포르 달러 (SGD)</value>
+  </data>
+  <data name="Currency_SEK" xml:space="preserve">
+    <value>스웨덴 크로나 (SEK)</value>
+  </data>
+  <data name="Currency_NOK" xml:space="preserve">
+    <value>노르웨이 크로네 (NOK)</value>
+  </data>
+  <data name="Currency_DKK" xml:space="preserve">
+    <value>덴마크 크로네 (DKK)</value>
+  </data>
+  <data name="Currency_PLN" xml:space="preserve">
+    <value>폴란드 즈워티 (PLN)</value>
+  </data>
+  <data name="Currency_ZAR" xml:space="preserve">
+    <value>남아프리카 랜드 (ZAR)</value>
+  </data>
+  <data name="Currency_MXN" xml:space="preserve">
+    <value>멕시코 페소 (MXN)</value>
+  </data>
+  <data name="Currency_INR" xml:space="preserve">
+    <value>인도 루피 (INR)</value>
+  </data>
+  <data name="Currency_BRL" xml:space="preserve">
+    <value>브라질 헤알 (BRL)</value>
+  </data>
+  <data name="Currency_KRW" xml:space="preserve">
+    <value>대한민국 원 (KRW)</value>
+  </data>
+</root>
