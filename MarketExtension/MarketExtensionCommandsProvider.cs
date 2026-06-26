@@ -42,6 +42,11 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
 
         // Dock bands, each pinnable from the Dock: a ticker strip of favorited instruments, and a
         // one-line portfolio total (value + daily P&L in the preferred currency).
+        //
+        // NOTE: FavoritesDockPage was crashing Command Palette because its ObserveQuotes subscription ran
+        // the full reactive graph synchronously on the host's band-activation thread. Re-enabled here while
+        // testing a fix that subscribes OFF that thread (SubscribeOn in FavoritesDockPage). If the crash
+        // returns, pull this line again.
         _dockBands = [
             new CommandItem(new FavoritesDockPage(_repository)) { Title = Resources.Command_Markets },
             new CommandItem(new PortfolioDockPage(_repository)) { Title = Resources.Command_MarketsPortfolio },

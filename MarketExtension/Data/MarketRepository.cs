@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Concurrency;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,12 +19,23 @@ namespace MarketExtension;
 // It also owns the shared IQuoteCache: every fetch writes through to it (so the cache fills with no
 // surface changes), and surfaces can OBSERVE a set of instruments as one cache-backed list observable
 // instead of each fetching independently (the orchestration API — ObserveQuotes/RefreshAsync). This is
-// how two surfaces showing the same symbol stop drifting apart. Migrating the surfaces onto it is a
-// later pass; for now only write-through runs.
+// how two surfaces showing the same symbol stop drifting apart.
+//
+// Polling lives HERE, not per surface: the repository runs ONE poll loop (a single PollTicker
+// subscription for its lifetime) that, each tick, refreshes the distinct union of all instruments
+// currently being observed through the cache — so the observed prices stay fresh from one shared fetch.
+// Surfaces still poll/fetch individually today; moving them fully onto observe-only is a later pass.
 internal sealed class MarketRepository
 {
     private readonly IMarketDataProvider[] _providers;
     private readonly IQuoteCache _cache;
+
+    // Refcounted registry of the instruments currently being observed via ObserveQuotes — keyed by
+    // Normalize(symbol), each carrying the latest DomainInstrument (needed for provider routing) and a
+    // subscriber count. The poll loop refreshes the distinct union each tick; a symbol observed by two
+    // surfaces has count 2 and is fetched once.
+    private readonly Lock _observedLock = new();
+    private readonly Dictionary<string, ObservedInstrument> _observed = [];
 
     // Default: an in-memory cache. The call site in MarketExtensionCommandsProvider uses this.
     public MarketRepository(params IMarketDataProvider[] providers)
@@ -34,12 +47,19 @@ internal sealed class MarketRepository
         _cache = cache;
         _providers = providers;
 
-        // A demo-mode flip swaps the data SOURCE, so every cached price is now wrong (it came from the
-        // other source). Clear so it can neither linger nor be preserved by keep-last-good. replay:false —
-        // construction is a no-op (the cache is empty then). Subscribed here, before any surface, so on a
-        // flip this Clear runs before a surface's own re-fetch. Never disposed: the repository lives for
-        // the whole process.
-        _ = MarketSettingsManager.Instance.DemoModeChanged.Subscribe(_ => _cache.Clear(), replayOnSubscribe: false);
+        // A demo-mode flip swaps the data SOURCE, so every cached price is now wrong (it came from the other
+        // source). Clear it, then refresh whatever is currently observed so visible surfaces repaint from the
+        // new source at once (a hidden surface refetches on its next open via ObserveQuotes' fetch-missing).
+        // replay:false — construction is a no-op (the cache is empty then). Subscribed before any surface;
+        // never disposed (process-lifetime).
+        _ = MarketSettingsManager.Instance.DemoModeChanged.Subscribe(_ => OnDemoModeFlip(), replayOnSubscribe: false);
+
+        // The single poll loop. While the repository is alive (the process lifetime), each PollTicker tick
+        // refreshes the union of currently-observed instruments (RefreshObserved) in one batched fetch and
+        // writes the results back through the cache, so every observing surface repaints in sync. PollTicker
+        // honors the refresh-interval setting and idles when it's off (and an empty observed set is a no-op),
+        // so a permanent subscription is safe. Never disposed — process-lifetime, like the cache itself.
+        _ = PollTicker.Subscribe(RefreshObserved);
     }
 
     // The providers that should serve right now. When any provider declares itself exclusive (e.g. the
@@ -118,37 +138,126 @@ internal sealed class MarketRepository
             _cache.Upsert(quote, keepLastGood);
     }
 
-    // Observe a FIXED set of instruments as one cache-backed list observable: on subscribe, fetch any
-    // not-yet-cached symbols once (write-through, fire-and-forget), then CombineLatest the per-symbol cache
-    // flows into one ordered list (symbols not yet loaded — null entries — are dropped) that re-emits
-    // whenever any member quote changes. Defer runs the fetch-missing per subscribe.
+    // Observe a FIXED set of instruments as one cache-backed list observable. Both public overloads append
+    // ObserveOn(TaskPoolScheduler) — this is the DEADLOCK FIX. Without it, a cache write-through fans out
+    // synchronously and the CombineLatest/Switch combiner calls the subscriber's handler (ultimately a
+    // surface's RaiseItemsChanged → a blocking COM call into Command Palette's STA) WHILE Rx still holds the
+    // combiner gate lock; the host then re-enters the extension and the gate/STA lock order cycles → hang.
+    // ObserveOn hands each emission to the scheduler, so subscribers are notified only AFTER the Rx gate
+    // locks are released — no host call ever runs under a producer-side lock. (Surfaces already expect
+    // off-host-thread notifications: the toolkit marshals RaiseItemsChanged, same as the priced pages' Task.Run.)
     public IObservable<IReadOnlyList<DomainQuote>> ObserveQuotes(IReadOnlyList<DomainInstrument> instruments)
-        => Observable.Defer(() =>
+        => ObserveQuotesCore(instruments).ObserveOn(TaskPoolScheduler.Default);
+
+    // Membership-aware: re-projects (Switch) whenever the set changes — fetching newly-added symbols and
+    // dropping departed ones for free. ObserveOn AFTER Switch so the band is notified off the Switch gate too
+    // (Core is used here, not the public overload, so there's a single ObserveOn hop, after Switch).
+    public IObservable<IReadOnlyList<DomainQuote>> ObserveQuotes(
+        StateFlow<IReadOnlyList<DomainInstrument>> instruments)
+        => instruments.AsObservable().Select(set => ObserveQuotesCore(set)).Switch()
+            .ObserveOn(TaskPoolScheduler.Default);
+
+    // The cache-backed list observable WITHOUT the ObserveOn hop — the raw graph. On subscribe: register the
+    // instruments as observed (so the poll loop keeps them fresh) and fetch any not-yet-cached symbols once
+    // (write-through, fire-and-forget). Then CombineLatest the per-symbol cache flows into one ordered list
+    // (symbols not yet loaded — null entries — are dropped) that re-emits whenever any member quote changes.
+    // On dispose: unregister. Observable.Create (not Defer) so the dispose hook can unregister. The public
+    // overloads above add ObserveOn so the host is never called under the combiner gate (see that note).
+    private IObservable<IReadOnlyList<DomainQuote>> ObserveQuotesCore(IReadOnlyList<DomainInstrument> instruments)
+        => Observable.Create<IReadOnlyList<DomainQuote>>(observer =>
         {
+            Register(instruments);
             var missing = instruments.Where(i => _cache.Get(i.Symbol) is null).ToList();
             if (missing.Count > 0)
                 _ = RefreshSafe(missing); // fire-and-forget; writes through → observers see it land
 
-            if (instruments.Count == 0)
-                return Observable.Return<IReadOnlyList<DomainQuote>>([]);
+            IObservable<IReadOnlyList<DomainQuote>> inner = instruments.Count == 0
+                ? Observable.Return<IReadOnlyList<DomainQuote>>([])
+                : Observable
+                    .CombineLatest(instruments.Select(i => _cache.Observe(i.Symbol).AsObservable()))
+                    .Select(quotes => (IReadOnlyList<DomainQuote>)quotes.OfType<DomainQuote>().ToList());
 
-            return Observable
-                .CombineLatest(instruments.Select(i => _cache.Observe(i.Symbol).AsObservable()))
-                .Select(quotes => (IReadOnlyList<DomainQuote>)quotes.OfType<DomainQuote>().ToList());
+            return new CompositeDisposable(
+                inner.Subscribe(observer),
+                Disposable.Create(() => Unregister(instruments)));
         });
 
-    // Membership-aware: re-projects (Switch) whenever the set changes — fetching newly-added symbols and
-    // dropping departed ones for free. The shape the priced pages / dock bands will consume next pass.
-    public IObservable<IReadOnlyList<DomainQuote>> ObserveQuotes(
-        StateFlow<IReadOnlyList<DomainInstrument>> instruments)
-        => instruments.AsObservable().Select(set => ObserveQuotes(set)).Switch();
-
-    // RefreshAsync with its exceptions swallowed + logged — for the fire-and-forget fetch-missing path,
-    // where a provider throw would otherwise become an unobserved task exception.
+    // RefreshAsync with its exceptions swallowed + logged — for the fire-and-forget fetch-missing path and
+    // the poll loop, where a provider throw would otherwise become an unobserved task exception.
     private async Task RefreshSafe(IReadOnlyList<DomainInstrument> instruments)
     {
         try { await RefreshAsync(instruments).ConfigureAwait(false); }
         catch (Exception ex) { Log.Error("Repository", "background refresh failed", ex); }
+    }
+
+    // --- The poll loop + the observed-instrument registry ----------------------------------------------
+
+    // One PollTicker tick: refresh the distinct union of all currently-observed instruments in one batched
+    // fetch (keep-last-good via RefreshAsync's default, so a transient bad poll doesn't blank a good price).
+    // Nothing observed → nothing to do.
+    private void RefreshObserved()
+    {
+        var instruments = ObservedInstruments();
+        if (instruments.Count == 0)
+            return;
+        Log.Info("Repository", $"poll tick: refreshing {instruments.Count} observed instrument(s)");
+        _ = RefreshSafe(instruments);
+    }
+
+    // Demo mode flipped the data source: drop the now-wrong cached prices, then refill the observed set from
+    // the new source so visible surfaces repaint immediately (post-Clear all entries are null, so this writes
+    // the new-source quotes through unconditionally).
+    private void OnDemoModeFlip()
+    {
+        _cache.Clear();
+        var observed = ObservedInstruments();
+        if (observed.Count > 0)
+            _ = RefreshSafe(observed);
+    }
+
+    // Called when a surface subscribes to ObserveQuotes: ref up each instrument so the poll loop fetches it.
+    private void Register(IReadOnlyList<DomainInstrument> instruments)
+    {
+        lock (_observedLock)
+            foreach (var instrument in instruments)
+            {
+                var key = WatchlistStore.Normalize(instrument.Symbol);
+                if (_observed.TryGetValue(key, out var entry))
+                {
+                    entry.Count++;
+                    entry.Instrument = instrument; // keep the latest identity (name/category)
+                }
+                else
+                {
+                    _observed[key] = new ObservedInstrument(instrument);
+                }
+            }
+    }
+
+    // Called when an ObserveQuotes subscription is disposed: ref down, dropping symbols no surface observes.
+    private void Unregister(IReadOnlyList<DomainInstrument> instruments)
+    {
+        lock (_observedLock)
+            foreach (var instrument in instruments)
+            {
+                var key = WatchlistStore.Normalize(instrument.Symbol);
+                if (_observed.TryGetValue(key, out var entry) && --entry.Count <= 0)
+                    _observed.Remove(key);
+            }
+    }
+
+    // Snapshot of the distinct instruments with at least one observer — what the poll loop refreshes.
+    private IReadOnlyList<DomainInstrument> ObservedInstruments()
+    {
+        lock (_observedLock)
+            return [.. _observed.Values.Select(e => e.Instrument)];
+    }
+
+    // A registry entry: the latest observed identity for a symbol + how many subscriptions reference it.
+    private sealed class ObservedInstrument(DomainInstrument instrument)
+    {
+        public DomainInstrument Instrument { get; set; } = instrument;
+        public int Count { get; set; } = 1;
     }
 
     // Free-text instrument lookup. Fans out to every provider and merges their matches into one

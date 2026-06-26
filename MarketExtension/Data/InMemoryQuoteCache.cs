@@ -12,8 +12,14 @@ namespace MarketExtension;
 // System.Threading.Lock is non-reentrant, so updating under the lock could deadlock a re-entrant
 // handler).
 //
-// Swap this for a database-backed IQuoteCache later via MarketRepository's injectable ctor overload —
-// no repository or UI change.
+// Deadlock note (the reason this was briefly stubbed): the hang was NOT this cache's lock — Update()
+// already fires outside it. It was that the per-symbol fan-out reached a surface's RaiseItemsChanged
+// while Rx still held the CombineLatest/Switch gate lock in MarketRepository.ObserveQuotes, and that
+// host call re-entered Command Palette's STA → a lock-ordering cycle. That is fixed at the seam:
+// ObserveQuotes now delivers via ObserveOn, so surfaces are notified only AFTER the Rx gate locks are
+// released (no host call under a producer-side lock). This cache can therefore stay the simple,
+// correct in-memory version. Swap it for a database-backed IQuoteCache later via MarketRepository's
+// injectable ctor overload — no repository or UI change.
 [SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable",
     Justification = "Owns per-symbol MutableStateFlow<DomainQuote?> (BehaviorSubject-backed) entries for " +
                     "the life of the process via the single MarketRepository; they are intentionally never " +
