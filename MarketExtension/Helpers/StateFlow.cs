@@ -72,6 +72,11 @@ internal class StateFlow<T>
         return source.Subscribe(Guarded);
     }
 
+    // The underlying stream, for Rx composition (CombineLatest/Switch in MarketRepository.ObserveQuotes).
+    // Replays the current value on subscribe, like Subscribe(). Bypasses the Guarded wrapper deliberately —
+    // composition operators manage their own errors, and these flows never OnError.
+    public IObservable<T> AsObservable() => _subject.AsObservable();
+
     // Writable entry point for subclasses. Returns true if the value actually changed (i.e. listeners
     // were notified). Distinct-until-changed at the source: an equal value is not pushed, so re-publishing
     // an unchanged subset doesn't wake its subscribers. OnNext invokes handlers OUTSIDE the subject's

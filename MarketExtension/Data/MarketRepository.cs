@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,20 +13,61 @@ namespace MarketExtension;
 // results are merged into one list in the original instrument order. Instruments no provider can
 // serve become invalid placeholders. Adding a data source = pass another provider to the
 // constructor; nothing else changes.
-internal sealed class MarketRepository(params IMarketDataProvider[] providers)
+//
+// It also owns the shared IQuoteCache: every fetch writes through to it (so the cache fills with no
+// surface changes), and surfaces can OBSERVE a set of instruments as one cache-backed list observable
+// instead of each fetching independently (the orchestration API — ObserveQuotes/RefreshAsync). This is
+// how two surfaces showing the same symbol stop drifting apart. Migrating the surfaces onto it is a
+// later pass; for now only write-through runs.
+internal sealed class MarketRepository
 {
+    private readonly IMarketDataProvider[] _providers;
+    private readonly IQuoteCache _cache;
+
+    // Default: an in-memory cache. The call site in MarketExtensionCommandsProvider uses this.
+    public MarketRepository(params IMarketDataProvider[] providers)
+        : this(new InMemoryQuoteCache(), providers) { }
+
+    // Injectable cache — for a future database-backed IQuoteCache (and tests). No other code changes.
+    public MarketRepository(IQuoteCache cache, IMarketDataProvider[] providers)
+    {
+        _cache = cache;
+        _providers = providers;
+
+        // A demo-mode flip swaps the data SOURCE, so every cached price is now wrong (it came from the
+        // other source). Clear so it can neither linger nor be preserved by keep-last-good. replay:false —
+        // construction is a no-op (the cache is empty then). Subscribed here, before any surface, so on a
+        // flip this Clear runs before a surface's own re-fetch. Never disposed: the repository lives for
+        // the whole process.
+        _ = MarketSettingsManager.Instance.DemoModeChanged.Subscribe(_ => _cache.Clear(), replayOnSubscribe: false);
+    }
+
     // The providers that should serve right now. When any provider declares itself exclusive (e.g. the
     // mock in Demo mode), ONLY those serve — every operation routes to them alone, so the exclusive source
     // takes precedence everywhere, including the search fan-out that Supports() can't gate. Otherwise the
     // full ordered set, routed normally by first-match Supports.
     private IReadOnlyList<IMarketDataProvider> ActiveProviders()
     {
-        var exclusive = providers.Where(p => p.IsExclusive).ToList();
-        return exclusive.Count > 0 ? exclusive : providers;
+        var exclusive = _providers.Where(p => p.IsExclusive).ToList();
+        return exclusive.Count > 0 ? exclusive : _providers;
     }
 
+    // Fetch quotes for a set of instruments AND write them through to the shared cache. Keeps its exact
+    // public signature/behavior (callers still get the ordered list back); the cache fill is a side effect,
+    // so every existing caller populates the cache with no change to it.
     public async Task<IReadOnlyList<DomainQuote>> GetQuotesAsync(
         IReadOnlyList<DomainInstrument> instruments, CancellationToken ct = default)
+    {
+        var ordered = await FetchMergeAsync(instruments, ct).ConfigureAwait(false);
+        foreach (var quote in ordered)
+            _cache.Upsert(quote); // keep-last-good
+        return ordered;
+    }
+
+    // Route → fetch (concurrent, one batch per provider) → merge into the caller's instrument order.
+    // The raw data path with no cache side effects, shared by GetQuotesAsync and RefreshAsync.
+    private async Task<IReadOnlyList<DomainQuote>> FetchMergeAsync(
+        IReadOnlyList<DomainInstrument> instruments, CancellationToken ct)
     {
         // Route each instrument to the first ACTIVE provider that can serve its asset class.
         var active = ActiveProviders();
@@ -61,6 +104,51 @@ internal sealed class MarketRepository(params IMarketDataProvider[] providers)
             $"{instruments.Count} instrument(s) via {batches.Count} provider(s); " +
             $"{ordered.Count(q => q.IsValid)} valid, {unserviceable.Count} unserviceable");
         return ordered;
+    }
+
+    // Force a fetch now; results reach observers through the cache (the caller does not read the return).
+    // The seam the manual Refresh row / demo path call now and the orchestration poll loop will call later.
+    // keepLastGood:false = a HARD refresh that overwrites even with an invalid quote (e.g. after a source flip,
+    // where a stale "good" value would be wrong); the default keeps the last good price through a bad fetch.
+    public async Task RefreshAsync(
+        IReadOnlyList<DomainInstrument> instruments, bool keepLastGood = true, CancellationToken ct = default)
+    {
+        var ordered = await FetchMergeAsync(instruments, ct).ConfigureAwait(false);
+        foreach (var quote in ordered)
+            _cache.Upsert(quote, keepLastGood);
+    }
+
+    // Observe a FIXED set of instruments as one cache-backed list observable: on subscribe, fetch any
+    // not-yet-cached symbols once (write-through, fire-and-forget), then CombineLatest the per-symbol cache
+    // flows into one ordered list (symbols not yet loaded — null entries — are dropped) that re-emits
+    // whenever any member quote changes. Defer runs the fetch-missing per subscribe.
+    public IObservable<IReadOnlyList<DomainQuote>> ObserveQuotes(IReadOnlyList<DomainInstrument> instruments)
+        => Observable.Defer(() =>
+        {
+            var missing = instruments.Where(i => _cache.Get(i.Symbol) is null).ToList();
+            if (missing.Count > 0)
+                _ = RefreshSafe(missing); // fire-and-forget; writes through → observers see it land
+
+            if (instruments.Count == 0)
+                return Observable.Return<IReadOnlyList<DomainQuote>>([]);
+
+            return Observable
+                .CombineLatest(instruments.Select(i => _cache.Observe(i.Symbol).AsObservable()))
+                .Select(quotes => (IReadOnlyList<DomainQuote>)quotes.OfType<DomainQuote>().ToList());
+        });
+
+    // Membership-aware: re-projects (Switch) whenever the set changes — fetching newly-added symbols and
+    // dropping departed ones for free. The shape the priced pages / dock bands will consume next pass.
+    public IObservable<IReadOnlyList<DomainQuote>> ObserveQuotes(
+        StateFlow<IReadOnlyList<DomainInstrument>> instruments)
+        => instruments.AsObservable().Select(set => ObserveQuotes(set)).Switch();
+
+    // RefreshAsync with its exceptions swallowed + logged — for the fire-and-forget fetch-missing path,
+    // where a provider throw would otherwise become an unobserved task exception.
+    private async Task RefreshSafe(IReadOnlyList<DomainInstrument> instruments)
+    {
+        try { await RefreshAsync(instruments).ConfigureAwait(false); }
+        catch (Exception ex) { Log.Error("Repository", "background refresh failed", ex); }
     }
 
     // Free-text instrument lookup. Fans out to every provider and merges their matches into one
