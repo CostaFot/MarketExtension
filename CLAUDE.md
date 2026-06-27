@@ -116,6 +116,14 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Helpers/CurrencyFormat.cs` | UI helper: render a `decimal` as money in an ISO-4217 currency — the home for the per-currency **symbol** (`$`/`€`/`£`/`¥`/…) + decimal-place rules that replaced the hardcoded `$`. `Format`/`FormatSigned` (sign-before-symbol for P&L), culture-invariant; unknown code → trailing code (`1,234.56 SGD`); JPY/KRW render 0-decimal. Used by `UiQuote`, `UiPosition`, `UiPortfolio`. |
 | `Helpers/CurrencyHelper.cs` | Currency conventions the **providers** apply when stamping `DomainQuote.Currency`: `NormalizeStockQuote` folds London's **GBX/GBp pence → GBP** (price & change ÷100; the 100× trap) and upper-cases the code (null → `USD`); `QuoteCurrencyOfPair` returns an FX pair's quote (2nd) currency (`EURUSD → USD`). One home for the pence rule across Twelve Data + Finnhub. |
 | `Pages/SymbolDetailPage.cs` | Shared per-symbol screen: nested `SymbolChartForm : FormContent` (adaptive-card chart + range tabs) + the list-management command bar. Flicker on range switch is fixed; ⚠️ the Enter-steals-focus bug is an **open known limitation** — see the chart section. |
+| `Data/Finnhub/ApiFinnhubNewsDto.cs` | **News Api layer**: the raw `/news` item DTO (one article). The `/news` response is a **bare top-level array**, so the registered root on `FinnhubJsonContext` is `ApiFinnhubNewsDto[]` (deserialize via `…Default.ApiFinnhubNewsDtoArray`). See "Market News (feed)". |
+| `Models/DomainNews.cs` | **Domain news article** (provider-agnostic, no formatting): `Id` (reusable as the `minId` cursor), `Headline`, `Source`, `Summary`, `Category` (the article's OWN free-text category, e.g. "technology" — **NOT** the `NewsCategory` enum), `ArticleUrl`, `Published` (`DateTimeOffset`), optional `ImageUrl`/`Related`. Like `DomainInstrument`, **no `IsValid`** — the provider drops bad items (missing id/headline/url) at its boundary. |
+| `Models/NewsCategory.cs` | The **feed-selector enum** (General/Forex/Crypto/Merger) + `NewsCategoryExtensions` (`All`, `Label()`). Unprefixed **shared vocabulary** like `AssetCategory`/`ChartRange` (NOT a `Domain*` model — it classifies/parameterizes operations, it isn't data carried through the layers). |
+| `Models/UiNews.cs` | **Ui projection** of `DomainNews` (the ONLY place news formatting lives): `FormatSubtitle()` ("CNBC · 2h ago"), `FormatRelativeTime()`, `Matches(query)`. Toolkit-free — the page builds `IconInfo`/`Details` from these strings (like `UiQuote`). |
+| `Data/NewsEntity.cs` | The news cache's **`*Entity` storage model** — a structural mirror of `DomainNews` BELOW the repository; the repo maps `DomainNews ⇄ NewsEntity` at its boundary (`From`/`ToDomainNews`), so the entity never escapes the data source. |
+| `Data/INewsCacheDataSource.cs` | The **shared observable news cache** abstraction — the news analog of `IQuoteCacheDataSource`, but keyed by **`NewsCategory`** with a **LIST** of `NewsEntity` per category (news is inherently a list, vs one quote per symbol). `Get`/`Observe`/`Upsert(keepLastGood)`/`Clear`. **keep-last-good here = a transient EMPTY result won't wipe a non-empty cached feed.** |
+| `Data/InMemoryNewsCacheDataSource.cs` | The live in-memory impl — DynamicData `SourceCache<NewsFeedEntity, NewsCategory>` (a **private** per-category list wrapper that never crosses the interface). Atomic `Edit` for keep-last-good; `Observe` maps Remove→empty; an identical refetch is deduped via `SequenceEqual`. |
+| `Pages/NewsPage.cs` | The **Markets → News** screen (a hub row): a `DynamicListPage` **pure observer** of `MarketRepository.ObserveNews(selection flow)`. Category dropdown (toolkit `Filters`): **"All"** (merged, default) + General/Forex/Crypto/Mergers; Enter opens the article (`OpenUrlCommand`); summary in the `Details` pane; typed search filters headlines client-side. See "Market News (feed)". |
 
 **To add a provider** (e.g. forex): implement `IMarketDataProvider` (`Supports`, `GetQuotesAsync`,
 and `SearchAsync` — return `[]` if it can't search; optionally **override `GetCandlesAsync`** to serve
@@ -235,7 +243,24 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 
 ## Current Status / Next Steps
 
-- **Done (latest): re-backed the quote cache on DynamicData's `SourceCache` — fixes the keep-last-good race for
+- **Done (latest): Market News feature (MVP — built end-to-end, NOT yet live-verified).** A **Markets → News**
+  hub screen lists market-news headlines (each row opens the source article in the browser), built behind the
+  SAME layered seams as quotes with a parallel cache + repository-orchestration story. The pieces: a Finnhub
+  `/news` provider method (`GetNewsAsync`) behind a new **`SupportsNews`** capability on `IMarketDataProvider`
+  whose default body **THROWS** (so non-news providers fail loud — unlike candles' soft opt-out); a
+  `DomainNews`/`NewsCategory`/`UiNews` model trio + `ApiFinnhubNewsDto`; a **shared observable news cache**
+  (`INewsCacheDataSource`/`InMemoryNewsCacheDataSource`, keyed by **`NewsCategory`** with a **list per
+  category**, DynamicData-backed, keep-last-good = **no-empty-overwrite**); **`MarketRepository` news
+  orchestration** — `ObserveNews(NewsCategory)` and `ObserveNews(StateFlow<NewsCategory?>)` with **`null` = the
+  merged "All" view** (`CombineLatest` the 4 categories → dedupe by id → newest-first), a **second poll loop**
+  on a **separate `News refresh interval` setting** (default 30 min; `PollTicker` was generalized into two
+  refcounted tickers), stale-on-subscribe, and demo-flip refill. `NewsPage` is a `DynamicListPage` pure cache
+  observer with a category **`Filters` dropdown** ("All" default). **Demo mode** serves curated synthetic
+  headlines per category; the mock's `SupportsNews` is gated on `DemoMode`. Reached from the **Markets hub** (a
+  "News" row), not a separate top-level command. Build clean (0 warnings); resx strings translated to all 7
+  locales. ⚠️ **NOT yet live-verified on-device.** See **"Market News (feed)"** for the full design + the
+  **"Left to do"** list to finish it.
+- **Done (previous): re-backed the quote cache on DynamicData's `SourceCache` — fixes the keep-last-good race for
   free.** `InMemoryQuoteCacheDataSource` is now a thin wrapper over `DynamicData`'s `SourceCache<QuoteEntity, string>`
   (a reactive keyed cache, the .NET analog of Room's `@Query → Flow`) instead of the hand-rolled `Lock` +
   per-symbol `MutableStateFlow<QuoteEntity?>` dictionary. **Why:** the hand-rolled `Upsert` read the current value
@@ -1271,6 +1296,103 @@ now wired — Elbstream `/logos/country/{iso2}` keyed off the base currency. **P
 `PortfolioPage.BuildRow` resolves the per-holding logo via the same `AssetIconResolver.Resolve(...)` call,
 and it inherits the Elbstream attribution row from `PricedListPage.GetItems`; the totals summary row and the
 Portfolio dock band keep the Bank glyph on purpose, since those are rolled-up summaries, not instruments.)
+
+### Market News (feed) — MVP DONE (not yet live-verified); see "Left to do"
+
+A **Markets → News** screen (a row in the Markets hub, **not** a separate top-level command) lists market-news
+headlines, each opening the source article in the browser. News flows through the SAME layered seams as quotes,
+with a parallel cache + repository-orchestration story, so a future news **dock band** can observe the same
+cache and stay in sync with the screen (exactly how the quote surfaces share the quote cache).
+
+**The layered flow** (mirrors the quote flow):
+```
+ApiFinnhubNewsDto[] ─(provider maps)→ DomainNews ─(repo routes+caches)→ IReadOnlyList<DomainNews>
+                                                        └─(page maps via UiNews.From)→ UiNews (rendered)
+```
+
+**The provider seam.** `IMarketDataProvider` gained **`bool SupportsNews => false`** (a capability gate, NOT
+asset-class routing — news is a market-wide feed) + **`GetNewsAsync(NewsCategory, minId, ct)`** whose default
+body **THROWS `NotSupportedException`** (unlike `GetCandlesAsync`'s soft invalid-series default): news has the
+`SupportsNews` gate, so reaching the default means a caller skipped the check — fail loud rather than silently
+return nothing. `FinnhubMarketDataProvider` opts in (`SupportsNews => true`; `GetNewsAsync` calls `/news` via
+`HttpRetry`, maps `ApiFinnhubNewsDto[]` → `DomainNews`, dropping items missing id/headline/url). `Finnhub
+specifics`: `GET /news?category=&minId=&token=` returns a **bare top-level array**; `category` ∈
+`general/forex/crypto/merger` (the only place that token lives is `ToFinnhubNewsCategory`); `minId` returns only
+items newer than that news id (0 = latest batch). `MockMarketDataProvider` opts in **only in Demo mode**
+(`SupportsNews => DemoMode`, mirroring `Supports`) and serves a curated, evergreen synthetic headline set per
+category (`NewsTemplates`, stable ids + relative timestamps + a deterministic source per headline). Twelve Data
+/ Frankfurter inherit the throwing default (they don't serve news).
+
+**The news cache** (`INewsCacheDataSource` / `InMemoryNewsCacheDataSource`). The news analog of the quote cache,
+but keyed by **`NewsCategory`** with a **LIST** of `NewsEntity` per category (news is inherently a list, vs one
+quote per symbol). DynamicData `SourceCache<NewsFeedEntity, NewsCategory>` (the wrapper record never crosses the
+interface) with atomic `Edit`; **keep-last-good = a transient EMPTY fetch won't wipe a non-empty cached feed**
+(the news analog of "an invalid quote won't wipe a valid one"). Stores `NewsEntity` (the `*Entity` storage
+model); the repo maps `DomainNews ⇄ NewsEntity` at its boundary.
+
+**Repository orchestration** (`MarketRepository`, "News orchestration" section):
+- **Routing:** news goes to the first ACTIVE provider whose `SupportsNews` is true (`NewsProvider()`) — Finnhub
+  live, the mock in Demo mode. NOT asset-class routed (single provider, unlike the quote per-category routing /
+  the search fan-out).
+- **`ObserveNews(NewsCategory)`** (fixed — for a future dock band) and **`ObserveNews(StateFlow<NewsCategory?>)`**
+  (selection-aware, `Switch` on change). Both append **`.ObserveOn(TaskPoolScheduler)`** — the SAME deadlock seam
+  as `ObserveQuotes` (a cache write-through fans out synchronously; without the hop a surface's
+  `RaiseItemsChanged` COM call could run under the `CombineLatest`/`Switch` gate and cycle the gate/STA lock).
+- **The merged "All" view** is modeled as the **`NewsCategory?` selection where `null` = All** —
+  `ObserveAllNewsCore` `CombineLatest`s the 4 per-category cores (so each registers + fetches), then flattens,
+  **dedupes by news `Id`** (the same article can surface in >1 feed), and **sorts newest-first**. Modeling All as
+  `null` keeps the enum + cache keyed by REAL categories only; "All" is a pure read-time merge.
+- **Second poll loop:** the repo holds a SECOND `PollTicker.SubscribeNews(RefreshObservedNews)` subscription on
+  the **separate news cadence** (each tick refreshes the currently-observed categories, one `/news` call each —
+  so "All" fans out to 4 calls/tick while it's the selected view).
+- **Stale-on-subscribe** (`NeedsNewsFetchOnSubscribe`) + **demo-flip** (`_newsCacheSource.Clear()` then refill
+  observed categories) — the news analogs of the quote versions.
+
+**The poll ticker** (`PollTicker`) was generalized from one price ticker into a parameterized `BuildTicker`,
+exposing **two** independent, refcounted tickers: `Subscribe` (price, `RefreshInterval`) and **`SubscribeNews`**
+(news, `NewsRefreshInterval`) — so news polls on its own gentler clock and only while a news surface is active.
+The guard, off-recheck idle, and `Publish().RefCount()` lifecycle are shared.
+
+**The setting.** A **separate** `News refresh interval (minutes)` setting
+(`MarketSettingsManager.NewsRefreshMinutes` / `NewsRefreshInterval` / `NewsAutoRefreshEnabled`, default **30**,
+0 = off) — deliberately NOT reusing the price `RefreshInterval` (headlines change less often). Read pull-style by
+the news ticker each iteration.
+
+**The screen** (`NewsPage`). A `DynamicListPage` **pure observer** (like the dock bands): while visible it
+subscribes to `ObserveNews(_category)` and renders what it emits — no fetch/poll itself. A toolkit **`Filters`
+dropdown** switches the view: **"All"** (merged, the default — a sentinel filter id) + General/Forex/Crypto/
+Mergers; the selection drives a `MutableStateFlow<NewsCategory?>` (null = All) that the `ObserveNews` overload
+`Switch`es on. Each row: headline title, "source · 2h ago" subtitle, thumbnail icon (or a glyph), summary in the
+`Details` pane; **Enter opens the article** (`OpenUrlCommand`). Typed search filters the current feed's headlines
+client-side. New UI strings are in the resx (all 7 locales).
+
+**Left to do (to complete the feature):**
+1. **Live-verify on-device** — the whole path compiles but is unverified. Check via **Demo mode** (curated
+   synthetic headlines per category; "All" merges + dedupes them) and a **real Finnhub key** (live `/news`):
+   category switching, article open, the separate news refresh interval, demo-flip.
+2. **No-key / empty-state UX** — with no Finnhub key (live), `/news` returns `[]` and the page treats an empty
+   feed as "still loading" → a **perpetual spinner**. Surface a status row instead (reuse
+   `ApiKeyHint.StatusRow()` and/or an explicit empty-state row), and disambiguate "loading" from
+   "loaded-but-empty" (the page currently can't, unlike the priced pages which use the membership count).
+3. **News dock band** — the repo already exposes the fixed **`ObserveNews(NewsCategory)`** for exactly this: a
+   dock band showing one category's latest headline(s), the "screen + dock in sync" payoff. Model it on
+   `FavoritesDockPage` (pure observer, `INotifyItemsChanged` visible-lifecycle, its own non-empty `Command.Id`).
+4. **Rate-limit banner on the news page** — the "All" view fans out 4 `/news` calls per tick; the page doesn't
+   render `RateLimitHint` (the priced pages + Search do). keep-last-good already protects the feed, but the user
+   isn't told *why* it looks stale.
+5. **Glyph check** — verify `NewsGlyph` (`MarketsPage`, the hub row) and `ArticleGlyph` (`NewsPage`, the
+   thumbnail-less row icon) render the intended Segoe MDL2 icons. (⚠️ writing `\uXXXX` through the edit tooling
+   kept dropping the glyph — set/verify these by hand; see "Write tool mangles glyph icons".)
+6. **minId incremental paging (optimization)** — every refresh fetches `minId:0` (the full latest batch) and
+   replaces the cached feed; the `DomainNews.Id` / `minId` cursor exists but isn't used to fetch only newer items
+   and merge. Cheap follow-up if `/news` volume matters.
+7. **Multi-provider news (deferred design)** — single-source today (`NewsProvider()` = first `SupportsNews`).
+   Swap/primary works as-is; FALLBACK needs gating Finnhub's `SupportsNews` on its key (it's unconditionally
+   `true` today); MERGE needs a fan-out in `FetchNewsAsync` (reuse `ObserveAllNewsCore`'s dedupe + `SearchAsync`'s
+   fan-out shape); PER-CATEGORY routing needs the seam to gain per-category granularity (`SupportsNews(category)`
+   or a supported-set). The cache/observe/UI layers stay provider-agnostic regardless.
+8. **Locale translations** were added for all 7 locales but are machine-quality — worth a native review (esp. the
+   compact relative-time forms).
 
 ## CommandPalette Toolkit — Quick Reference
 

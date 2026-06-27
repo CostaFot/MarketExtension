@@ -435,6 +435,33 @@
   <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
     <value>新闻刷新间隔（分钟，0 = 关闭）。</value>
   </data>
+  <data name="Command_MarketsNews" xml:space="preserve">
+    <value>市场 - 新闻</value>
+  </data>
+  <data name="Nav_News_Title" xml:space="preserve">
+    <value>新闻</value>
+  </data>
+  <data name="News_Placeholder" xml:space="preserve">
+    <value>筛选头条</value>
+  </data>
+  <data name="News_Category_All" xml:space="preserve">
+    <value>全部</value>
+  </data>
+  <data name="News_Time_JustNow" xml:space="preserve">
+    <value>刚刚</value>
+  </data>
+  <data name="News_Time_MinutesAgo" xml:space="preserve">
+    <value>{0}分钟前</value>
+  </data>
+  <data name="News_Time_HoursAgo" xml:space="preserve">
+    <value>{0}小时前</value>
+  </data>
+  <data name="News_Time_DaysAgo" xml:space="preserve">
+    <value>{0}天前</value>
+  </data>
+  <data name="Action_ReadArticle" xml:space="preserve">
+    <value>阅读文章</value>
+  </data>
   <data name="Settings_RateLimit_Label" xml:space="preserve">
     <value>显示速率限制警告</value>
   </data>

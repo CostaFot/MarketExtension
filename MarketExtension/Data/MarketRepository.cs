@@ -446,12 +446,16 @@ internal sealed class MarketRepository
     public IObservable<IReadOnlyList<DomainNews>> ObserveNews(NewsCategory category)
         => ObserveNewsCore(category).ObserveOn(TaskPoolScheduler.Default);
 
-    // Selection-aware: re-projects (Switch) whenever the chosen category changes — fetching the newly-selected
-    // category and dropping the previous one's observation for free. For a news screen with category tabs
-    // backed by a StateFlow. ObserveOn AFTER Switch so the surface is notified off the Switch gate too (Core
-    // is used here, not the public overload, so there's a single ObserveOn hop, after Switch).
-    public IObservable<IReadOnlyList<DomainNews>> ObserveNews(StateFlow<NewsCategory> category)
-        => category.AsObservable().Select(c => ObserveNewsCore(c)).Switch()
+    // Selection-aware: re-projects (Switch) whenever the chosen view changes. The selection is a NewsCategory?
+    // where null means "All" — the merged feed across every category (see ObserveAllNewsCore) — and a concrete
+    // value observes just that category. For a news screen whose category dropdown is backed by a StateFlow:
+    // switching fetches the newly-selected view and drops the previous one's observation for free. ObserveOn
+    // AFTER Switch so the surface is notified off the Switch gate too (Core is used here, not the public
+    // overloads, so there's a single ObserveOn hop, after Switch).
+    public IObservable<IReadOnlyList<DomainNews>> ObserveNews(StateFlow<NewsCategory?> selection)
+        => selection.AsObservable()
+            .Select(sel => sel is { } category ? ObserveNewsCore(category) : ObserveAllNewsCore())
+            .Switch()
             .ObserveOn(TaskPoolScheduler.Default);
 
     // The cache-backed feed observable WITHOUT the ObserveOn hop — the raw graph. On subscribe: register the
@@ -483,6 +487,21 @@ internal sealed class MarketRepository
                 inner.Subscribe(observer),
                 Disposable.Create(() => UnregisterNews(category)));
         });
+
+    // The "All" view: the raw merged feed across EVERY category, WITHOUT the ObserveOn hop. CombineLatest the
+    // per-category cores (so each one registers its category as observed AND fetches it if missing/stale,
+    // exactly as a single-category observe does — "All" therefore keeps all four categories fresh on the poll
+    // loop while it's the selected view), then flatten, dedupe by news Id (the same article can surface in more
+    // than one category feed), and sort newest-first. Re-emits whenever any category's cached feed changes; the
+    // selection overload adds ObserveOn so the host is never called under the CombineLatest gate.
+    private IObservable<IReadOnlyList<DomainNews>> ObserveAllNewsCore()
+        => Observable.CombineLatest(NewsCategoryExtensions.All.Select(ObserveNewsCore))
+            .Select(feeds => (IReadOnlyList<DomainNews>)feeds
+                .SelectMany(feed => feed)
+                .GroupBy(item => item.Id)
+                .Select(group => group.First())
+                .OrderByDescending(item => item.Published)
+                .ToList());
 
     // RefreshNewsAsync with its exceptions swallowed + logged — for the fire-and-forget fetch + poll paths,
     // where a provider throw would otherwise become an unobserved task exception.

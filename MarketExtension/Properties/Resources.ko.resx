@@ -381,6 +381,33 @@
   <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
     <value>뉴스 새로 고침 간격(분 단위, 0 = 끔).</value>
   </data>
+  <data name="Command_MarketsNews" xml:space="preserve">
+    <value>마켓 - 뉴스</value>
+  </data>
+  <data name="Nav_News_Title" xml:space="preserve">
+    <value>뉴스</value>
+  </data>
+  <data name="News_Placeholder" xml:space="preserve">
+    <value>헤드라인 필터링</value>
+  </data>
+  <data name="News_Category_All" xml:space="preserve">
+    <value>전체</value>
+  </data>
+  <data name="News_Time_JustNow" xml:space="preserve">
+    <value>방금 전</value>
+  </data>
+  <data name="News_Time_MinutesAgo" xml:space="preserve">
+    <value>{0}분 전</value>
+  </data>
+  <data name="News_Time_HoursAgo" xml:space="preserve">
+    <value>{0}시간 전</value>
+  </data>
+  <data name="News_Time_DaysAgo" xml:space="preserve">
+    <value>{0}일 전</value>
+  </data>
+  <data name="Action_ReadArticle" xml:space="preserve">
+    <value>기사 읽기</value>
+  </data>
   <data name="Settings_RateLimit_Label" xml:space="preserve">
     <value>요청 제한 경고 표시</value>
   </data>

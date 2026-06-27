@@ -429,6 +429,39 @@
   <data name="Settings_Refresh_Desc" xml:space="preserve">
     <value>Preisaktualisierungsintervall in Minuten (0 = aus).</value>
   </data>
+  <data name="Settings_NewsRefresh_Label" xml:space="preserve">
+    <value>Nachrichtenaktualisierungsintervall (Minuten)</value>
+  </data>
+  <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
+    <value>Nachrichtenaktualisierungsintervall in Minuten (0 = aus).</value>
+  </data>
+  <data name="Command_MarketsNews" xml:space="preserve">
+    <value>Märkte - Nachrichten</value>
+  </data>
+  <data name="News_Placeholder" xml:space="preserve">
+    <value>Schlagzeilen filtern</value>
+  </data>
+  <data name="News_Time_JustNow" xml:space="preserve">
+    <value>gerade eben</value>
+  </data>
+  <data name="News_Time_MinutesAgo" xml:space="preserve">
+    <value>vor {0} Min.</value>
+  </data>
+  <data name="News_Time_HoursAgo" xml:space="preserve">
+    <value>vor {0} Std.</value>
+  </data>
+  <data name="News_Time_DaysAgo" xml:space="preserve">
+    <value>vor {0} T.</value>
+  </data>
+  <data name="Action_ReadArticle" xml:space="preserve">
+    <value>Artikel lesen</value>
+  </data>
+  <data name="News_Category_All" xml:space="preserve">
+    <value>Alle</value>
+  </data>
+  <data name="Nav_News_Title" xml:space="preserve">
+    <value>Nachrichten</value>
+  </data>
   <data name="Settings_RateLimit_Label" xml:space="preserve">
     <value>Ratenbegrenzungswarnungen anzeigen</value>
   </data>
@@ -506,11 +539,5 @@
   </data>
   <data name="Currency_KRW" xml:space="preserve">
     <value>Südkoreanischer Won (KRW)</value>
-  </data>
-  <data name="Settings_NewsRefresh_Label" xml:space="preserve">
-    <value>Nachrichtenaktualisierungsintervall (Minuten)</value>
-  </data>
-  <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
-    <value>Nachrichtenaktualisierungsintervall in Minuten (0 = aus).</value>
   </data>
 </root>

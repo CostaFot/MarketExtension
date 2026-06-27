@@ -70,6 +70,15 @@ namespace MarketExtension.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Read article.
+        /// </summary>
+        public static string Action_ReadArticle {
+            get {
+                return ResourceManager.GetString("Action_ReadArticle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Refresh.
         /// </summary>
         public static string Action_Refresh {
@@ -192,6 +201,15 @@ namespace MarketExtension.Properties {
         public static string Command_Markets {
             get {
                 return ResourceManager.GetString("Command_Markets", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Markets - News.
+        /// </summary>
+        public static string Command_MarketsNews {
+            get {
+                return ResourceManager.GetString("Command_MarketsNews", resourceCulture);
             }
         }
         
@@ -520,6 +538,15 @@ namespace MarketExtension.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to News.
+        /// </summary>
+        public static string Nav_News_Title {
+            get {
+                return ResourceManager.GetString("Nav_News_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Portfolio.
         /// </summary>
         public static string Nav_Portfolio_Title {
@@ -570,6 +597,60 @@ namespace MarketExtension.Properties {
         public static string Nav_Watchlist_Title {
             get {
                 return ResourceManager.GetString("Nav_Watchlist_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to All.
+        /// </summary>
+        public static string News_Category_All {
+            get {
+                return ResourceManager.GetString("News_Category_All", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Filter headlines.
+        /// </summary>
+        public static string News_Placeholder {
+            get {
+                return ResourceManager.GetString("News_Placeholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}d ago.
+        /// </summary>
+        public static string News_Time_DaysAgo {
+            get {
+                return ResourceManager.GetString("News_Time_DaysAgo", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}h ago.
+        /// </summary>
+        public static string News_Time_HoursAgo {
+            get {
+                return ResourceManager.GetString("News_Time_HoursAgo", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to just now.
+        /// </summary>
+        public static string News_Time_JustNow {
+            get {
+                return ResourceManager.GetString("News_Time_JustNow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}m ago.
+        /// </summary>
+        public static string News_Time_MinutesAgo {
+            get {
+                return ResourceManager.GetString("News_Time_MinutesAgo", resourceCulture);
             }
         }
         
