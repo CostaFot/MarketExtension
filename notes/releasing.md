@@ -1,6 +1,6 @@
 # Releasing a new version
 
-Current version: **1.1.0.0** (in the csproj). Bump all 5 files together.
+Current version: **1.2.0.0** (in the csproj). Bump all 5 files together.
 
 ## Step 1 — Bump version in all 5 files
 

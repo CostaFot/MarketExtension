@@ -1,7 +1,7 @@
 param(
     [string]$ExtensionName = "MarketExtension",
     [string]$Configuration = "Release",
-    [string]$Version = "1.1.0.0",
+    [string]$Version = "1.2.0.0",
     [string[]]$Platforms = @("x64", "arm64")
 )
 
