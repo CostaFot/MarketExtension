@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace MarketExtension;
 
-// In-memory IQuoteCache: one MutableStateFlow<DomainQuote?> per normalized symbol, lazily created.
+// In-memory IQuoteCacheDataSource: one MutableStateFlow<QuoteEntity?> per normalized symbol, lazily created.
 // The single shared store of live quotes; MarketRepository owns one instance for the whole process.
 // Mirrors the WatchlistStore state-holder idiom — a Lock guarding a dictionary, snapshot under the
 // lock then Update() OUTSIDE it (Update fans handlers out that may re-enter Get/Observe, and
@@ -18,38 +18,38 @@ namespace MarketExtension;
 // host call re-entered Command Palette's STA → a lock-ordering cycle. That is fixed at the seam:
 // ObserveQuotes now delivers via ObserveOn, so surfaces are notified only AFTER the Rx gate locks are
 // released (no host call under a producer-side lock). This cache can therefore stay the simple,
-// correct in-memory version. Swap it for a database-backed IQuoteCache later via MarketRepository's
+// correct in-memory version. Swap it for a database-backed IQuoteCacheDataSource later via MarketRepository's
 // injectable ctor overload — no repository or UI change.
 [SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable",
-    Justification = "Owns per-symbol MutableStateFlow<DomainQuote?> (BehaviorSubject-backed) entries for " +
+    Justification = "Owns per-symbol MutableStateFlow<QuoteEntity?> (BehaviorSubject-backed) entries for " +
                     "the life of the process via the single MarketRepository; they are intentionally never " +
                     "completed or disposed — mirrors the StateFlow singleton convention (see StateFlow.cs).")]
-internal sealed class InMemoryQuoteCache : IQuoteCache
+internal sealed class InMemoryQuoteCacheDataSource : IQuoteCacheDataSource
 {
     private readonly Lock _lock = new();
 
     // key = WatchlistStore.Normalize(symbol). Grows only with distinct observed symbols (watchlist +
     // favorites + portfolio membership — tens), so no eviction is needed.
-    private readonly Dictionary<string, MutableStateFlow<DomainQuote?>> _entries = [];
+    private readonly Dictionary<string, MutableStateFlow<QuoteEntity?>> _entries = [];
 
-    public DomainQuote? Get(string symbol)
+    public QuoteEntity? Get(string symbol)
     {
         lock (_lock)
             return _entries.TryGetValue(WatchlistStore.Normalize(symbol), out var flow) ? flow.Value : null;
     }
 
-    public StateFlow<DomainQuote?> Observe(string symbol)
+    public StateFlow<QuoteEntity?> Observe(string symbol)
     {
         lock (_lock)
             return GetOrCreate(WatchlistStore.Normalize(symbol));
     }
 
-    public void Upsert(DomainQuote quote, bool keepLastGood = true)
+    public void Upsert(QuoteEntity quote, bool keepLastGood = true)
     {
         var key = WatchlistStore.Normalize(quote.Symbol);
 
-        MutableStateFlow<DomainQuote?> flow;
-        DomainQuote? next = quote;
+        MutableStateFlow<QuoteEntity?> flow;
+        QuoteEntity? next = quote;
         lock (_lock)
         {
             flow = GetOrCreate(key);
@@ -64,7 +64,7 @@ internal sealed class InMemoryQuoteCache : IQuoteCache
 
     public void Clear()
     {
-        List<MutableStateFlow<DomainQuote?>> flows;
+        List<MutableStateFlow<QuoteEntity?>> flows;
         lock (_lock)
             flows = [.. _entries.Values]; // keep entries so observers stay subscribed; reset the values
 
@@ -73,10 +73,10 @@ internal sealed class InMemoryQuoteCache : IQuoteCache
     }
 
     // Caller must hold _lock.
-    private MutableStateFlow<DomainQuote?> GetOrCreate(string key)
+    private MutableStateFlow<QuoteEntity?> GetOrCreate(string key)
     {
         if (!_entries.TryGetValue(key, out var flow))
-            _entries[key] = flow = new MutableStateFlow<DomainQuote?>(null); // default comparer = record value equality
+            _entries[key] = flow = new MutableStateFlow<QuoteEntity?>(null); // default comparer = record value equality
         return flow;
     }
 }

@@ -17,7 +17,7 @@ namespace MarketExtension;
 // serve become invalid placeholders. Adding a data source = pass another provider to the
 // constructor; nothing else changes.
 //
-// It also owns the shared IQuoteCache: every fetch writes through to it (so the cache fills with no
+// It also owns the shared IQuoteCacheDataSource: every fetch writes through to it (so the cache fills with no
 // surface changes), and surfaces can OBSERVE a set of instruments as one cache-backed list observable
 // instead of each fetching independently (the orchestration API — ObserveQuotes/RefreshAsync). This is
 // how two surfaces showing the same symbol stop drifting apart.
@@ -32,7 +32,7 @@ namespace MarketExtension;
 internal sealed class MarketRepository
 {
     private readonly IMarketDataProvider[] _providers;
-    private readonly IQuoteCache _cache;
+    private readonly IQuoteCacheDataSource _cacheSource;
 
     // Refcounted registry of the instruments currently being observed via ObserveQuotes — keyed by
     // Normalize(symbol), each carrying the latest DomainInstrument (needed for provider routing) and a
@@ -51,12 +51,12 @@ internal sealed class MarketRepository
 
     // Default: an in-memory cache. The call site in MarketExtensionCommandsProvider uses this.
     public MarketRepository(params IMarketDataProvider[] providers)
-        : this(new InMemoryQuoteCache(), providers) { }
+        : this(new InMemoryQuoteCacheDataSource(), providers) { }
 
-    // Injectable cache — for a future database-backed IQuoteCache (and tests). No other code changes.
-    public MarketRepository(IQuoteCache cache, IMarketDataProvider[] providers)
+    // Injectable cache — for a future database-backed IQuoteCacheDataSource (and tests). No other code changes.
+    public MarketRepository(IQuoteCacheDataSource cacheSource, IMarketDataProvider[] providers)
     {
-        _cache = cache;
+        _cacheSource = cacheSource;
         _providers = providers;
 
         // A demo-mode flip swaps the data SOURCE, so every cached price is now wrong (it came from the other
@@ -146,7 +146,7 @@ internal sealed class MarketRepository
         var now = Environment.TickCount64;
         foreach (var quote in ordered)
         {
-            _cache.Upsert(quote, keepLastGood);
+            _cacheSource.Upsert(QuoteEntity.From(quote), keepLastGood); // domain → storage at the boundary
             _lastFetchTicks[WatchlistStore.Normalize(quote.Symbol)] = now;
         }
     }
@@ -190,7 +190,7 @@ internal sealed class MarketRepository
             {
                 // Re-derive the missing/stale split for the log only (NeedsFetchOnSubscribe stays the single
                 // decision): a to-fetch symbol is "missing" if it's still uncached, else it's a stale refresh.
-                var missing = toFetch.Count(i => _cache.Get(i.Symbol) is null);
+                var missing = toFetch.Count(i => _cacheSource.Get(i.Symbol) is null);
                 Log.Info("Repository",
                     $"observe subscribe: refreshing {toFetch.Count}/{instruments.Count} " +
                     $"({missing} missing, {toFetch.Count - missing} stale) [{string.Join(", ", toFetch.Select(i => i.Symbol))}]");
@@ -204,8 +204,10 @@ internal sealed class MarketRepository
             IObservable<IReadOnlyList<DomainQuote>> inner = instruments.Count == 0
                 ? Observable.Return<IReadOnlyList<DomainQuote>>([])
                 : Observable
-                    .CombineLatest(instruments.Select(i => _cache.Observe(i.Symbol).AsObservable()))
-                    .Select(quotes => (IReadOnlyList<DomainQuote>)quotes.OfType<DomainQuote>().ToList());
+                    .CombineLatest(instruments.Select(i => _cacheSource.Observe(i.Symbol).AsObservable()))
+                    // storage → domain at the boundary; OfType drops the null (not-yet-loaded) entries.
+                    .Select(entities => (IReadOnlyList<DomainQuote>)entities
+                        .OfType<QuoteEntity>().Select(e => e.ToDomainQuote()).ToList());
 
             return new CompositeDisposable(
                 inner.Subscribe(observer),
@@ -226,7 +228,7 @@ internal sealed class MarketRepository
     // already-cached price is left as-is, so "off" spends no calls. Reads the stamp WriteThrough sets.
     private bool NeedsFetchOnSubscribe(DomainInstrument instrument)
     {
-        if (_cache.Get(instrument.Symbol) is null)
+        if (_cacheSource.Get(instrument.Symbol) is null)
             return true;
 
         var settings = MarketSettingsManager.Instance;
@@ -259,7 +261,7 @@ internal sealed class MarketRepository
     // the new-source quotes through unconditionally).
     private void OnDemoModeFlip()
     {
-        _cache.Clear();
+        _cacheSource.Clear();
         var observed = ObservedInstruments();
         Log.Info("Repository",
             $"demo mode flipped — cache cleared; refreshing {observed.Count} observed instrument(s) from the new source");
