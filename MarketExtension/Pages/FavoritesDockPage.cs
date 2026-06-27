@@ -33,7 +33,12 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
     private UiQuote[]? _quotes; // latest cache emission, projected for rendering; null before the first
 
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
-    private IDisposable? _quotesSubscription;
+    // Subscriptions held in a list (not a single field) so a double-`add` without an intervening `remove`
+    // can't orphan a subscription: a single field would be OVERWRITTEN by the second add, losing the first's
+    // reference so it's never disposed — and because ObserveQuotes registers its symbols as "observed" on
+    // subscribe and only unregisters on dispose, that orphan would pin those symbols to the repository's poll
+    // loop forever. Dispose-all-and-clear in `remove` keeps every subscribe balanced. Matches PricedListPage.
+    private readonly List<IDisposable> _subscriptions = [];
 
     event TypedEventHandler<object, IItemsChangedEventArgs> INotifyItemsChanged.ItemsChanged
     {
@@ -48,14 +53,15 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
             // emission lands after this accessor returns — no synchronous RaiseItemsChanged inside the host's
             // subscription. Disposed in `remove` — a hidden band does no work, doesn't leak, and unregisters
             // its symbols so the repository stops polling them.
-            _quotesSubscription = _repository.ObserveQuotes(WatchlistStore.Instance.Favorites).Subscribe(OnQuotesChanged);
+            _subscriptions.Add(_repository.ObserveQuotes(WatchlistStore.Instance.Favorites).Subscribe(OnQuotesChanged));
             Log.Info("Dock", $"observing favorites [{string.Join(", ", WatchlistStore.Instance.Favorites.Value.Select(i => i.Symbol))}]");
         }
         remove
         {
             _itemsChanged -= value;
-            _quotesSubscription?.Dispose();
-            _quotesSubscription = null;
+            foreach (var subscription in _subscriptions)
+                subscription.Dispose();
+            _subscriptions.Clear();
             Log.Info("Dock", "stopped observing favorites");
         }
     }
