@@ -610,6 +610,24 @@ namespace MarketExtension.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to There&apos;s no market news to show right now..
+        /// </summary>
+        public static string News_Empty_Subtitle {
+            get {
+                return ResourceManager.GetString("News_Empty_Subtitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No headlines.
+        /// </summary>
+        public static string News_Empty_Title {
+            get {
+                return ResourceManager.GetString("News_Empty_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Filter headlines.
         /// </summary>
         public static string News_Placeholder {
@@ -1155,6 +1173,33 @@ namespace MarketExtension.Properties {
         public static string Status_Demo_Tooltip {
             get {
                 return ResourceManager.GetString("Status_Demo_Tooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Add a Finnhub API key in Settings to load market news..
+        /// </summary>
+        public static string Status_NewsNoKey_Subtitle {
+            get {
+                return ResourceManager.GetString("Status_NewsNoKey_Subtitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to News needs a Finnhub key.
+        /// </summary>
+        public static string Status_NewsNoKey_Title {
+            get {
+                return ResourceManager.GetString("Status_NewsNoKey_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Market news is provided by Finnhub..
+        /// </summary>
+        public static string Status_NewsNoKey_Tooltip {
+            get {
+                return ResourceManager.GetString("Status_NewsNoKey_Tooltip", resourceCulture);
             }
         }
         

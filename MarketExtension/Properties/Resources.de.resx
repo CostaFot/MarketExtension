@@ -540,4 +540,19 @@
   <data name="Currency_KRW" xml:space="preserve">
     <value>Südkoreanischer Won (KRW)</value>
   </data>
+  <data name="Status_NewsNoKey_Title" xml:space="preserve">
+    <value>Nachrichten benötigen einen Finnhub-Schlüssel</value>
+  </data>
+  <data name="Status_NewsNoKey_Subtitle" xml:space="preserve">
+    <value>Fügen Sie in den Einstellungen einen Finnhub-API-Schlüssel hinzu, um Marktnachrichten zu laden.</value>
+  </data>
+  <data name="Status_NewsNoKey_Tooltip" xml:space="preserve">
+    <value>Marktnachrichten werden von Finnhub bereitgestellt.</value>
+  </data>
+  <data name="News_Empty_Title" xml:space="preserve">
+    <value>Keine Schlagzeilen</value>
+  </data>
+  <data name="News_Empty_Subtitle" xml:space="preserve">
+    <value>Derzeit sind keine Marktnachrichten verfügbar.</value>
+  </data>
 </root>

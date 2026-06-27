@@ -383,6 +383,21 @@
   <data name="Command_MarketsNews" xml:space="preserve">
     <value>मार्केट - समाचार</value>
   </data>
+  <data name="Status_NewsNoKey_Title" xml:space="preserve">
+    <value>समाचार के लिए Finnhub कुंजी आवश्यक है</value>
+  </data>
+  <data name="Status_NewsNoKey_Subtitle" xml:space="preserve">
+    <value>मार्केट समाचार लोड करने के लिए सेटिंग्स में Finnhub API कुंजी जोड़ें।</value>
+  </data>
+  <data name="Status_NewsNoKey_Tooltip" xml:space="preserve">
+    <value>मार्केट समाचार Finnhub द्वारा प्रदान किए जाते हैं।</value>
+  </data>
+  <data name="News_Empty_Title" xml:space="preserve">
+    <value>कोई सुर्खियाँ नहीं</value>
+  </data>
+  <data name="News_Empty_Subtitle" xml:space="preserve">
+    <value>अभी दिखाने के लिए कोई मार्केट समाचार नहीं है।</value>
+  </data>
   <data name="Nav_News_Title" xml:space="preserve">
     <value>समाचार</value>
   </data>

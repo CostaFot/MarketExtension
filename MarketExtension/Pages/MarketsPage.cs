@@ -21,7 +21,7 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
     private const string InfoGlyph = "\uE9F9";      // Segoe MDL2 ReportDocument
     private const string SettingsGlyph = "\uE713";  // Segoe MDL2 Setting
 
-    private const string NewsGlyph = "\uE789";      // Segoe MDL2 News (verify/adjust glyph)
+    private const string NewsGlyph = "\uE789";      // Segoe MDL2 News
 
     private readonly SearchPage _searchPage;
     private readonly WatchlistPage _watchlistPage;

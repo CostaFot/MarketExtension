@@ -429,6 +429,21 @@
   <data name="Command_MarketsNews" xml:space="preserve">
     <value>Mercados - Noticias</value>
   </data>
+  <data name="Status_NewsNoKey_Title" xml:space="preserve">
+    <value>Las noticias necesitan una clave de Finnhub</value>
+  </data>
+  <data name="Status_NewsNoKey_Subtitle" xml:space="preserve">
+    <value>Agrega una clave de API de Finnhub en Configuración para cargar noticias del mercado.</value>
+  </data>
+  <data name="Status_NewsNoKey_Tooltip" xml:space="preserve">
+    <value>Las noticias del mercado las proporciona Finnhub.</value>
+  </data>
+  <data name="News_Empty_Title" xml:space="preserve">
+    <value>Sin titulares</value>
+  </data>
+  <data name="News_Empty_Subtitle" xml:space="preserve">
+    <value>No hay noticias del mercado para mostrar en este momento.</value>
+  </data>
   <data name="Nav_News_Title" xml:space="preserve">
     <value>Noticias</value>
   </data>

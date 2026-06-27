@@ -385,6 +385,21 @@
   <data name="Command_MarketsNews" xml:space="preserve">
     <value>マーケット - ニュース</value>
   </data>
+  <data name="Status_NewsNoKey_Title" xml:space="preserve">
+    <value>ニュースには Finnhub キーが必要です</value>
+  </data>
+  <data name="Status_NewsNoKey_Subtitle" xml:space="preserve">
+    <value>マーケットニュースを読み込むには、設定で Finnhub API キーを追加してください。</value>
+  </data>
+  <data name="Status_NewsNoKey_Tooltip" xml:space="preserve">
+    <value>マーケットニュースは Finnhub から提供されています。</value>
+  </data>
+  <data name="News_Empty_Title" xml:space="preserve">
+    <value>見出しはありません</value>
+  </data>
+  <data name="News_Empty_Subtitle" xml:space="preserve">
+    <value>現在表示できるマーケットニュースはありません。</value>
+  </data>
   <data name="Nav_News_Title" xml:space="preserve">
     <value>ニュース</value>
   </data>

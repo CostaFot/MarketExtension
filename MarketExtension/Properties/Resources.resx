@@ -459,6 +459,21 @@
   <data name="News_Category_All" xml:space="preserve">
     <value>All</value>
   </data>
+  <data name="Status_NewsNoKey_Title" xml:space="preserve">
+    <value>News needs a Finnhub key</value>
+  </data>
+  <data name="Status_NewsNoKey_Subtitle" xml:space="preserve">
+    <value>Add a Finnhub API key in Settings to load market news.</value>
+  </data>
+  <data name="Status_NewsNoKey_Tooltip" xml:space="preserve">
+    <value>Market news is provided by Finnhub.</value>
+  </data>
+  <data name="News_Empty_Title" xml:space="preserve">
+    <value>No headlines</value>
+  </data>
+  <data name="News_Empty_Subtitle" xml:space="preserve">
+    <value>There's no market news to show right now.</value>
+  </data>
   <data name="Nav_News_Title" xml:space="preserve">
     <value>News</value>
   </data>

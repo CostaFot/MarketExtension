@@ -438,6 +438,21 @@
   <data name="Command_MarketsNews" xml:space="preserve">
     <value>市场 - 新闻</value>
   </data>
+  <data name="Status_NewsNoKey_Title" xml:space="preserve">
+    <value>新闻需要 Finnhub 密钥</value>
+  </data>
+  <data name="Status_NewsNoKey_Subtitle" xml:space="preserve">
+    <value>在设置中添加 Finnhub API 密钥以加载市场新闻。</value>
+  </data>
+  <data name="Status_NewsNoKey_Tooltip" xml:space="preserve">
+    <value>市场新闻由 Finnhub 提供。</value>
+  </data>
+  <data name="News_Empty_Title" xml:space="preserve">
+    <value>暂无头条</value>
+  </data>
+  <data name="News_Empty_Subtitle" xml:space="preserve">
+    <value>当前没有可显示的市场新闻。</value>
+  </data>
   <data name="Nav_News_Title" xml:space="preserve">
     <value>新闻</value>
   </data>

@@ -530,6 +530,17 @@ internal sealed class MarketRepository
         return TimeSpan.FromMilliseconds(Environment.TickCount64 - ticks) >= settings.NewsRefreshInterval;
     }
 
+    // Whether a news fetch has COMPLETED for the selection (a concrete category, or ALL categories for the
+    // "All" view, selection == null). Lets a surface tell "still loading" (no attempt yet) from
+    // "loaded-but-empty" (fetched, nothing came back) — the news cache emits an empty feed in BOTH cases, so
+    // the emission alone can't disambiguate. Reads the same per-category last-fetch stamps
+    // NeedsNewsFetchOnSubscribe uses (WriteThroughNews stamps them after every fetch, including an empty /
+    // kept-last-good one); _lastNewsFetchTicks is a ConcurrentDictionary, so ContainsKey is thread-safe.
+    public bool HasAttemptedNewsFetch(NewsCategory? selection) =>
+        selection is { } category
+            ? _lastNewsFetchTicks.ContainsKey(category)
+            : NewsCategoryExtensions.All.All(_lastNewsFetchTicks.ContainsKey);
+
     // One news poll tick: refresh every currently-observed category (one /news call each — news isn't
     // batchable across categories like quotes are across symbols). Nothing observed → nothing to do.
     private void RefreshObservedNews()

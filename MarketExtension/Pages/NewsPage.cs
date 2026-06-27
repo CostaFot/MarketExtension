@@ -55,6 +55,14 @@ internal sealed partial class NewsPage : DynamicListPage, INotifyItemsChanged
             // Delivery is off-thread (ObserveOn in the repo), so the first emission lands after this accessor
             // returns. Disposed in `remove` so a hidden page does no work and unregisters its category.
             _subscriptions.Add(_repository.ObserveNews(_category).Subscribe(OnNewsChanged));
+            // Re-render when throttling starts/stops (the rate-limit banner) and when a key is added/cleared
+            // (the no-key status row), so each appears/disappears at once. replay:false — the observe
+            // subscription above already drives the initial paint. Mirrors PricedListPage.
+            _subscriptions.Add(RateLimitSignal.Instance.IsRateLimited
+                .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
+            _subscriptions.Add(MarketSettingsManager.Instance.HasAnyApiKey
+                .Subscribe(_ => RaiseItemsChanged(0), replayOnSubscribe: false));
+            RecomputeLoading();
         }
         remove
         {
@@ -87,25 +95,81 @@ internal sealed partial class NewsPage : DynamicListPage, INotifyItemsChanged
     // dropdown, not typing, switches feeds.
     public override void UpdateSearchText(string oldSearch, string newSearch) => RaiseItemsChanged(0);
 
+    // True when news can't be served right now: demo mode is off AND no Finnhub key is set (Finnhub is the
+    // only live news provider; an unset key makes /news return nothing forever). In that state we show the
+    // no-key status row instead of an endless spinner — gated on HasFinnhubApiKey, NOT the broader
+    // HasAnyApiKey, since a Twelve-Data-only key can't serve news.
+    private static bool NewsUnavailable =>
+        !MarketSettingsManager.Instance.DemoMode && !MarketSettingsManager.Instance.HasFinnhubApiKey;
+
+    // The single source of truth for the spinner. Loading only when news IS serviceable AND we're genuinely
+    // still waiting: no emission yet, or an empty feed whose fetch for the current selection hasn't completed.
+    // No-key (covered by the status row) and loaded-but-empty (fetch done, nothing came back) are NOT loading.
+    private void RecomputeLoading() =>
+        IsLoading = !NewsUnavailable
+                    && (_news is null
+                        || (_news.Length == 0 && !_repository.HasAttemptedNewsFetch(_category.Value)));
+
     public override IListItem[] GetItems()
     {
+        var items = new List<IListItem>();
+
+        // Rate-limited banner pinned at the TOP so it's seen without scrolling — the "All" view fans out four
+        // /news calls per tick, so the feed can get throttled. Parallels the priced pages / Search. #4.
+        if (RateLimitHint.Row() is { } banner)
+            items.Add(banner);
+
+        // No news provider available (demo off + no Finnhub key): explain it instead of spinning forever. This
+        // is the page's whole body in that state, so return right after it. #2.
+        if (NewsUnavailable)
+        {
+            if (ApiKeyHint.NewsStatusRow() is { } noKey)
+                items.Add(noKey);
+            return [.. items];
+        }
+
         var news = _news;
-        if (news is null || news.Length == 0)
-            return []; // before the first feed / still loading — the IsLoading spinner covers it
+        if (news is null)
+            return [.. items]; // before the first emission — the IsLoading spinner covers it
 
         var query = SearchText?.Trim() ?? string.Empty;
         var rows = query.Length == 0 ? news : [.. news.Where(n => n.Matches(query))];
 
-        if (rows.Length == 0) // a typed query matched nothing
+        if (news.Length == 0)
         {
-            return [new ListItem(new NoOpCommand())
+            // Empty feed: "still loading" vs "loaded-but-empty" (the cache emits empty for both). Only show the
+            // empty-state row once a fetch for this selection has actually completed; else leave the spinner.
+            if (_repository.HasAttemptedNewsFetch(_category.Value))
+                items.Add(EmptyStateRow());
+        }
+        else if (rows.Length == 0) // a typed query matched nothing
+        {
+            items.Add(new ListItem(new NoOpCommand())
             {
                 Title = Strings.Format(Resources.Search_NoMatches, query),
-            }];
+            });
+        }
+        else
+        {
+            items.AddRange(rows.Select(BuildRow));
         }
 
-        return [.. rows.Select(BuildRow)];
+        // Demo "showing sample data" row at the bottom (informational), consistent with the other screens —
+        // NewsStatusRow returns the demo row when demo mode is on, null when a live Finnhub key is set.
+        if (ApiKeyHint.NewsStatusRow() is { } status)
+            items.Add(status);
+
+        return [.. items];
     }
+
+    // Shown when a fetch completed but returned no headlines (rare for market-wide news, but it keeps the page
+    // honest rather than spinning forever).
+    private static ListItem EmptyStateRow() =>
+        new(new NoOpCommand())
+        {
+            Title = Resources.News_Empty_Title,
+            Subtitle = Resources.News_Empty_Subtitle,
+        };
 
     // One headline row: Enter opens the article; the thumbnail (or a document glyph) is the icon; the summary
     // and a larger thumbnail fill the Details preview pane.
@@ -134,7 +198,7 @@ internal sealed partial class NewsPage : DynamicListPage, INotifyItemsChanged
     private void OnNewsChanged(IReadOnlyList<DomainNews> news)
     {
         _news = [.. news.Select(UiNews.From)];
-        IsLoading = _news.Length == 0; // an empty feed means "still loading" (market news is never truly empty)
+        RecomputeLoading(); // empty == loading only until the fetch completes; no-key never loads (see RecomputeLoading)
         RaiseItemsChanged(0);
     }
 
@@ -143,8 +207,8 @@ internal sealed partial class NewsPage : DynamicListPage, INotifyItemsChanged
     private void OnFilterChanged(object sender, IPropChangedEventArgs args)
     {
         _news = null;
-        IsLoading = true;
         _category.Update(NewsCategoryFilters.ToSelection(_filters.CurrentFilterId));
+        RecomputeLoading(); // reads the just-updated _category; spinner unless news is unavailable
         RaiseItemsChanged(0);
     }
 

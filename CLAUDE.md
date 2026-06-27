@@ -243,7 +243,22 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 
 ## Current Status / Next Steps
 
-- **Done (latest): Market News feature (MVP — built end-to-end, NOT yet live-verified).** A **Markets → News**
+- **Done (latest): News feature polish — empty-state / no-key UX + rate-limit banner (Left-to-do #2, #4, #5).**
+  Closed three of the news "Left to do" items. **#2 (the perpetual-spinner bug):** Finnhub's `SupportsNews` is
+  unconditionally `true`, so with no Finnhub key `/news` is still attempted and just returns `[]` → the cold news
+  cache stays empty → `NewsPage` treated empty as "loading" forever. Fixed with (a) a **Finnhub-gated
+  `ApiKeyHint.NewsStatusRow()`** — gates on `HasFinnhubApiKey`, NOT the broader `HasAnyApiKey` (a Twelve-Data-only
+  key can't serve news) — that renders a "News needs a Finnhub key" row instead of spinning, and (b)
+  **`MarketRepository.HasAttemptedNewsFetch(NewsCategory?)`** (reads the existing `_lastNewsFetchTicks` stamps;
+  `null` = the merged "All" view = all four categories attempted) so `NewsPage.RecomputeLoading` disambiguates
+  "loading" (no fetch yet) from "loaded-but-empty" (fetch done → an explicit `News_Empty_*` row). **#4:**
+  `NewsPage.GetItems` now inserts `RateLimitHint.Row()` at the top and subscribes to
+  `RateLimitSignal.Instance.IsRateLimited` (replay:false) to re-render on throttle start/stop, like the priced
+  pages + Search. **#5:** glyph check done (verified; the stale "verify/adjust glyph" comment was removed). New
+  resx strings (`Status_NewsNoKey_*`, `News_Empty_*`) across all 8 locales + the Designer. Build clean (0
+  warnings). ⚠️ **Still NOT live-verified on-device** (#1). Remaining open: #1 live-verify, #3 news dock band,
+  #6 minId paging, #7 multi-provider, #8 native translation review.
+- **Done (previous): Market News feature (MVP — built end-to-end, NOT yet live-verified).** A **Markets → News**
   hub screen lists market-news headlines (each row opens the source article in the browser), built behind the
   SAME layered seams as quotes with a parallel cache + repository-orchestration story. The pieces: a Finnhub
   `/news` provider method (`GetNewsAsync`) behind a new **`SupportsNews`** capability on `IMarketDataProvider`
@@ -1370,19 +1385,21 @@ client-side. New UI strings are in the resx (all 7 locales).
 1. **Live-verify on-device** — the whole path compiles but is unverified. Check via **Demo mode** (curated
    synthetic headlines per category; "All" merges + dedupes them) and a **real Finnhub key** (live `/news`):
    category switching, article open, the separate news refresh interval, demo-flip.
-2. **No-key / empty-state UX** — with no Finnhub key (live), `/news` returns `[]` and the page treats an empty
-   feed as "still loading" → a **perpetual spinner**. Surface a status row instead (reuse
-   `ApiKeyHint.StatusRow()` and/or an explicit empty-state row), and disambiguate "loading" from
-   "loaded-but-empty" (the page currently can't, unlike the priced pages which use the membership count).
+2. **No-key / empty-state UX — ✅ DONE.** With no Finnhub key, `/news` returns `[]` (Finnhub's `SupportsNews`
+   is unconditionally true, so it's still attempted) → the cold cache stayed empty and the page span forever.
+   Fixed: a **Finnhub-gated `ApiKeyHint.NewsStatusRow()`** (gates on `HasFinnhubApiKey`, not `HasAnyApiKey`)
+   shows a "News needs a Finnhub key" row instead of spinning, and **`MarketRepository.HasAttemptedNewsFetch(
+   NewsCategory?)`** lets `NewsPage.RecomputeLoading` tell "loading" (no fetch attempt) from "loaded-but-empty"
+   (fetch done → an explicit `News_Empty_*` row). Demo mode still shows the blue "sample data" row.
 3. **News dock band** — the repo already exposes the fixed **`ObserveNews(NewsCategory)`** for exactly this: a
    dock band showing one category's latest headline(s), the "screen + dock in sync" payoff. Model it on
    `FavoritesDockPage` (pure observer, `INotifyItemsChanged` visible-lifecycle, its own non-empty `Command.Id`).
-4. **Rate-limit banner on the news page** — the "All" view fans out 4 `/news` calls per tick; the page doesn't
-   render `RateLimitHint` (the priced pages + Search do). keep-last-good already protects the feed, but the user
-   isn't told *why* it looks stale.
-5. **Glyph check** — verify `NewsGlyph` (`MarketsPage`, the hub row) and `ArticleGlyph` (`NewsPage`, the
-   thumbnail-less row icon) render the intended Segoe MDL2 icons. (⚠️ writing `\uXXXX` through the edit tooling
-   kept dropping the glyph — set/verify these by hand; see "Write tool mangles glyph icons".)
+4. **Rate-limit banner on the news page — ✅ DONE.** `NewsPage.GetItems` inserts `RateLimitHint.Row()` at the
+   top (index 0) and subscribes to `RateLimitSignal.Instance.IsRateLimited` (replay:false) to re-render when
+   throttling starts/stops, exactly like the priced pages + Search.
+5. **Glyph check — ✅ DONE** — `NewsGlyph` / `ArticleGlyph` verified to render; the stale "verify/adjust glyph"
+   comment at `MarketsPage.cs` was removed (the glyph values are `\uXXXX` escapes, so the Write-tool drop hazard
+   never applied here).
 6. **minId incremental paging (optimization)** — every refresh fetches `minId:0` (the full latest batch) and
    replaces the cached feed; the `DomainNews.Id` / `minId` cursor exists but isn't used to fetch only newer items
    and merge. Cheap follow-up if `/news` volume matters.
