@@ -34,6 +34,10 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
     // Finnhub's free tier serves stocks and crypto; forex (OANDA:*) is premium-gated.
     public bool Supports(AssetCategory category) => category is AssetCategory.Stock or AssetCategory.Crypto;
 
+    // Finnhub is the (only) news source — it serves the /news market-news feed (GetNewsAsync). This opts
+    // the provider in past the interface's SupportsNews gate, which defaults false for every other source.
+    public bool SupportsNews => true;
+
     public async Task<IReadOnlyList<DomainQuote>> GetQuotesAsync(
         IReadOnlyList<DomainInstrument> instruments, CancellationToken ct = default)
     {
@@ -231,6 +235,76 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
         }
     }
 
+    // Latest market news for a category (Finnhub GET /news), the IMarketDataProvider.GetNewsAsync impl
+    // (gated by SupportsNews => true above). minId returns only items AFTER that news id (0 = the latest
+    // batch); pass the largest Id from a prior call to page forward without re-fetching. Returns
+    // DomainNews items in Finnhub's order (newest first). A no-key install or any failure (network /
+    // non-2xx / parse) degrades to an empty list rather than throwing.
+    public async Task<IReadOnlyList<DomainNews>> GetNewsAsync(
+        NewsCategory category, long minId = 0, CancellationToken ct = default)
+    {
+        if (!HasApiKey)
+        {
+            Log.Warn("Finnhub", "no API key set — skipping news (set one in extension settings)");
+            return [];
+        }
+
+        var categoryToken = ToFinnhubNewsCategory(category);
+        try
+        {
+            // NEVER log the full URL — it carries the API token. Log the category/minId only.
+            Log.Info("Finnhub", $"GET /news category={categoryToken} minId={minId}");
+            using var response = await HttpRetry.SendAsync(
+                c => Http.GetAsync($"news?category={Uri.EscapeDataString(categoryToken)}&minId={minId}&token={ApiKey}", c),
+                "Finnhub", ct).ConfigureAwait(false);
+
+            var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            Log.Info("Finnhub", $"news {categoryToken} <- {(int)response.StatusCode} {response.StatusCode}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                // e.g. 429 rate-limited. Degrade to no news rather than throwing.
+                Log.Warn("Finnhub", $"news {categoryToken}: non-success status {(int)response.StatusCode} — no news");
+                return [];
+            }
+
+            // /news returns a bare top-level JSON array — deserialize to ApiFinnhubNewsDto[].
+            var dtos = JsonSerializer.Deserialize(json, FinnhubJsonContext.Default.ApiFinnhubNewsDtoArray);
+            if (dtos is not { Length: > 0 })
+                return [];
+
+            // Drop items missing the essentials (id / headline / url): without them a row can't render or
+            // open. The survivors map directly (see ToDomainNews).
+            var news = dtos
+                .Where(d => d.Id is not null
+                    && !string.IsNullOrWhiteSpace(d.Headline)
+                    && !string.IsNullOrWhiteSpace(d.Url))
+                .Select(ToDomainNews)
+                .ToList();
+
+            Log.Info("Finnhub", $"news {categoryToken} -> {news.Count} item(s)");
+            return news;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Error("Finnhub", $"news {categoryToken}: request failed", ex);
+            return [];
+        }
+    }
+
+    // ApiFinnhubNewsDto -> DomainNews. Only called for items already filtered to carry id/headline/url, so
+    // those three map directly (non-null asserted); the rest coalesce to empty/null. datetime is UNIX seconds.
+    private static DomainNews ToDomainNews(ApiFinnhubNewsDto dto) => new(
+        Id: dto.Id!.Value,
+        Headline: dto.Headline!,
+        Source: dto.Source ?? string.Empty,
+        Summary: dto.Summary ?? string.Empty,
+        Category: dto.Category ?? string.Empty,
+        ArticleUrl: dto.Url!,
+        Published: DateTimeOffset.FromUnixTimeSeconds(dto.Datetime ?? 0),
+        ImageUrl: string.IsNullOrWhiteSpace(dto.Image) ? null : dto.Image,
+        Related: string.IsNullOrWhiteSpace(dto.Related) ? null : dto.Related);
+
     private static DomainQuote Invalid(DomainInstrument i) =>
         new(i.Symbol, i.Name, i.Category, 0m, 0m, 0m, IsValid: false);
 
@@ -301,6 +375,18 @@ internal sealed class FinnhubMarketDataProvider : IMarketDataProvider
         CandleInterval.Daily     => "D",
         CandleInterval.Weekly    => "W",
         _ => "D",
+    };
+
+    // Neutral NewsCategory -> Finnhub's /news category token. The news analog of ToFinnhubSymbol — the
+    // ONLY place this provider-specific token lives. A different news source maps the same NewsCategory
+    // to its own vocabulary.
+    private static string ToFinnhubNewsCategory(NewsCategory category) => category switch
+    {
+        NewsCategory.General => "general",
+        NewsCategory.Forex   => "forex",
+        NewsCategory.Crypto  => "crypto",
+        NewsCategory.Merger  => "merger",
+        _ => "general",
     };
 
     // Neutral ticker -> Finnhub symbol syntax. Keeps InstrumentCatalog provider-agnostic.

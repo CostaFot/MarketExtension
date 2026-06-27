@@ -18,4 +18,5 @@ internal sealed record ApiFinnhubQuoteDto(
 [JsonSerializable(typeof(ApiFinnhubSearchDto))]  // /search response — see ApiFinnhubSearchDto.cs
 [JsonSerializable(typeof(ApiFinnhubCandleDto))]  // /stock/candle + /crypto/candle — see ApiFinnhubCandleDto.cs
 [JsonSerializable(typeof(ApiFinnhubProfileDto))] // /stock/profile2 (native currency) — see ApiFinnhubProfileDto.cs
+[JsonSerializable(typeof(ApiFinnhubNewsDto[]))]  // /news response (bare top-level array) — see ApiFinnhubNewsDto.cs
 internal sealed partial class FinnhubJsonContext : JsonSerializerContext;
