@@ -80,4 +80,31 @@ internal static class ApiKeyHint
                 ToolTip = Resources.Status_NoKey_Tooltip,
             }],
         };
+
+    // The status row for the NEWS screen. News is served only by Finnhub (+ the mock in Demo mode), so its
+    // key gate is Finnhub-SPECIFIC — unlike StatusRow()'s HasAnyApiKey (which is satisfied by a Twelve Data
+    // key that can't serve news). Demo on → the blue "sample data" row (news works via the mock); else no
+    // Finnhub key → the news no-key row (the page's whole body in that state, not just a footnote — without
+    // it the empty feed would spin forever); else null (a Finnhub key is set → live news, no nudge).
+    public static IListItem? NewsStatusRow()
+    {
+        if (MarketSettingsManager.Instance.DemoMode)
+            return DemoRow();
+        return MarketSettingsManager.Instance.HasFinnhubApiKey ? null : NewsMissingKeyRow();
+    }
+
+    // "News needs a Finnhub key": surfaced on the News screen when no Finnhub key is set (and demo mode is
+    // off). Reuses the missing-key red visual but with news-specific copy; Enter → Settings (to add a key).
+    private static ListItem NewsMissingKeyRow() =>
+        new ListItem(SettingsPage)
+        {
+            Title = Resources.Status_NewsNoKey_Title,
+            Subtitle = Resources.Status_NewsNoKey_Subtitle,
+            Icon = new IconInfo(WarningGlyph),
+            Tags = [new Tag(Resources.Status_NoKey_Tag)
+            {
+                Foreground = WarningRed,
+                ToolTip = Resources.Status_NewsNoKey_Tooltip,
+            }],
+        };
 }

@@ -21,10 +21,13 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
     private const string InfoGlyph = "\uE9F9";      // Segoe MDL2 ReportDocument
     private const string SettingsGlyph = "\uE713";  // Segoe MDL2 Setting
 
+    private const string NewsGlyph = "\uE789";      // Segoe MDL2 News
+
     private readonly SearchPage _searchPage;
     private readonly WatchlistPage _watchlistPage;
     private readonly FavoritesPage _favoritesPage;
     private readonly PortfolioPage _portfolioPage;
+    private readonly NewsPage _newsPage;
     private readonly DataSourcesPage _dataSourcesPage;
     private readonly IContentPage _settingsPage;
 
@@ -70,6 +73,7 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
         _watchlistPage = new WatchlistPage(repository);
         _favoritesPage = new FavoritesPage(repository);
         _portfolioPage = new PortfolioPage(repository);
+        _newsPage = new NewsPage(repository);
         _dataSourcesPage = new DataSourcesPage();
 
         // The toolkit builds a navigable settings page straight from our settings (Finnhub API key +
@@ -102,6 +106,11 @@ internal sealed partial class MarketsPage : ListPage, INotifyItemsChanged
             {
                 Title = Resources.Nav_Portfolio_Title,
                 Icon = new IconInfo(PortfolioGlyph),
+            },
+            new ListItem(_newsPage)
+            {
+                Title = Resources.Nav_News_Title,
+                Icon = new IconInfo(NewsGlyph),
             },
             new ListItem(_dataSourcesPage)
             {

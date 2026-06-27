@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,4 +38,22 @@ internal interface IMarketDataProvider
     Task<DomainCandleSeries> GetCandlesAsync(
         DomainInstrument instrument, ChartRange range, CancellationToken ct = default)
         => Task.FromResult(DomainCandleSeries.Invalid(instrument.Symbol, range));
+
+    // Whether this provider serves market news (GetNewsAsync). News is a market-wide feed, not
+    // per-instrument data routed by Supports(AssetCategory), so it's a SEPARATE capability gate: a
+    // caller checks this and only asks a provider that returns true. Default false; a provider opts in
+    // by overriding BOTH this and GetNewsAsync (today only Finnhub). Mirrors the IsExclusive
+    // default-member pattern, so non-news providers (Twelve Data, Frankfurter, the mock) opt out for free.
+    bool SupportsNews => false;
+
+    // Latest market news for a category (the most recent batch; pass a prior item's Id as minId to page
+    // forward — see DomainNews). Unlike GetCandlesAsync, the default does NOT soft-degrade to an empty
+    // list: news has the SupportsNews gate above, so reaching this default means a caller invoked it on a
+    // provider that doesn't serve news — a contract violation surfaced loudly (fail fast) rather than
+    // masked as "no news". Check SupportsNews first; a non-news provider throws here.
+    Task<IReadOnlyList<DomainNews>> GetNewsAsync(
+        NewsCategory category, long minId = 0, CancellationToken ct = default)
+        => throw new NotSupportedException(
+            $"{GetType().Name} does not serve market news (SupportsNews is false); " +
+            "check SupportsNews before calling GetNewsAsync.");
 }

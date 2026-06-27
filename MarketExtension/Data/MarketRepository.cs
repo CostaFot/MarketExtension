@@ -29,10 +29,18 @@ namespace MarketExtension;
 // observer through here — none fetch or poll themselves. The lone exception is the symbol-detail CHART,
 // a separate candle path (GetCandlesAsync) with no cache/observe layer: it still subscribes PollTicker
 // directly, which is fine since only one detail page is ever open (no cross-surface drift to fix).
+//
+// NEWS is orchestrated the same way (see the "News orchestration" section): the repository owns one shared
+// INewsCacheDataSource, every news fetch writes through, and surfaces ObserveNews(category) instead of
+// fetching — so a future news screen and news dock band read the SAME cached feed and stay in sync, exactly
+// as the priced surfaces do for quotes. A SECOND poll loop (the news PollTicker, on the separate news
+// cadence) refreshes the observed categories each tick. News isn't routed by asset class: it goes to the
+// first active provider whose SupportsNews is true (Finnhub live; the mock in Demo mode).
 internal sealed class MarketRepository
 {
     private readonly IMarketDataProvider[] _providers;
     private readonly IQuoteCacheDataSource _cacheSource;
+    private readonly INewsCacheDataSource _newsCacheSource;
 
     // Refcounted registry of the instruments currently being observed via ObserveQuotes — keyed by
     // Normalize(symbol), each carrying the latest DomainInstrument (needed for provider routing) and a
@@ -49,29 +57,47 @@ internal sealed class MarketRepository
     // so no eviction is needed.
     private readonly ConcurrentDictionary<string, long> _lastFetchTicks = new();
 
-    // Default: an in-memory cache. The call site in MarketExtensionCommandsProvider uses this.
-    public MarketRepository(params IMarketDataProvider[] providers)
-        : this(new InMemoryQuoteCacheDataSource(), providers) { }
+    // Refcounted registry of the news categories currently being observed via ObserveNews (the news analog of
+    // _observed). The news poll loop refreshes each registered category every tick; a category observed by two
+    // surfaces has count 2 and is fetched once per tick.
+    private readonly Lock _observedNewsLock = new();
+    private readonly Dictionary<NewsCategory, int> _observedNews = [];
 
-    // Injectable cache — for a future database-backed IQuoteCacheDataSource (and tests). No other code changes.
-    public MarketRepository(IQuoteCacheDataSource cacheSource, IMarketDataProvider[] providers)
+    // Per-category last news fetch-ATTEMPT time (Environment.TickCount64). The news analog of _lastFetchTicks;
+    // a subscribe reads it (NeedsNewsFetchOnSubscribe) to refresh only a stale-or-missing category's feed.
+    private readonly ConcurrentDictionary<NewsCategory, long> _lastNewsFetchTicks = new();
+
+    // Default: in-memory quote + news caches. The call site in MarketExtensionCommandsProvider uses this.
+    public MarketRepository(params IMarketDataProvider[] providers)
+        : this(new InMemoryQuoteCacheDataSource(), new InMemoryNewsCacheDataSource(), providers) { }
+
+    // Injectable caches — for future database-backed IQuoteCacheDataSource / INewsCacheDataSource (and tests).
+    // No other code changes.
+    public MarketRepository(
+        IQuoteCacheDataSource cacheSource, INewsCacheDataSource newsCacheSource, IMarketDataProvider[] providers)
     {
         _cacheSource = cacheSource;
+        _newsCacheSource = newsCacheSource;
         _providers = providers;
 
-        // A demo-mode flip swaps the data SOURCE, so every cached price is now wrong (it came from the other
-        // source). Clear it, then refresh whatever is currently observed so visible surfaces repaint from the
-        // new source at once (a hidden surface refetches on its next open via ObserveQuotes' fetch-missing).
-        // replay:false — construction is a no-op (the cache is empty then). Subscribed before any surface;
-        // never disposed (process-lifetime).
+        // A demo-mode flip swaps the data SOURCE, so every cached price (and news feed) is now wrong (it came
+        // from the other source). Clear them, then refresh whatever is currently observed so visible surfaces
+        // repaint from the new source at once (a hidden surface refetches on its next open via the
+        // observe-subscribe fetch). replay:false — construction is a no-op (the caches are empty then).
+        // Subscribed before any surface; never disposed (process-lifetime).
         _ = MarketSettingsManager.Instance.DemoModeChanged.Subscribe(_ => OnDemoModeFlip(), replayOnSubscribe: false);
 
-        // The single poll loop. While the repository is alive (the process lifetime), each PollTicker tick
-        // refreshes the union of currently-observed instruments (RefreshObserved) in one batched fetch and
-        // writes the results back through the cache, so every observing surface repaints in sync. PollTicker
-        // honors the refresh-interval setting and idles when it's off (and an empty observed set is a no-op),
-        // so a permanent subscription is safe. Never disposed — process-lifetime, like the cache itself.
+        // The single price poll loop. While the repository is alive (the process lifetime), each PollTicker
+        // tick refreshes the union of currently-observed instruments (RefreshObserved) in one batched fetch
+        // and writes the results back through the cache, so every observing surface repaints in sync.
+        // PollTicker honors the refresh-interval setting and idles when it's off (and an empty observed set is
+        // a no-op), so a permanent subscription is safe. Never disposed — process-lifetime, like the cache.
         _ = PollTicker.Subscribe(RefreshObserved);
+
+        // The NEWS poll loop — its own PollTicker subscription on the SEPARATE news cadence. Each tick
+        // refreshes the currently-observed news categories (RefreshObservedNews). Same lifetime/no-dispose
+        // rationale as the price loop above.
+        _ = PollTicker.SubscribeNews(RefreshObservedNews);
     }
 
     // The providers that should serve right now. When any provider declares itself exclusive (e.g. the
@@ -264,9 +290,17 @@ internal sealed class MarketRepository
         _cacheSource.Clear();
         var observed = ObservedInstruments();
         Log.Info("Repository",
-            $"demo mode flipped — cache cleared; refreshing {observed.Count} observed instrument(s) from the new source");
+            $"demo mode flipped — quote cache cleared; refreshing {observed.Count} observed instrument(s) from the new source");
         if (observed.Count > 0)
             _ = RefreshSafe(observed);
+
+        // The news feed came from the other source too — clear it and refill the observed categories.
+        _newsCacheSource.Clear();
+        var observedNews = ObservedNewsCategories();
+        Log.Info("Repository",
+            $"demo mode flipped — news cache cleared; refreshing {observedNews.Count} observed categor(ies) from the new source");
+        foreach (var category in observedNews)
+            _ = RefreshNewsSafe(category);
     }
 
     // Called when a surface subscribes to ObserveQuotes: ref up each instrument so the poll loop fetches it.
@@ -350,5 +384,199 @@ internal sealed class MarketRepository
         Log.Info("Repository",
             $"candles {instrument.Symbol} {range} -> {(series.HasData ? $"{series.Points.Count} pts" : "no data")}");
         return series;
+    }
+
+    // --- News orchestration (mirrors the quote orchestration above) ------------------------------------
+    //
+    // News is a market-wide feed, not per-instrument data, so it isn't routed by Supports(AssetCategory): it
+    // goes to the first ACTIVE provider whose SupportsNews is true (Finnhub live; the mock in Demo mode). Each
+    // NewsCategory is cached + observed independently, so surfaces ObserveNews(category) instead of fetching —
+    // the future news screen and the news dock band then read the SAME cached feed and stay in sync, exactly
+    // as the priced surfaces do for quotes. The repository owns the single news poll loop (the SubscribeNews
+    // ticker, on the separate news cadence) refreshing the observed categories each tick.
+
+    // The provider that serves news right now: the first ACTIVE one that supports it (Finnhub normally; the
+    // mock when Demo mode makes it exclusive). null only if no active provider serves news.
+    private IMarketDataProvider? NewsProvider() => ActiveProviders().FirstOrDefault(p => p.SupportsNews);
+
+    // Fetch the latest news for a category from the news provider. No provider → empty. The raw data path
+    // with no cache side effects, used by RefreshNewsAsync. (minId 0 = the latest batch; the cache replaces
+    // the category's feed on write-through, so each refresh re-reads the head of the feed.)
+    private async Task<IReadOnlyList<DomainNews>> FetchNewsAsync(NewsCategory category, CancellationToken ct)
+    {
+        var provider = NewsProvider();
+        if (provider is null)
+        {
+            Log.Info("Repository", $"news {category}: no active provider serves news");
+            return [];
+        }
+
+        var news = await provider.GetNewsAsync(category, minId: 0, ct).ConfigureAwait(false);
+        Log.Info("Repository", $"news {category} -> {news.Count} item(s)");
+        return news;
+    }
+
+    // Force a news fetch now; results reach observers through the news cache (the caller does not read the
+    // return). The single news fetch seam — the demo flip, the observe-subscribe fetch, the poll loop, and a
+    // surface's manual refresh all call it (via RefreshNewsSafe for the fire-and-forget paths).
+    // keepLastGood:false overwrites even with an empty result (e.g. after a source flip); the default keeps
+    // the last good feed through a transient empty fetch.
+    public async Task RefreshNewsAsync(
+        NewsCategory category, bool keepLastGood = true, CancellationToken ct = default)
+    {
+        var news = await FetchNewsAsync(category, ct).ConfigureAwait(false);
+        WriteThroughNews(category, news, keepLastGood);
+    }
+
+    // Write a freshly fetched feed through to the news cache AND stamp the category's last fetch-attempt time
+    // (so a later subscribe can tell a stale feed from a fresh one — see NeedsNewsFetchOnSubscribe). Maps
+    // domain → storage at the boundary. The single news write-through path; called by RefreshNewsAsync.
+    private void WriteThroughNews(NewsCategory category, IReadOnlyList<DomainNews> news, bool keepLastGood)
+    {
+        _newsCacheSource.Upsert(category, [.. news.Select(NewsEntity.From)], keepLastGood);
+        _lastNewsFetchTicks[category] = Environment.TickCount64;
+    }
+
+    // Observe one category's news feed as a cache-backed list observable. Like ObserveQuotes it appends
+    // ObserveOn(TaskPoolScheduler) — the same DEADLOCK FIX: a cache write-through fans out synchronously, and
+    // without the hop a surface's RaiseItemsChanged (a blocking COM call into Command Palette's STA) could run
+    // while Rx still holds a producer-side gate, cycling the gate/STA lock order → hang. ObserveOn hands each
+    // emission to the scheduler, so surfaces are notified only AFTER the gate locks release. (Surfaces already
+    // expect off-host-thread notifications — the toolkit marshals RaiseItemsChanged.)
+    // Emits null = "loading" (no fetch has landed yet) and a non-null (possibly empty) feed once one has — the
+    // null-vs-empty distinction comes straight from the cache (INewsCacheDataSource.Observe), so a surface
+    // renders loading/empty/items purely from the stream without asking the repository anything extra.
+    public IObservable<IReadOnlyList<DomainNews>?> ObserveNews(NewsCategory category)
+        => ObserveNewsCore(category).ObserveOn(TaskPoolScheduler.Default);
+
+    // Selection-aware: re-projects (Switch) whenever the chosen view changes. The selection is a NewsCategory?
+    // where null means "All" — the merged feed across every category (see ObserveAllNewsCore) — and a concrete
+    // value observes just that category. For a news screen whose category dropdown is backed by a StateFlow:
+    // switching fetches the newly-selected view and drops the previous one's observation for free. ObserveOn
+    // AFTER Switch so the surface is notified off the Switch gate too (Core is used here, not the public
+    // overloads, so there's a single ObserveOn hop, after Switch).
+    public IObservable<IReadOnlyList<DomainNews>?> ObserveNews(StateFlow<NewsCategory?> selection)
+        => selection.AsObservable()
+            .Select(sel => sel is { } category ? ObserveNewsCore(category) : ObserveAllNewsCore())
+            .Switch()
+            .ObserveOn(TaskPoolScheduler.Default);
+
+    // The cache-backed feed observable WITHOUT the ObserveOn hop — the raw graph. On subscribe: register the
+    // category as observed (so the news poll loop keeps it fresh) and fetch if the cached feed is missing or
+    // gone stale (write-through, fire-and-forget; see NeedsNewsFetchOnSubscribe). Then map the cache's
+    // NewsEntity feed → DomainNews on each emission. On dispose: unregister. Observable.Create (not Defer) so
+    // the dispose hook can unregister. The public overloads above add ObserveOn so the host is never called
+    // under a producer-side gate (see that note).
+    private IObservable<IReadOnlyList<DomainNews>?> ObserveNewsCore(NewsCategory category)
+        => Observable.Create<IReadOnlyList<DomainNews>?>(observer =>
+        {
+            RegisterNews(category);
+            if (NeedsNewsFetchOnSubscribe(category))
+            {
+                Log.Info("Repository", $"observe news subscribe: refreshing {category}");
+                _ = RefreshNewsSafe(category); // fire-and-forget; writes through → observers see it land
+            }
+            else
+            {
+                Log.Info("Repository", $"observe news subscribe: {category} fresh in cache — no fetch");
+            }
+
+            // The cache's per-category Observe emits null until the first fetch (loading), then the feed
+            // (empty included); storage → domain at the boundary, the null "loading" sentinel passed through.
+            var inner = _newsCacheSource.Observe(category)
+                .Select(entities => entities is null
+                    ? null
+                    : (IReadOnlyList<DomainNews>)entities.Select(e => e.ToDomainNews()).ToList());
+
+            return new CompositeDisposable(
+                inner.Subscribe(observer),
+                Disposable.Create(() => UnregisterNews(category)));
+        });
+
+    // The "All" view: the raw merged feed across EVERY category, WITHOUT the ObserveOn hop. CombineLatest the
+    // per-category cores (so each one registers its category as observed AND fetches it if missing/stale,
+    // exactly as a single-category observe does — "All" therefore keeps all four categories fresh on the poll
+    // loop while it's the selected view), then flatten, dedupe by news Id (the same article can surface in more
+    // than one category feed), and sort newest-first. Re-emits whenever any category's cached feed changes; the
+    // selection overload adds ObserveOn so the host is never called under the CombineLatest gate.
+    private IObservable<IReadOnlyList<DomainNews>?> ObserveAllNewsCore()
+        => Observable.CombineLatest(NewsCategoryExtensions.All.Select(ObserveNewsCore))
+            // "All" is still loading until EVERY category has been fetched (any null feed) — only then is an
+            // empty merge truly "no headlines" rather than "some categories haven't landed". Once all are
+            // non-null, flatten, dedupe by id (an article can appear in >1 feed), and sort newest-first.
+            .Select(feeds => feeds.Any(feed => feed is null)
+                ? null
+                : (IReadOnlyList<DomainNews>)feeds
+                    .SelectMany(feed => feed!)
+                    .GroupBy(item => item.Id)
+                    .Select(group => group.First())
+                    .OrderByDescending(item => item.Published)
+                    .ToList());
+
+    // RefreshNewsAsync with its exceptions swallowed + logged — for the fire-and-forget fetch + poll paths,
+    // where a provider throw would otherwise become an unobserved task exception.
+    private async Task RefreshNewsSafe(NewsCategory category)
+    {
+        try { await RefreshNewsAsync(category).ConfigureAwait(false); }
+        catch (Exception ex) { Log.Error("Repository", $"background news refresh failed for {category}", ex); }
+    }
+
+    // Should this category be (re)fetched at subscribe time? Never-cached / empty → always (we must render
+    // something). Otherwise only when news auto-refresh is on AND the cached feed aged past one news interval
+    // while unobserved — the news analog of NeedsFetchOnSubscribe. With news auto-refresh off (interval 0) an
+    // already-cached feed is left as-is.
+    private bool NeedsNewsFetchOnSubscribe(NewsCategory category)
+    {
+        if (_newsCacheSource.Get(category).Count == 0)
+            return true;
+
+        var settings = MarketSettingsManager.Instance;
+        if (!settings.NewsAutoRefreshEnabled)
+            return false;
+
+        if (!_lastNewsFetchTicks.TryGetValue(category, out var ticks))
+            return true;
+
+        return TimeSpan.FromMilliseconds(Environment.TickCount64 - ticks) >= settings.NewsRefreshInterval;
+    }
+
+    // One news poll tick: refresh every currently-observed category (one /news call each — news isn't
+    // batchable across categories like quotes are across symbols). Nothing observed → nothing to do.
+    private void RefreshObservedNews()
+    {
+        var categories = ObservedNewsCategories();
+        if (categories.Count == 0)
+            return;
+        Log.Info("Repository", $"news poll tick: refreshing {categories.Count} observed categor(ies)");
+        foreach (var category in categories)
+            _ = RefreshNewsSafe(category);
+    }
+
+    // Ref up a category when a surface subscribes to ObserveNews, so the news poll loop keeps it fresh.
+    private void RegisterNews(NewsCategory category)
+    {
+        lock (_observedNewsLock)
+            _observedNews[category] = _observedNews.GetValueOrDefault(category) + 1;
+    }
+
+    // Ref down a category when an ObserveNews subscription is disposed, dropping it once no surface observes it.
+    private void UnregisterNews(NewsCategory category)
+    {
+        lock (_observedNewsLock)
+        {
+            if (!_observedNews.TryGetValue(category, out var count))
+                return;
+            if (--count <= 0)
+                _observedNews.Remove(category);
+            else
+                _observedNews[category] = count;
+        }
+    }
+
+    // Snapshot of the distinct categories with at least one observer — what the news poll loop refreshes.
+    private IReadOnlyList<NewsCategory> ObservedNewsCategories()
+    {
+        lock (_observedNewsLock)
+            return [.. _observedNews.Keys];
     }
 }

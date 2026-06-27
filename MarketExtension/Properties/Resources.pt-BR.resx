@@ -374,6 +374,60 @@
   <data name="Settings_Refresh_Desc" xml:space="preserve">
     <value>Intervalo de atualização de preços em minutos (0 = desativado).</value>
   </data>
+  <data name="Settings_NewsRefresh_Label" xml:space="preserve">
+    <value>Intervalo de atualização de notícias (minutos)</value>
+  </data>
+  <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
+    <value>Intervalo de atualização de notícias em minutos (0 = desativado).</value>
+  </data>
+  <data name="Settings_NewsTicker_Label" xml:space="preserve">
+    <value>Velocidade do ticker de notícias (segundos)</value>
+  </data>
+  <data name="Settings_NewsTicker_Desc" xml:space="preserve">
+    <value>Segundos que cada grupo de manchetes é exibido antes de o ticker de notícias avançar (padrão 60).</value>
+  </data>
+  <data name="Command_MarketsNews" xml:space="preserve">
+    <value>Mercados - Notícias</value>
+  </data>
+  <data name="Status_NewsNoKey_Title" xml:space="preserve">
+    <value>As notícias precisam de uma chave do Finnhub</value>
+  </data>
+  <data name="Status_NewsNoKey_Subtitle" xml:space="preserve">
+    <value>Adicione uma chave de API do Finnhub nas Configurações para carregar notícias do mercado.</value>
+  </data>
+  <data name="Status_NewsNoKey_Tooltip" xml:space="preserve">
+    <value>As notícias do mercado são fornecidas pelo Finnhub.</value>
+  </data>
+  <data name="News_Empty_Title" xml:space="preserve">
+    <value>Nenhuma manchete</value>
+  </data>
+  <data name="News_Empty_Subtitle" xml:space="preserve">
+    <value>Não há notícias do mercado para mostrar no momento.</value>
+  </data>
+  <data name="Nav_News_Title" xml:space="preserve">
+    <value>Notícias</value>
+  </data>
+  <data name="News_Placeholder" xml:space="preserve">
+    <value>Filtrar manchetes</value>
+  </data>
+  <data name="News_Category_All" xml:space="preserve">
+    <value>Todas</value>
+  </data>
+  <data name="News_Time_JustNow" xml:space="preserve">
+    <value>agora mesmo</value>
+  </data>
+  <data name="News_Time_MinutesAgo" xml:space="preserve">
+    <value>há {0} min</value>
+  </data>
+  <data name="News_Time_HoursAgo" xml:space="preserve">
+    <value>há {0} h</value>
+  </data>
+  <data name="News_Time_DaysAgo" xml:space="preserve">
+    <value>há {0} d</value>
+  </data>
+  <data name="Action_ReadArticle" xml:space="preserve">
+    <value>Ler artigo</value>
+  </data>
   <data name="Settings_RateLimit_Label" xml:space="preserve">
     <value>Mostrar avisos de limite de requisições</value>
   </data>

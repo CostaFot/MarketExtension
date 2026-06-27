@@ -375,6 +375,60 @@
   <data name="Settings_Refresh_Desc" xml:space="preserve">
     <value>가격 새로 고침 간격(분 단위, 0 = 끔).</value>
   </data>
+  <data name="Settings_NewsRefresh_Label" xml:space="preserve">
+    <value>뉴스 새로 고침 간격 (분)</value>
+  </data>
+  <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
+    <value>뉴스 새로 고침 간격(분 단위, 0 = 끔).</value>
+  </data>
+  <data name="Settings_NewsTicker_Label" xml:space="preserve">
+    <value>뉴스 티커 속도(초)</value>
+  </data>
+  <data name="Settings_NewsTicker_Desc" xml:space="preserve">
+    <value>독 뉴스 티커가 다음으로 넘어가기 전에 각 헤드라인 묶음이 표시되는 시간(초, 기본값 60).</value>
+  </data>
+  <data name="Command_MarketsNews" xml:space="preserve">
+    <value>마켓 - 뉴스</value>
+  </data>
+  <data name="Status_NewsNoKey_Title" xml:space="preserve">
+    <value>뉴스에는 Finnhub 키가 필요합니다</value>
+  </data>
+  <data name="Status_NewsNoKey_Subtitle" xml:space="preserve">
+    <value>시장 뉴스를 불러오려면 설정에서 Finnhub API 키를 추가하세요.</value>
+  </data>
+  <data name="Status_NewsNoKey_Tooltip" xml:space="preserve">
+    <value>시장 뉴스는 Finnhub에서 제공합니다.</value>
+  </data>
+  <data name="News_Empty_Title" xml:space="preserve">
+    <value>헤드라인 없음</value>
+  </data>
+  <data name="News_Empty_Subtitle" xml:space="preserve">
+    <value>지금 표시할 시장 뉴스가 없습니다.</value>
+  </data>
+  <data name="Nav_News_Title" xml:space="preserve">
+    <value>뉴스</value>
+  </data>
+  <data name="News_Placeholder" xml:space="preserve">
+    <value>헤드라인 필터링</value>
+  </data>
+  <data name="News_Category_All" xml:space="preserve">
+    <value>전체</value>
+  </data>
+  <data name="News_Time_JustNow" xml:space="preserve">
+    <value>방금 전</value>
+  </data>
+  <data name="News_Time_MinutesAgo" xml:space="preserve">
+    <value>{0}분 전</value>
+  </data>
+  <data name="News_Time_HoursAgo" xml:space="preserve">
+    <value>{0}시간 전</value>
+  </data>
+  <data name="News_Time_DaysAgo" xml:space="preserve">
+    <value>{0}일 전</value>
+  </data>
+  <data name="Action_ReadArticle" xml:space="preserve">
+    <value>기사 읽기</value>
+  </data>
   <data name="Settings_RateLimit_Label" xml:space="preserve">
     <value>요청 제한 경고 표시</value>
   </data>

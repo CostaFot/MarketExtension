@@ -70,6 +70,15 @@ namespace MarketExtension.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Read article.
+        /// </summary>
+        public static string Action_ReadArticle {
+            get {
+                return ResourceManager.GetString("Action_ReadArticle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Refresh.
         /// </summary>
         public static string Action_Refresh {
@@ -192,6 +201,15 @@ namespace MarketExtension.Properties {
         public static string Command_Markets {
             get {
                 return ResourceManager.GetString("Command_Markets", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Markets - News.
+        /// </summary>
+        public static string Command_MarketsNews {
+            get {
+                return ResourceManager.GetString("Command_MarketsNews", resourceCulture);
             }
         }
         
@@ -520,6 +538,15 @@ namespace MarketExtension.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to News.
+        /// </summary>
+        public static string Nav_News_Title {
+            get {
+                return ResourceManager.GetString("Nav_News_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Portfolio.
         /// </summary>
         public static string Nav_Portfolio_Title {
@@ -570,6 +597,78 @@ namespace MarketExtension.Properties {
         public static string Nav_Watchlist_Title {
             get {
                 return ResourceManager.GetString("Nav_Watchlist_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to All.
+        /// </summary>
+        public static string News_Category_All {
+            get {
+                return ResourceManager.GetString("News_Category_All", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to There&apos;s no market news to show right now..
+        /// </summary>
+        public static string News_Empty_Subtitle {
+            get {
+                return ResourceManager.GetString("News_Empty_Subtitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No headlines.
+        /// </summary>
+        public static string News_Empty_Title {
+            get {
+                return ResourceManager.GetString("News_Empty_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Filter headlines.
+        /// </summary>
+        public static string News_Placeholder {
+            get {
+                return ResourceManager.GetString("News_Placeholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}d ago.
+        /// </summary>
+        public static string News_Time_DaysAgo {
+            get {
+                return ResourceManager.GetString("News_Time_DaysAgo", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}h ago.
+        /// </summary>
+        public static string News_Time_HoursAgo {
+            get {
+                return ResourceManager.GetString("News_Time_HoursAgo", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to just now.
+        /// </summary>
+        public static string News_Time_JustNow {
+            get {
+                return ResourceManager.GetString("News_Time_JustNow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}m ago.
+        /// </summary>
+        public static string News_Time_MinutesAgo {
+            get {
+                return ResourceManager.GetString("News_Time_MinutesAgo", resourceCulture);
             }
         }
         
@@ -952,6 +1051,42 @@ namespace MarketExtension.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to News refresh interval in minutes (0 = off)..
+        /// </summary>
+        public static string Settings_NewsRefresh_Desc {
+            get {
+                return ResourceManager.GetString("Settings_NewsRefresh_Desc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to News refresh interval (minutes).
+        /// </summary>
+        public static string Settings_NewsRefresh_Label {
+            get {
+                return ResourceManager.GetString("Settings_NewsRefresh_Label", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Seconds each set of headlines shows before the dock news ticker advances (default 60)..
+        /// </summary>
+        public static string Settings_NewsTicker_Desc {
+            get {
+                return ResourceManager.GetString("Settings_NewsTicker_Desc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to News ticker speed (seconds).
+        /// </summary>
+        public static string Settings_NewsTicker_Label {
+            get {
+                return ResourceManager.GetString("Settings_NewsTicker_Label", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Currency for portfolio totals. Other holdings are converted into it..
         /// </summary>
         public static string Settings_PortfolioCurrency_Desc {
@@ -1056,6 +1191,33 @@ namespace MarketExtension.Properties {
         public static string Status_Demo_Tooltip {
             get {
                 return ResourceManager.GetString("Status_Demo_Tooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Add a Finnhub API key in Settings to load market news..
+        /// </summary>
+        public static string Status_NewsNoKey_Subtitle {
+            get {
+                return ResourceManager.GetString("Status_NewsNoKey_Subtitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to News needs a Finnhub key.
+        /// </summary>
+        public static string Status_NewsNoKey_Title {
+            get {
+                return ResourceManager.GetString("Status_NewsNoKey_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Market news is provided by Finnhub..
+        /// </summary>
+        public static string Status_NewsNoKey_Tooltip {
+            get {
+                return ResourceManager.GetString("Status_NewsNoKey_Tooltip", resourceCulture);
             }
         }
         

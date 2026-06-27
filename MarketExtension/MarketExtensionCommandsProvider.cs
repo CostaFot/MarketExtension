@@ -32,10 +32,9 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
         // in the Command Palette Settings UI. See Settings/MarketSettingsManager.cs.
         Settings = MarketSettingsManager.Instance.Settings;
 
-        // A single top-level "Markets" command that opens the MarketsPage hub. From there the user
-        // funnels into the three screens — Search, Watchlist, Favorites — which are otherwise
-        // unchanged. This keeps the Command Palette root to one entry instead of three. Favorites
-        // also feed the dock band below.
+        // A single top-level "Markets" command that opens the MarketsPage hub. From there the user funnels into
+        // the screens — Search / Watchlist / Favorites / Portfolio / News — keeping the Command Palette root to
+        // one entry. Favorites also feed the dock band below.
         _commands = [
             new CommandItem(new MarketsPage(_repository)) { Title = Resources.Command_Markets },
         ];
@@ -52,6 +51,7 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
         _dockBands = [
             new CommandItem(new FavoritesDockPage(_repository)) { Title = Resources.Command_Markets },
             new CommandItem(new PortfolioDockPage(_repository)) { Title = Resources.Command_MarketsPortfolio },
+            new CommandItem(new NewsDockPage(_repository)) { Title = Resources.Command_MarketsNews },
         ];
     }
 

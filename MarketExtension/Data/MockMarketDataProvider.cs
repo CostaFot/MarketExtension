@@ -188,6 +188,118 @@ internal sealed class MockMarketDataProvider : IMarketDataProvider
         ["USDMXN"] = new("US Dollar / Mexican Peso", AssetCategory.Currency),
     };
 
+    private readonly record struct NewsTemplate(string Headline, string Summary, string? Related = null);
+
+    // Synthetic market-news headlines backing Demo mode (one set per NewsCategory). Curated and evergreen
+    // — no dated specifics or hard numbers — so they read like a plausible feed on any day with no key or
+    // network. Identity-only like Catalog: the Id, Source, publish time and URL are synthesized per item at
+    // fetch time (see GetNewsAsync). Real, well-known outlets, but the article URLs point at example.com
+    // (the IANA-reserved demo domain) so a click opens something harmless and obviously not a real story.
+    private static readonly Dictionary<NewsCategory, NewsTemplate[]> NewsTemplates = new()
+    {
+        [NewsCategory.General] =
+        [
+            new("Stocks edge higher as investors weigh latest economic data",
+                "Major indexes ticked up in light trading as traders parsed mixed signals on growth and inflation."),
+            new("Federal Reserve officials signal patience on interest-rate path",
+                "Policymakers reiterated a data-dependent stance, tempering bets on the timing of the next move."),
+            new("Tech shares lead gains as earnings season kicks off",
+                "Megacap technology names paced the advance ahead of a busy week of corporate results."),
+            new("Treasury yields slip as markets reassess rate-cut expectations",
+                "Bond prices firmed as softer data revived hopes for an earlier easing cycle."),
+            new("Oil prices steady amid supply concerns and demand outlook",
+                "Crude held in a narrow range as traders balanced production headlines against the global demand picture."),
+            new("Consumer spending holds firm despite a cooling labor market",
+                "Retail activity stayed resilient even as hiring showed signs of slowing."),
+            new("Wall Street closes mixed as the megacap rally loses steam",
+                "Breadth narrowed late in the session as investors rotated out of the year's biggest winners."),
+            new("Gold hovers near a record as investors seek safe havens",
+                "Bullion remained well bid amid geopolitical uncertainty and steady central-bank buying."),
+            new("Manufacturing activity rebounds, easing recession fears",
+                "A closely watched factory gauge returned to expansion, pointing to firmer industrial demand."),
+            new("Small-cap stocks outperform as rate-cut bets build",
+                "Smaller companies, more sensitive to borrowing costs, led the broader market higher."),
+            new("Volatility ticks up ahead of a key inflation report",
+                "Options markets priced in bigger swings as traders positioned for the next price reading."),
+            new("Dividend stocks draw inflows as yields stay elevated",
+                "Income-focused funds saw renewed demand with payouts competitive against cash."),
+        ],
+        [NewsCategory.Forex] =
+        [
+            new("Dollar steadies as traders await central-bank guidance",
+                "The greenback consolidated recent gains ahead of a run of policy commentary."),
+            new("Euro firms against the dollar on upbeat eurozone data",
+                "The single currency gained ground as regional activity surveys beat expectations.", "EURUSD"),
+            new("Yen weakens past a key level, stoking intervention talk",
+                "Renewed pressure on the currency revived speculation about official action.", "USDJPY"),
+            new("Pound climbs as UK inflation cools more than expected",
+                "Sterling rallied as softer price data reshaped the rate outlook.", "GBPUSD"),
+            new("Swiss franc gains as risk sentiment sours",
+                "Haven demand lifted the franc during a bout of broader market caution.", "USDCHF"),
+            new("Emerging-market currencies under pressure from a strong dollar",
+                "A firmer greenback weighed on higher-yielding currencies across the complex."),
+            new("Aussie dollar rallies on firmer commodity prices",
+                "The currency tracked gains in key export markets higher.", "AUDUSD"),
+            new("Dollar index slips as rate-cut expectations grow",
+                "The benchmark gauge eased as traders leaned toward a softer policy path."),
+            new("Euro/dollar stays range-bound as traders eye ECB signals",
+                "The pair drifted in a tight band awaiting fresh policy cues.", "EURUSD"),
+            new("Loonie firms as oil prices steady",
+                "The Canadian dollar found support from a stable crude market.", "USDCAD"),
+        ],
+        [NewsCategory.Crypto] =
+        [
+            new("Bitcoin holds above key support as traders eye the next move",
+                "The largest cryptocurrency steadied after a stretch of choppy trading.", "BTC"),
+            new("Ethereum gains as network activity picks up",
+                "Rising on-chain usage underpinned a modest advance in the second-largest token.", "ETH"),
+            new("Crypto market steadies after a week of heavy volatility",
+                "Digital assets found their footing as forced selling appeared to ease."),
+            new("Spot ETF inflows fuel renewed interest in digital assets",
+                "Steady fund demand drew fresh attention to the asset class.", "BTC"),
+            new("Solana climbs as developer activity accelerates",
+                "Growth in applications and users supported the token's gains.", "SOL"),
+            new("Stablecoin supply hits a new high amid market rotation",
+                "Sidelined capital parked in stablecoins as traders awaited clearer signals."),
+            new("Regulators weigh fresh guidance for crypto exchanges",
+                "Policymakers signaled a closer look at trading-venue oversight."),
+            new("Altcoins rally as risk appetite returns to crypto",
+                "Smaller tokens outpaced the majors during a broad risk-on session."),
+            new("Bitcoin mining difficulty rises to a record level",
+                "Growing competition among miners pushed network difficulty higher.", "BTC"),
+            new("DeFi tokens rebound as total value locked recovers",
+                "Decentralized-finance names gained as capital flowed back into protocols."),
+        ],
+        [NewsCategory.Merger] =
+        [
+            new("Tech giant explores an acquisition to bolster AI ambitions",
+                "A leading platform is said to be weighing a deal to deepen its artificial-intelligence stack."),
+            new("Healthcare merger talks advance amid sector consolidation",
+                "Two players are reportedly in late-stage discussions as the industry scales up."),
+            new("Private-equity firm weighs a take-private bid for a software maker",
+                "Buyout interest has revived speculation about a deal for the enterprise vendor."),
+            new("Banking sector eyes consolidation as deal activity heats up",
+                "Lenders are exploring tie-ups to gain scale in a tougher operating environment."),
+            new("Chipmaker reportedly in talks to acquire a smaller rival",
+                "A deal would expand the buyer's product line in a fast-growing segment.", "NVDA,AMD"),
+            new("Energy companies discuss a multibillion-dollar tie-up",
+                "Talks point to further consolidation across the upstream sector."),
+            new("Media merger clears a key regulatory hurdle",
+                "Approval moves the long-pending combination closer to completion."),
+            new("Retailer agrees to buy a logistics startup to speed delivery",
+                "The bolt-on deal aims to shorten fulfillment times for online orders."),
+            new("Antitrust review delays a high-profile acquisition",
+                "Regulators extended their probe, pushing back the expected close."),
+            new("Activist investor pushes for a breakup of a conglomerate",
+                "The campaign argues a split would unlock value across the group's units."),
+        ],
+    };
+
+    // Outlets cycled deterministically per headline (a stable hash of the headline picks one), so the same
+    // synthetic story always shows the same source across refreshes.
+    private static readonly string[] NewsSources =
+        ["Reuters", "Bloomberg", "CNBC", "MarketWatch", "Financial Times", "The Wall Street Journal", "Barron's", "Yahoo Finance"];
+
     // Gated on Demo mode: when off this provider serves nothing (Supports false → the repository's
     // first-match routing skips it for quotes/candles and falls through to the real providers); when on it
     // serves every asset class.
@@ -197,6 +309,12 @@ internal sealed class MockMarketDataProvider : IMarketDataProvider
     // repository would otherwise send to live providers too (which Supports() can't gate). Off → not
     // exclusive, so the real providers serve as normal.
     public bool IsExclusive => MarketSettingsManager.Instance.DemoMode;
+
+    // Serve synthetic market news ONLY in Demo mode. Like Supports, this MUST be gated on DemoMode: the mock
+    // is registered first, so if it claimed news capability while live, a news caller picking the first
+    // SupportsNews provider would get fake headlines instead of Finnhub's real feed. Off → false, so the
+    // real news provider (Finnhub) is chosen; on → the mock is exclusive AND supports news, so it serves.
+    public bool SupportsNews => MarketSettingsManager.Instance.DemoMode;
 
     public Task<IReadOnlyList<DomainInstrument>> SearchAsync(string query, CancellationToken ct = default)
     {
@@ -268,6 +386,40 @@ internal sealed class MockMarketDataProvider : IMarketDataProvider
 
         IReadOnlyList<CandlePoint> pts = points;
         return Task.FromResult(new DomainCandleSeries(instrument.Symbol, range, pts, IsValid: true));
+    }
+
+    // The IMarketDataProvider.GetNewsAsync impl (gated by SupportsNews above): synthesize the category's
+    // curated headline set into a plausible feed. Like the mock's quotes/candles it doesn't self-gate on
+    // DemoMode — the SupportsNews gate routes here only when demo is on. Newest first (item 0 most recent,
+    // largest Id); the Id is stable per (category, headline-index) so minId paging works, while publish
+    // times are relative to now so the feed always looks fresh. minId returns only items strictly newer
+    // (Id greater), matching Finnhub's cursor semantics; the default 0 returns the whole set.
+    public Task<IReadOnlyList<DomainNews>> GetNewsAsync(
+        NewsCategory category, long minId = 0, CancellationToken ct = default)
+    {
+        var templates = NewsTemplates[category];
+        var now = DateTimeOffset.UtcNow;
+        // Per-category Id band (offset so categories never collide), newest item highest within the band.
+        var baseId = 7_000_000L + ((long)category * 1000L);
+
+        IReadOnlyList<DomainNews> news =
+        [
+            .. templates.Select((t, i) =>
+            {
+                var id = baseId + templates.Length - i; // i=0 (newest) → largest Id in the band
+                return new DomainNews(
+                    Id: id,
+                    Headline: t.Headline,
+                    Source: NewsSources[(int)(Fnv1a(t.Headline) % (uint)NewsSources.Length)],
+                    Summary: t.Summary,
+                    Category: category.Label(),
+                    ArticleUrl: $"https://example.com/markets/news/{id}",
+                    Published: now - TimeSpan.FromMinutes((i * 43) + 5),
+                    Related: t.Related);
+            })
+            .Where(n => n.Id > minId),
+        ];
+        return Task.FromResult(news);
     }
 
     // Build a stable, plausible quote for a non-seeded instrument. Native currency is inferred from the

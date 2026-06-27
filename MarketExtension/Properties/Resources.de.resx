@@ -1,9 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root>
-  <!-- German (de) translations of Properties/Resources.resx.
-       Same keys as the neutral English table; loaded as a satellite assembly
-       (de/MarketExtension.resources.dll). Missing keys fall back to English. Format
-       placeholders ({0}, {1}, ...) and the ★ / · / leading-space concat strings are preserved. -->
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
     <xsd:element name="root" msdata:IsDataSet="true">
@@ -373,6 +428,60 @@
   </data>
   <data name="Settings_Refresh_Desc" xml:space="preserve">
     <value>Preisaktualisierungsintervall in Minuten (0 = aus).</value>
+  </data>
+  <data name="Settings_NewsRefresh_Label" xml:space="preserve">
+    <value>Nachrichtenaktualisierungsintervall (Minuten)</value>
+  </data>
+  <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
+    <value>Nachrichtenaktualisierungsintervall in Minuten (0 = aus).</value>
+  </data>
+  <data name="Settings_NewsTicker_Label" xml:space="preserve">
+    <value>Geschwindigkeit des Nachrichtentickers (Sekunden)</value>
+  </data>
+  <data name="Settings_NewsTicker_Desc" xml:space="preserve">
+    <value>Sekunden, die jede Schlagzeilengruppe angezeigt wird, bevor der Nachrichtenticker weiterschaltet (Standard 60).</value>
+  </data>
+  <data name="Command_MarketsNews" xml:space="preserve">
+    <value>Märkte - Nachrichten</value>
+  </data>
+  <data name="News_Placeholder" xml:space="preserve">
+    <value>Schlagzeilen filtern</value>
+  </data>
+  <data name="News_Time_JustNow" xml:space="preserve">
+    <value>gerade eben</value>
+  </data>
+  <data name="News_Time_MinutesAgo" xml:space="preserve">
+    <value>vor {0} Min.</value>
+  </data>
+  <data name="News_Time_HoursAgo" xml:space="preserve">
+    <value>vor {0} Std.</value>
+  </data>
+  <data name="News_Time_DaysAgo" xml:space="preserve">
+    <value>vor {0} T.</value>
+  </data>
+  <data name="Action_ReadArticle" xml:space="preserve">
+    <value>Artikel lesen</value>
+  </data>
+  <data name="News_Category_All" xml:space="preserve">
+    <value>Alle</value>
+  </data>
+  <data name="Status_NewsNoKey_Title" xml:space="preserve">
+    <value>Nachrichten benötigen einen Finnhub-Schlüssel</value>
+  </data>
+  <data name="Status_NewsNoKey_Subtitle" xml:space="preserve">
+    <value>Fügen Sie in den Einstellungen einen Finnhub-API-Schlüssel hinzu, um Marktnachrichten zu laden.</value>
+  </data>
+  <data name="Status_NewsNoKey_Tooltip" xml:space="preserve">
+    <value>Marktnachrichten werden von Finnhub bereitgestellt.</value>
+  </data>
+  <data name="News_Empty_Title" xml:space="preserve">
+    <value>Keine Schlagzeilen</value>
+  </data>
+  <data name="News_Empty_Subtitle" xml:space="preserve">
+    <value>Derzeit sind keine Marktnachrichten verfügbar.</value>
+  </data>
+  <data name="Nav_News_Title" xml:space="preserve">
+    <value>Nachrichten</value>
   </data>
   <data name="Settings_RateLimit_Label" xml:space="preserve">
     <value>Ratenbegrenzungswarnungen anzeigen</value>
