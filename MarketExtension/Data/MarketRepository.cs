@@ -84,19 +84,8 @@ internal sealed class MarketRepository
         return exclusive.Count > 0 ? exclusive : _providers;
     }
 
-    // Fetch quotes for a set of instruments AND write them through to the shared cache. Keeps its exact
-    // public signature/behavior (callers still get the ordered list back); the cache fill is a side effect,
-    // so every existing caller populates the cache with no change to it.
-    public async Task<IReadOnlyList<DomainQuote>> GetQuotesAsync(
-        IReadOnlyList<DomainInstrument> instruments, CancellationToken ct = default)
-    {
-        var ordered = await FetchMergeAsync(instruments, ct).ConfigureAwait(false);
-        WriteThrough(ordered, keepLastGood: true);
-        return ordered;
-    }
-
     // Route → fetch (concurrent, one batch per provider) → merge into the caller's instrument order.
-    // The raw data path with no cache side effects, shared by GetQuotesAsync and RefreshAsync.
+    // The raw data path with no cache side effects, used by RefreshAsync.
     private async Task<IReadOnlyList<DomainQuote>> FetchMergeAsync(
         IReadOnlyList<DomainInstrument> instruments, CancellationToken ct)
     {
@@ -138,7 +127,8 @@ internal sealed class MarketRepository
     }
 
     // Force a fetch now; results reach observers through the cache (the caller does not read the return).
-    // The seam the manual Refresh row / demo path call now and the orchestration poll loop will call later.
+    // The single fetch seam — the manual Refresh row, the demo flip, the observe-subscribe fetch, and the
+    // poll loop all call it (via RefreshSafe for the fire-and-forget paths).
     // keepLastGood:false = a HARD refresh that overwrites even with an invalid quote (e.g. after a source flip,
     // where a stale "good" value would be wrong); the default keeps the last good price through a bad fetch.
     public async Task RefreshAsync(
@@ -150,7 +140,7 @@ internal sealed class MarketRepository
 
     // Write a freshly fetched batch through to the cache AND stamp each symbol's last fetch-attempt time, so a
     // later subscribe can distinguish a stale cached price from a fresh one (see NeedsFetchOnSubscribe). The
-    // single write-through path for both GetQuotesAsync and RefreshAsync.
+    // single write-through path; called by RefreshAsync (the one fetch path).
     private void WriteThrough(IReadOnlyList<DomainQuote> ordered, bool keepLastGood)
     {
         var now = Environment.TickCount64;
@@ -342,7 +332,7 @@ internal sealed class MarketRepository
     }
 
     // Historical candles for one instrument over a ChartRange — routed to the first provider that
-    // supports its asset class (mirrors GetQuotesAsync). No provider → an invalid series so the chart
+    // supports its asset class (mirrors the quote routing). No provider → an invalid series so the chart
     // renders an "unavailable" state rather than throwing.
     public async Task<DomainCandleSeries> GetCandlesAsync(
         DomainInstrument instrument, ChartRange range, CancellationToken ct = default)
