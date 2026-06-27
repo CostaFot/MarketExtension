@@ -1,0 +1,56 @@
+name: Update WinGet Manifest
+
+# Manual-only ON PURPOSE. Do NOT add a `release: published` trigger.
+# release-msix.yml publishes a SELF-SIGNED bundle, and WinGet's automated PR
+# validation installs in a sandbox that only trusts publicly-rooted certs — a
+# self-signed package fails that check. Run this only AFTER a STORE-SIGNED
+# bundle (downloaded back from Partner Center) is hosted at the release URL.
+# See notes/winget-publishing.md.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version, e.g. 1.2.0.1 (must match the GitHub release tag vX.Y.Z.W)'
+        required: true
+        type: string
+      bundle_url:
+        description: 'Override full bundle URL (blank = default naming below)'
+        required: false
+        type: string
+
+env:
+  WINGET_PACKAGE_ID: CostaFotiadis.MarketsExtensionForCmdPalette
+  GITHUB_USER_NAME: CostaFot
+  GITHUB_REPO: MarketExtension
+  EXTENSION_NAME: MarketExtension
+
+jobs:
+  update-winget:
+    runs-on: windows-latest
+    steps:
+      - name: Install wingetcreate
+        run: iwr https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+        shell: pwsh
+
+      - name: Update WinGet manifest
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          $version = "${{ inputs.version }}"
+          $tag = "v$version"
+          $bundleUrl = "${{ inputs.bundle_url }}"
+          if ([string]::IsNullOrWhiteSpace($bundleUrl)) {
+            $bundleUrl = "https://github.com/${{ env.GITHUB_USER_NAME }}/${{ env.GITHUB_REPO }}/releases/download/$tag/${{ env.EXTENSION_NAME }}_${version}_Bundle.msixbundle"
+          }
+          Write-Host "Package:    ${{ env.WINGET_PACKAGE_ID }}"
+          Write-Host "Version:    $version"
+          Write-Host "Bundle URL: $bundleUrl"
+
+          # Single bundle carries both architectures; map the one URL to each
+          # existing installer entry via the |arch hint.
+          .\wingetcreate.exe update ${{ env.WINGET_PACKAGE_ID }} `
+            --version $version `
+            --urls "$bundleUrl|x64" "$bundleUrl|arm64" `
+            --token "$env:WINGET_TOKEN" `
+            --submit
+        shell: pwsh
