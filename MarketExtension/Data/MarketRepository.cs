@@ -25,7 +25,10 @@ namespace MarketExtension;
 // Polling lives HERE, not per surface: the repository runs ONE poll loop (a single PollTicker
 // subscription for its lifetime) that, each tick, refreshes the distinct union of all instruments
 // currently being observed through the cache — so the observed prices stay fresh from one shared fetch.
-// Surfaces still poll/fetch individually today; moving them fully onto observe-only is a later pass.
+// Every priced QUOTE surface (the Watchlist/Favorites/Portfolio pages + both dock bands) is now a pure
+// observer through here — none fetch or poll themselves. The lone exception is the symbol-detail CHART,
+// a separate candle path (GetCandlesAsync) with no cache/observe layer: it still subscribes PollTicker
+// directly, which is fine since only one detail page is ever open (no cross-surface drift to fix).
 internal sealed class MarketRepository
 {
     private readonly IMarketDataProvider[] _providers;

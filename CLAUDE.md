@@ -82,7 +82,7 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 
 | File | Role |
 |---|---|
-| `Data/MarketRepository.cs` | **The coordinator the UI depends on**, and now the **orchestration layer** that owns the shared quote cache + polling. Routes each `DomainInstrument` to the first `IMarketDataProvider` whose `Supports(AssetCategory)` matches, fans out concurrently, merges into one order-preserving list. Also `SearchAsync(query)` and `GetCandlesAsync(instrument, range)`. No provider for a category → `IsValid:false` quote / invalid candle series. **`ActiveProviders()`**: any `IsExclusive` provider (the Demo mock) → ALL operations route to it alone. **Owns one `IQuoteCache`** (in-memory by default; an injectable ctor overload `MarketRepository(IQuoteCache, providers[])` for a future DB-backed cache): `GetQuotesAsync`/`RefreshAsync` **write through** every fetch (so the cache fills with NO surface changes), and **`ObserveQuotes(...)`** returns a cache-backed `IObservable<IReadOnlyList<DomainQuote>>` — for a fixed instrument list OR a membership `StateFlow` (Rx `CombineLatest` + `Switch`), **delivered via `ObserveOn(TaskPoolScheduler)`** so a surface's `RaiseItemsChanged` is never invoked while Rx holds the combiner gate lock (**the deadlock fix** — see the orchestration section) — so surfaces OBSERVE instead of fetching, and two surfaces on the same symbol can't drift. **Owns the single poll loop:** one process-lifetime `PollTicker` subscription whose `RefreshObserved` re-fetches the union of currently-OBSERVED instruments each tick — "observed" tracked by a refcounted registry that `ObserveQuotes` Register/Unregisters on subscribe/dispose (so a hidden surface stops being polled). The demo-flip handler `Clear()`s the cache then refills the observed set from the new source. See "Shared quote cache + repository orchestration (in progress)". |
+| `Data/MarketRepository.cs` | **The coordinator the UI depends on**, and now the **orchestration layer** that owns the shared quote cache + polling. Routes each `DomainInstrument` to the first `IMarketDataProvider` whose `Supports(AssetCategory)` matches, fans out concurrently, merges into one order-preserving list. Also `SearchAsync(query)` and `GetCandlesAsync(instrument, range)`. No provider for a category → `IsValid:false` quote / invalid candle series. **`ActiveProviders()`**: any `IsExclusive` provider (the Demo mock) → ALL operations route to it alone. **Owns one `IQuoteCache`** (in-memory by default; an injectable ctor overload `MarketRepository(IQuoteCache, providers[])` for a future DB-backed cache): `GetQuotesAsync`/`RefreshAsync` **write through** every fetch (so the cache fills with NO surface changes), and **`ObserveQuotes(...)`** returns a cache-backed `IObservable<IReadOnlyList<DomainQuote>>` — for a fixed instrument list OR a membership `StateFlow` (Rx `CombineLatest` + `Switch`), **delivered via `ObserveOn(TaskPoolScheduler)`** so a surface's `RaiseItemsChanged` is never invoked while Rx holds the combiner gate lock (**the deadlock fix** — see the orchestration section) — so surfaces OBSERVE instead of fetching, and two surfaces on the same symbol can't drift. **Owns the single poll loop:** one process-lifetime `PollTicker` subscription whose `RefreshObserved` re-fetches the union of currently-OBSERVED instruments each tick — "observed" tracked by a refcounted registry that `ObserveQuotes` Register/Unregisters on subscribe/dispose (so a hidden surface stops being polled). The demo-flip handler `Clear()`s the cache then refills the observed set from the new source. **All priced quote surfaces (the `PricedListPage` trio + both dock bands) now OBSERVE through here**; only the candle chart stays off the cache. See "Shared quote cache + repository orchestration". |
 | `Data/IQuoteCache.cs` | The **shared observable quote cache** abstraction (an interface, so the in-memory impl now can be swapped for a DB-backed one later without touching the repository or surfaces). `Get(symbol)` (sync snapshot, null if uncached), `Observe(symbol)` → a per-symbol `StateFlow<DomainQuote?>` (replays current value, **null until the first fetch**, then pushes changes), `Upsert(quote, keepLastGood=true)` (write-through; **the SINGLE home for keep-last-good** — a transient invalid quote won't overwrite a cached valid one; pass `false` to overwrite unconditionally), `Clear()` (reset every entry to null **keeping observers subscribed** — for a demo source flip). Keyed by `WatchlistStore.Normalize`. |
 | `Data/InMemoryQuoteCache.cs` | The **real, live** in-memory `IQuoteCache` (un-stubbed): a `Lock`-guarded per-symbol `MutableStateFlow<DomainQuote?>` dictionary (lazily created, keyed by `WatchlistStore.Normalize`), value-equality distinct-until-changed (an unchanged re-fetch doesn't re-emit → no churn/flicker). `Get` snapshots under the lock; `Upsert` decides the value under the lock (**the SINGLE home for keep-last-good**) then `Update()`s **outside** it; `Clear()` resets every value to null keeping observers subscribed. **It was briefly stubbed to a no-op after the favorites dock appeared to deadlock CmdPal — but the cache's lock was never the culprit** (`Update()` already fans out outside the lock). The real hang was the host's `RaiseItemsChanged` being delivered **under the Rx combiner gate** in `ObserveQuotes`; fixed there via **`ObserveOn`**, so this cache stays the simple, correct version. Swap for a DB-backed `IQuoteCache` later via the repo's injectable ctor — no repository/UI change. |
 | `Data/IMarketDataProvider.cs` | ONE data source: `bool Supports(AssetCategory)` + **`bool IsExclusive`** (default `false`; true → MarketRepository routes every operation to this provider alone — how the Demo-mode mock takes precedence everywhere) + `GetQuotesAsync(instruments, ct)` + `SearchAsync(query, ct)` (free-text symbol lookup → `DomainInstrument`s, **identity only, no prices**; a provider that can't search returns `[]`) + `GetCandlesAsync(instrument, ChartRange, ct)` (price history for the detail chart; **default interface method** returns an invalid series, so non-candle providers opt out for free). |
@@ -94,7 +94,7 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Data/InstrumentCatalog.cs` | Static `DomainInstrument` defaults — the **first-run seed** for `WatchlistStore` (no longer always-shown; removable once seeded). |
 | `Settings/WatchlistStore.cs` | JSON-persisted tracked instruments, each carrying **two independent flags** `InWatchlist`/`IsFavorite` (favorites = the dock subset). Stores **full `DomainInstrument` identity** so searched non-catalog symbols re-price; an entry with both flags false is dropped. Source-gen `WatchlistItem`/`WatchlistJsonContext` → `market_watchlist.json`; seeds `InstrumentCatalog` on first run, else migrates the legacy `market_favorites.json` (old pins → watchlisted **and** favorited). Exposes its `Watchlist`/`Favorites` subsets as **observable `StateFlow`s** (each mutation calls `PublishState()` → re-publishes both); pages and the dock **subscribe** and re-render themselves. Replaces the old `FavoritesStore` + `Watchlist.cs`. |
 | `Helpers/StateFlow.cs` | A tiny **Kotlin-StateFlow analog**, now a **thin wrapper over `System.Reactive`'s `BehaviorSubject<T>`** (the migration off the old hand-rolled version is **done** — AOT/trim is off, so the Rx dependency is taken warning-free; see the Rx done bullet). Used by the **state holders** (`WatchlistStore`, `MarketSettingsManager`) — observable *state with a current value*, which `IObservable` (no `Value`) and a bare `BehaviorSubject` (no read-only face) can't express alone. Public API unchanged: `StateFlow<T>` (read-only `Value` + `Subscribe` with **replay-on-subscribe** + distinct-until-changed; a `Subscribe(onNext, replayOnSubscribe:false)` overload opts out of the replay via `Skip(1)` — used by the priced pages' secondary flows, e.g. `HasAnyApiKey`) and writable `MutableStateFlow<T>` (`Update`). `SetValue` does **source-side** distinct-until-changed (an equal value isn't pushed, so re-publishing an unchanged subset doesn't wake its subscribers); `BehaviorSubject.OnNext` fans handlers out **outside** its lock (handlers re-read the store safely). The old hand-rolled **subscriber-count seam** (`OnActive`/`OnInactive` + the refcount + a custom `Subscription` wrapper) was **removed** once its only user, `PollTicker`, went pure Rx — Rx's `Publish().RefCount()` is the proper home for that, and Rx subscriptions are already idempotent on dispose. Also exposes **`AsObservable()`** (the raw `BehaviorSubject` stream, replays on subscribe) so the quote cache's per-symbol flows compose with Rx `CombineLatest`/`Switch` in `MarketRepository.ObserveQuotes`. Plus `InstrumentListComparer` (symbol-sequence dedup for the store's two flows). |
-| `Helpers/PollTicker.cs` | The **live-price poll ticker** — now **pure Rx** (no longer a `StateFlow<long>`). A process-wide singleton `IObservable<long>` = `Observable.Generate(...)` (self-rescheduling timer; per-step delay re-read from `MarketSettingsManager` each iteration so interval/on-off applies without reload, `0` = off idles on a 30 s re-check and the tick is filtered out) wrapped in **`Publish().RefCount()`** — the WhileSubscribed seam that starts the loop on the first subscriber and tears it down on the last (Generate never completes, so disposal is silent and resubscribe restarts cleanly). `Defer`/`Finally` log the start/stop at the refcount edges. Surfaces attach via the **guarded** `PollTicker.Subscribe(onTick)` (the raw stream is private): the handler is wrapped in try/catch (swallow + `Log.Error`) so a throwing tick handler can't trip Rx's `SafeObserver` into tearing down the shared multicast stream (which would kill polling for every surface). Handlers still offload heavy work via `Task.Run`. **Migration in progress:** `MarketRepository` now holds ONE process-lifetime subscription that polls the *observed* set centrally, so a migrated surface (the favorites dock) no longer subscribes here at all — it just observes the cache. Un-migrated surfaces (the `PricedListPage` trio, the portfolio dock, the chart) still subscribe directly for now. |
+| `Helpers/PollTicker.cs` | The **live-price poll ticker** — now **pure Rx** (no longer a `StateFlow<long>`). A process-wide singleton `IObservable<long>` = `Observable.Generate(...)` (self-rescheduling timer; per-step delay re-read from `MarketSettingsManager` each iteration so interval/on-off applies without reload, `0` = off idles on a 30 s re-check and the tick is filtered out) wrapped in **`Publish().RefCount()`** — the WhileSubscribed seam that starts the loop on the first subscriber and tears it down on the last (Generate never completes, so disposal is silent and resubscribe restarts cleanly). `Defer`/`Finally` log the start/stop at the refcount edges. Surfaces attach via the **guarded** `PollTicker.Subscribe(onTick)` (the raw stream is private): the handler is wrapped in try/catch (swallow + `Log.Error`) so a throwing tick handler can't trip Rx's `SafeObserver` into tearing down the shared multicast stream (which would kill polling for every surface). Handlers still offload heavy work via `Task.Run`. **Two subscriber kinds now:** `MarketRepository` holds ONE process-lifetime subscription that polls the *observed* set centrally, so every priced quote surface (the `PricedListPage` trio + both dock bands) observes the cache and no longer subscribes here. The **only** direct subscriber left is the symbol-detail **chart** (a separate candle path with no cache layer — it re-fetches its visible range each tick). |
 | `Helpers/HttpRetry.cs` | **Shared 429 back-off** at the HTTP seam. `SendAsync(send, tag, ct)` takes a request **thunk** (each retry must re-issue a fresh `HttpResponseMessage`) and, on HTTP `429`, honors a short `Retry-After` else backs off `1s`→`2s` (max 3 attempts, **bails** if the wait would exceed an `8s` cap — per-minute windows don't clear in seconds, so hammering only burns quota). Returns the final response (success / non-429 error / surviving 429) so callers inspect status exactly as before — a **drop-in** at each `GetAsync`. Also the single choke point that feeds `RateLimitSignal` (2xx → off, surviving 429 → on). Used by Finnhub + Twelve Data (not keyless Frankfurter). |
 | `Helpers/RateLimitSignal.cs` | Process-wide **"are we throttled" flag** — a `MutableStateFlow<bool>` behind a read-only `StateFlow<bool>` (same state-holder idiom as `WatchlistStore`/`MarketSettingsManager`). `ReportRateLimited()`/`ReportSuccess()` flip it (distinct-until-changed); priced surfaces **subscribe** and re-render. Intentionally **global, not per-symbol** (a free-tier limit is key-wide). |
 | `Helpers/RateLimitHint.cs` | The **rate-limited banner row** (parallels `ApiKeyHint.StatusRow()`): `Row()` returns an amber "Rate-limited — showing last known prices" `ListItem` (Enter = **`NoOpCommand`**, purely informational — it's the default-selected first row, so it must not navigate) when `RateLimitSignal` is set **and** the `ShowRateLimitErrors` setting is on, else `null`. Pinned to the **top** so it's seen without scrolling: `PricedListPage.GetItems` inserts it at index 0; `SearchPage.SearchItems` inserts it at index 1 (just under the Enter-to-search action, which must stay first). |
@@ -233,7 +233,28 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 
 ## Current Status / Next Steps
 
-- **Done (latest): migrated `PortfolioDockPage` to a pure cache observer + added the stale-on-subscribe
+- **Done (latest): migrated the `PricedListPage` trio (`WatchlistPage`/`FavoritesPage`/`PortfolioPage`) to
+  pure cache observers — the QUOTE-cache migration is now COMPLETE (every priced quote surface observes).**
+  Migrating the shared base moved all three at once. The visible-lifecycle hook is now a single
+  `Repository.ObserveQuotes(membership StateFlow)` subscription, and the per-surface fetch/poll machinery is
+  **deleted**: the fields (`_priceCache`/`_cacheLock`/`_snapshot`/`_received`/`_fetchGeneration`/
+  `_lastFullPriceTicks`) and the methods (`OnInstrumentsChanged`/`Fetch`/`LoadQuotes`/`PollRefresh`/
+  `RefreshStaleQuotes`/`OnDataSourceChanged`), plus the page's own `PollTicker` and `DemoModeChanged`
+  subscriptions and the keep-last-good guard — the repo owns the poll loop, the demo flip, and
+  stale-on-subscribe, and the cache owns keep-last-good. Membership changes (incl. a quantity-only Portfolio
+  edit) re-project for free via the `Switch` overload; empty-vs-loading is read from the membership
+  `.Value.Count`. The **async-projection** hook generalizes from `PortfolioDockPage`: a new
+  `protected virtual Task OnQuotesProjectingAsync(quotes)` (default no-op) that `PortfolioPage` overrides to
+  `await CurrencyConverter.PrimeAsync` before the paint — **replacing** the old `OnPriceCacheUpdated` +
+  `SnapshotPricedQuotes` hooks (both deleted from the base). The manual **Refresh 🔄** row reroutes onto
+  `RefreshAsync(keepLastGood:false)` with its own spinner (distinct-until-changed means an unchanged refetch
+  won't re-emit, so the row owns its IsLoading lifecycle). `WatchlistPage`/`FavoritesPage` needed no changes
+  (Watchlist keeps its `RelistTriggers => [Favorites]` for the ★). The **only** quote surface left un-migrated
+  is intentionally none — the lone exception is the symbol-detail **chart**, a separate candle path
+  (`GetCandlesAsync`, no cache/observe layer) that stays on its own `PollTicker` subscription by design (one
+  detail page open at a time → no cross-surface drift). Build clean (0 warnings); **not yet live-verified
+  on-device.** See "Shared quote cache + repository orchestration".
+- **Done (previous round): migrated `PortfolioDockPage` to a pure cache observer + added the stale-on-subscribe
   freshness primitive.** The **second dock band is now a pure observer** like the favorites band, and it proves
   the **async-projection** pattern the favorites band didn't need: its observe handler `await`s
   `CurrencyConverter.PrimeAsync` before rolling up, so the converted total lands in **one paint** (safe because
@@ -267,10 +288,12 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   `GetQuotesAsync`/`RefreshAsync`, no keep-last-good; it renders what the cache emits, and membership changes
   come free via the `Switch` overload). Build clean (0 warnings). ✅ **Live-verified on-device**: the band
   activates without hanging CmdPal and shows live prices. (`PortfolioDockPage` was migrated the following round —
-  see the "Done (latest)" bullet above.) **NOT yet migrated** (still on per-surface fetch+poll, filling the cache
-  only via write-through): the `PricedListPage` trio (`WatchlistPage`/`FavoritesPage`/`PortfolioPage`), plus the
-  `SymbolDetailPage` chart (candles, separate path). **The dock bands are the template for the rest.** See
-  "Shared quote cache + repository orchestration" for the full design + the migration checklist.
+  see the "Done (previous round)" bullet above.) **NOT yet migrated** (still on per-surface fetch+poll, filling
+  the cache only via write-through): the `PricedListPage` trio (`WatchlistPage`/`FavoritesPage`/`PortfolioPage`),
+  plus the `SymbolDetailPage` chart (candles, separate path). **The dock bands are the template for the rest.**
+  See "Shared quote cache + repository orchestration" for the full design + the migration checklist.
+  **(Update: the `PricedListPage` trio is now migrated too — see the top "Done (latest)" bullet; only the
+  candle chart remains off the cache, deliberately.)**
 - **Done (this round): removed Sentry entirely — the app ships with NO telemetry.** The optional crash
   reporter (SDK init in `Program.cs`, the `CaptureException`/`CaptureMessage` calls in `Log.Error`, the
   `Sentry` package in the csproj + `Directory.Packages.props`) is **gone**. Rationale: it was a one-off in
@@ -594,7 +617,7 @@ just **mutates the store** (no manual UI callback: the flows re-render every liv
 **shows a confirmation toast** (e.g. "Added AAPL to watchlist") while **keeping the palette open** so
 the user gets explicit feedback and can keep editing.
 
-### Shared quote cache + repository orchestration (cache live; favorites dock migrated, rest pending)
+### Shared quote cache + repository orchestration (DONE — all quote surfaces migrated; only the candle chart stays off the cache by design)
 
 **Why.** Every priced surface used to fetch the **same** quotes independently and keep its **own** price
 cache + its **own** `PollTicker` subscription. Because their fetches landed at different times, two surfaces
@@ -611,7 +634,10 @@ orchestrating all fetching/polling, so the same symbol is one cache entry everyo
   `MutableStateFlow<DomainQuote?>` dictionary; `Update()` fires outside the lock). Value-equality
   distinct-until-changed → an unchanged re-fetch doesn't re-emit (no churn/flicker).
 - **`MarketRepository` orchestration** — owns one `IQuoteCache`. `GetQuotesAsync`/`RefreshAsync` write through
-  (so the cache fills even from un-migrated surfaces). `ObserveQuotes(IReadOnlyList<DomainInstrument>)` and
+  (the single cache-fill path, now driven by the poll loop + the observe-subscribe fetch; note `GetQuotesAsync`
+  has **no direct surface callers** anymore — every surface observes, and the observe/poll paths fetch via
+  `RefreshAsync`/`RefreshSafe`, so the public `GetQuotesAsync` is kept only as coordinator API/for tests).
+  `ObserveQuotes(IReadOnlyList<DomainInstrument>)` and
   `ObserveQuotes(StateFlow<…>)` return a cache-backed list observable (`CombineLatest`; the membership overload
   adds `Switch` so add/unstar re-projects — fetching only new symbols, dropping departed). `RefreshSafe`
   wraps fire-and-forget refreshes (logged).
@@ -659,7 +685,24 @@ handler `await`s `CurrencyConverter.PrimeAsync` before rolling up `UiPortfolio` 
 `PortfolioStore.Positions` for the quantities; it disambiguates empty-vs-loading from `Positions.Value.Count`.
 Both bands hold subscriptions in a `List<IDisposable>` (double-`add`-safe). Build clean; not yet live-verified.
 
-**To migrate the next surface (the checklist):**
+**Migrated: the `PricedListPage` trio (`WatchlistPage`/`FavoritesPage`/`PortfolioPage`) — the migration is now
+COMPLETE for quotes.** Migrating the shared base moved all three: the visible-lifecycle hook is a single
+`Repository.ObserveQuotes(_instruments).Subscribe(q => _ = OnQuotesChangedAsync(q))`, and the old per-surface
+machinery is **deleted** (the `_priceCache`/`_cacheLock`/`_snapshot`/`_received`/`_fetchGeneration`/
+`_lastFullPriceTicks` fields and the `OnInstrumentsChanged`/`Fetch`/`LoadQuotes`/`PollRefresh`/
+`RefreshStaleQuotes`/`OnDataSourceChanged` methods, plus the page's `PollTicker` + `DemoModeChanged`
+subscriptions and the keep-last-good guard). The base now stores the latest emission as `_quotes`
+(`UiQuote[]?`, null pre-first-emission, dock-style) and disambiguates empty-vs-loading from
+`_instruments.Value.Count`. The async-projection seam generalizes `PortfolioDockPage`'s shape into a base hook
+`protected virtual Task OnQuotesProjectingAsync(quotes)` (default no-op) that `PortfolioPage` overrides to
+`await CurrencyConverter.PrimeAsync` before the paint — this **replaced** the old `OnPriceCacheUpdated` +
+`SnapshotPricedQuotes` hooks (deleted). The manual **Refresh 🔄** row reroutes onto
+`RefreshAsync(keepLastGood:false)` and owns its own `IsLoading` spinner (since an unchanged refetch won't
+re-emit). `WatchlistPage`/`FavoritesPage` were untouched (Watchlist keeps `RelistTriggers => [Favorites]` for
+the ★). Build clean (0 warnings); **not yet live-verified on-device.** The symbol-detail **chart** is the only
+surface still on its own `PollTicker` — a separate candle path with no cache (see "Transitional truth" below).
+
+**The migration checklist (now fully applied — kept as the record of how it was done):**
 1. Replace its `MarketRepository.GetQuotesAsync` call + private price cache with a subscription to
    `_repository.ObserveQuotes(<membership StateFlow>)`; render from the emitted `IReadOnlyList<DomainQuote>`.
 2. **Delete** its `PollTicker.Subscribe(...)` and its `DemoModeChanged` subscription — the repo does both now.
@@ -683,15 +726,18 @@ Both bands hold subscriptions in a `List<IDisposable>` (double-`add`-safe). Buil
 7. `PortfolioDockPage` is the **worked example** of the async-projection handler (`await PrimeAsync` then roll
    up, one paint) — copy its shape for the Portfolio screen rather than reinventing it.
 
-**Transitional truth:** un-migrated surfaces still fetch+poll themselves AND fill the cache via write-through,
-so a symbol they share with the dock is briefly fetched by both the repo loop (for the dock) and the surface's
-own poll — harmless (the cache dedups by value), and it collapses as each surface migrates.
+**Transitional truth (now essentially resolved):** every priced QUOTE surface observes the cache, so there is
+no longer a quote surface that double-fetches a shared symbol. The only thing still on its own `PollTicker`
+subscription is the symbol-detail **chart**, and that's a separate **candle** path (`GetCandlesAsync`) with no
+cache/observe layer — left that way deliberately (only one detail page is ever open, so no cross-surface drift
+to fix). Migrating candles onto an `ObserveCandles`-style layer is possible but unplanned.
 
 ### Live price polling (done)
 
-> **Superseded for migrated surfaces** by "Shared quote cache + repository orchestration" above — the favorites
-> dock no longer polls itself; the repository's single loop polls the observed set. The model below still
-> describes the **un-migrated** surfaces (the `PricedListPage` trio, the portfolio dock, the chart).
+> **Superseded for all quote surfaces** by "Shared quote cache + repository orchestration" above — the priced
+> list pages and both dock bands no longer poll themselves; the repository's single loop polls the observed set.
+> The per-surface model below now describes **only the symbol-detail chart** (a separate candle path that still
+> subscribes `PollTicker` directly and keeps its own per-range cache + keep-last-good).
 
 Priced surfaces used to fetch **once** when they became visible (the StateFlow replay-on-subscribe that
 drives the first load). They now also auto-refresh on a timer while visible: **default 10 min, settings-

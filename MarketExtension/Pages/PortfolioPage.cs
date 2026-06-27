@@ -9,23 +9,24 @@ using MarketExtension.Properties;
 namespace MarketExtension;
 
 // Top-level screen: the user's portfolio holdings, priced live, with a totals summary pinned on top.
-// Reached from the Markets hub. Subclasses PricedListPage (like Watchlist/Favorites) to inherit all of
-// its caching / polling / reconcile / keep-last-good plumbing — it just observes PortfolioStore.Instruments
-// (the symbols to price) instead of a watchlist subset.
+// Reached from the Markets hub. Subclasses PricedListPage (like Watchlist/Favorites) to inherit its shared
+// quote-cache observation — it just observes PortfolioStore.Instruments (the symbols to price) instead of a
+// watchlist subset.
 //
 // Each row shows the holding (symbol · quantity) with its market value and today's P&L; Enter opens the
 // shared SymbolDetailPage, which is where holdings are added/edited/removed (Add to Portfolio / Edit
 // holding / Remove), consistent with every other list. The quantity for a row is read from PortfolioStore
 // at render time — the same way WatchlistPage reads IsFavorite — and the totals summary is built from the
 // full priced set via the LeadingRows hook. A quantity-only edit re-emits PortfolioStore.Instruments
-// (default-equality flow), so the base re-renders with no fetch and the new quantity + total show at once.
+// (default-equality flow), so the membership-aware ObserveQuotes Switch re-fires with no fetch and the new
+// quantity + total show at once.
 //
 // Multi-currency: holdings priced in various native currencies are converted into the user's
 // PortfolioCurrency setting. Conversion rates are an async FX fetch (CurrencyConverter / Frankfurter), but
-// GetItems is synchronous — so the rates are PRIMED off the price-load path (OnPriceCacheUpdated, the base's
-// post-update hook) and read from the converter's cache while rendering. Until a rate lands a row shows its
-// native value only and sits out of the total; a holding in a currency the FX provider can't convert stays
-// that way (surfaced as "N not converted" on the summary).
+// GetItems is synchronous — so the rates are PRIMED in OnQuotesProjectingAsync (the base awaits it before
+// rendering an emission) and read from the converter's cache while rendering, so the converted values land
+// in the same paint. Until a rate lands a row shows its native value only and sits out of the total; a
+// holding in a currency the FX provider can't convert stays that way (surfaced as "N not converted").
 internal sealed partial class PortfolioPage : PricedListPage
 {
     private const string PortfolioGlyph = ""; // Segoe MDL2 Bank
@@ -91,26 +92,21 @@ internal sealed partial class PortfolioPage : PricedListPage
         return UiPosition.From(quote, qty, preferred, rate, costBasis);
     }
 
-    // After each price update, ensure the FX rates for every native currency now present are fetched into
-    // the converter's cache, then re-render so the converted values + total appear. Runs off the UI/render
-    // path; the converter skips currencies it already has fresh, so a steady portfolio does no extra network.
-    protected override void OnPriceCacheUpdated()
+    // Before each emission is rendered, ensure the FX rates for every native currency now present are fetched
+    // into the converter's cache, so the converted values + total are ready in the same paint. The base awaits
+    // this then projects + repaints once (no RaiseItemsChanged / Task.Run here — already on a pool thread). The
+    // converter skips currencies it already has fresh, so a steady portfolio does no extra network.
+    protected override async Task OnQuotesProjectingAsync(IReadOnlyList<DomainQuote> quotes)
     {
         var preferred = MarketSettingsManager.Instance.PortfolioCurrency;
-        var natives = SnapshotPricedQuotes()
+        var natives = quotes
             .Where(q => q.IsValid)
-            .Select(q => q.Source.Currency)
+            .Select(q => q.Currency)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        if (natives.Length == 0)
-            return;
-
-        Task.Run(async () =>
-        {
+        if (natives.Length > 0)
             await CurrencyConverter.Instance.PrimeAsync(preferred, natives);
-            RaiseItemsChanged(0);
-        });
     }
 
     protected override IListItem[] EmptyState() =>
