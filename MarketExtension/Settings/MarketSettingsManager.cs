@@ -29,6 +29,11 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     // Default auto-refresh cadence when the field is blank/unparseable.
     private const int DefaultRefreshMinutes = 10;
 
+    // Default NEWS auto-refresh cadence when its field is blank/unparseable. Separate from (and gentler
+    // than) the price cadence above — headlines change far less often than quotes, and the news poll runs on
+    // its own clock so it isn't tied to how aggressively a user refreshes prices.
+    private const int DefaultNewsRefreshMinutes = 30;
+
     private readonly TextSetting _twelveDataApiKey = new("twelveDataApiKey", string.Empty)
     {
         Label = Resources.Settings_TwelveData_Label,
@@ -49,6 +54,16 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
         Label = Resources.Settings_Refresh_Label,
         Description = Resources.Settings_Refresh_Desc,
         Placeholder = DefaultRefreshMinutes.ToString(CultureInfo.InvariantCulture),
+    };
+
+    // The NEWS refresh interval — its own field, NOT reused from the price interval above (news polls on a
+    // separate, gentler clock; see DefaultNewsRefreshMinutes).
+    private readonly TextSetting _newsRefreshMinutes = new(
+        "newsRefreshMinutes", DefaultNewsRefreshMinutes.ToString(CultureInfo.InvariantCulture))
+    {
+        Label = Resources.Settings_NewsRefresh_Label,
+        Description = Resources.Settings_NewsRefresh_Desc,
+        Placeholder = DefaultNewsRefreshMinutes.ToString(CultureInfo.InvariantCulture),
     };
 
     private readonly ToggleSetting _showRateLimitErrors = new("showRateLimitErrors", true)
@@ -141,6 +156,20 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     // The cadence as a TimeSpan for the (upcoming) PeriodicTimer-driven poll loop.
     public TimeSpan RefreshInterval => TimeSpan.FromMinutes(RefreshMinutes);
 
+    // News auto-refresh cadence in minutes; 0 means off. Bad/negative input falls back to the default.
+    // Deliberately independent of RefreshMinutes — the news poll loop reads these, exactly as the quote poll
+    // loop reads the price ones, so the two refresh on their own clocks.
+    public int NewsRefreshMinutes =>
+        int.TryParse(_newsRefreshMinutes.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) && v >= 0
+            ? v
+            : DefaultNewsRefreshMinutes;
+
+    // Whether the news poll loop should run at all (false when the user picked 0 = off).
+    public bool NewsAutoRefreshEnabled => NewsRefreshMinutes > 0;
+
+    // The news cadence as a TimeSpan for the news poll loop.
+    public TimeSpan NewsRefreshInterval => TimeSpan.FromMinutes(NewsRefreshMinutes);
+
     // Whether the rate-limited banner (RateLimitHint) shows while a provider is throttling requests.
     // Default on; the user can hide it in Settings if they'd rather not see it. Read pull-style each render,
     // so a toggle applies the next time a priced page re-renders (e.g. on navigating back to it).
@@ -172,6 +201,7 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
         Settings.Add(_twelveDataApiKey);
         Settings.Add(_finnhubApiKey);
         Settings.Add(_refreshMinutes);
+        Settings.Add(_newsRefreshMinutes);
         Settings.Add(_showRateLimitErrors);
         Settings.Add(_demoMode);
         Settings.Add(_portfolioCurrency);

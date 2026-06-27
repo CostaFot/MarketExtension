@@ -376,6 +376,12 @@
   <data name="Settings_Refresh_Desc" xml:space="preserve">
     <value>価格の更新間隔（分単位、0 = オフ）。</value>
   </data>
+  <data name="Settings_NewsRefresh_Label" xml:space="preserve">
+    <value>ニュースの更新間隔（分）</value>
+  </data>
+  <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
+    <value>ニュースの更新間隔（分単位、0 = オフ）。</value>
+  </data>
   <data name="Settings_RateLimit_Label" xml:space="preserve">
     <value>レート制限の警告を表示</value>
   </data>

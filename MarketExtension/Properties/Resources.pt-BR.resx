@@ -374,6 +374,12 @@
   <data name="Settings_Refresh_Desc" xml:space="preserve">
     <value>Intervalo de atualização de preços em minutos (0 = desativado).</value>
   </data>
+  <data name="Settings_NewsRefresh_Label" xml:space="preserve">
+    <value>Intervalo de atualização de notícias (minutos)</value>
+  </data>
+  <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
+    <value>Intervalo de atualização de notícias em minutos (0 = desativado).</value>
+  </data>
   <data name="Settings_RateLimit_Label" xml:space="preserve">
     <value>Mostrar avisos de limite de requisições</value>
   </data>

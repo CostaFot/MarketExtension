@@ -429,6 +429,12 @@
   <data name="Settings_Refresh_Desc" xml:space="preserve">
     <value>Price refresh interval in minutes (0 = off).</value>
   </data>
+  <data name="Settings_NewsRefresh_Label" xml:space="preserve">
+    <value>News refresh interval (minutes)</value>
+  </data>
+  <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
+    <value>News refresh interval in minutes (0 = off).</value>
+  </data>
   <data name="Settings_RateLimit_Label" xml:space="preserve">
     <value>Show rate-limit warnings</value>
   </data>

@@ -952,6 +952,24 @@ namespace MarketExtension.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to News refresh interval in minutes (0 = off)..
+        /// </summary>
+        public static string Settings_NewsRefresh_Desc {
+            get {
+                return ResourceManager.GetString("Settings_NewsRefresh_Desc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to News refresh interval (minutes).
+        /// </summary>
+        public static string Settings_NewsRefresh_Label {
+            get {
+                return ResourceManager.GetString("Settings_NewsRefresh_Label", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Currency for portfolio totals. Other holdings are converted into it..
         /// </summary>
         public static string Settings_PortfolioCurrency_Desc {

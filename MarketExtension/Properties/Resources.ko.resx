@@ -375,6 +375,12 @@
   <data name="Settings_Refresh_Desc" xml:space="preserve">
     <value>가격 새로 고침 간격(분 단위, 0 = 끔).</value>
   </data>
+  <data name="Settings_NewsRefresh_Label" xml:space="preserve">
+    <value>뉴스 새로 고침 간격 (분)</value>
+  </data>
+  <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
+    <value>뉴스 새로 고침 간격(분 단위, 0 = 끔).</value>
+  </data>
   <data name="Settings_RateLimit_Label" xml:space="preserve">
     <value>요청 제한 경고 표시</value>
   </data>
