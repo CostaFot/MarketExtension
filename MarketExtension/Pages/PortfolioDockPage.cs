@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
@@ -58,8 +60,18 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
             // its symbols so the repository stops polling them. No PollTicker / DemoModeChanged subscription
             // and no keep-last-good merge here anymore: the repository polls the observed set and refills on a
             // source flip, and the cache holds the last good price through a transient bad fetch.
+            // Project each emission through the async roll-up with Switch, NOT fire-and-forget. The cache fills
+            // symbol-by-symbol on a cold start, so ObserveQuotes emits progressive partial snapshots (e.g. just
+            // BABA before SPY lands); each roll-up AWAITS the FX prime, so two handlers could otherwise race and
+            // a stale partial could finish last and overwrite the full total. Switch cancels the prior
+            // projection's CancellationToken the instant a newer emission arrives, and OnQuotesChangedAsync
+            // honors that token before it paints — so only the latest emission ever reaches the band. (Plain
+            // `_ = OnQuotesChangedAsync(...)` escaped ObserveOn's serialization because it returns at the first
+            // await, which is exactly the bug this fixes.)
             _subscriptions.Add(_repository.ObserveQuotes(PortfolioStore.Instance.Instruments)
-                .Subscribe(quotes => _ = OnQuotesChangedAsync(quotes)));
+                .Select(quotes => Observable.FromAsync(ct => OnQuotesChangedAsync(quotes, ct)))
+                .Switch()
+                .Subscribe());
             Log.Info("Dock", $"observing portfolio [{string.Join(", ", PortfolioStore.Instance.Positions.Value.Select(p => p.Instrument.Symbol))}]");
         }
         remove
@@ -96,8 +108,13 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
             }];
         }
 
+        // Snapshot the field once: a roll-up handler runs on a pool thread and can reassign (or null, via the
+        // spinner branch) _portfolio between the null-check and the reads below, which would otherwise tear the
+        // rendered row or NRE.
+        var portfolio = _portfolio;
+
         // Holdings exist but the roll-up isn't ready yet (prices still filling the cache) → let the spinner show.
-        if (_portfolio is null)
+        if (portfolio is null)
             return [];
 
         // The one summary button: total value as the title, today's P&L (and any total-return / "not
@@ -106,8 +123,8 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
         [
             new ListItem(new PortfolioPage(_repository))
             {
-                Title = Strings.Format(Resources.Portfolio_TotalsRow_Title, _portfolio.FormatTotalValue()),
-                Subtitle = _portfolio.FormatTotalChange() + _portfolio.FormatTotalReturnNote() + _portfolio.FormatUnconvertedNote(),
+                Title = Strings.Format(Resources.Portfolio_TotalsRow_Title, portfolio.FormatTotalValue()),
+                Subtitle = portfolio.FormatTotalChange() + portfolio.FormatTotalReturnNote() + portfolio.FormatUnconvertedNote(),
                 Icon = new IconInfo(PortfolioGlyph),
             },
         ];
@@ -115,9 +132,11 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
 
     // A new cache emission for the holdings: roll up the total and repaint. Runs on a pool thread (ObserveOn)
     // with no Rx gate lock held, so RaiseItemsChanged's host call is safe, and awaiting the FX prime here is
-    // what makes the converted total land in a single paint. Launched fire-and-forget from the synchronous
-    // Subscribe lambda (`_ = ...`), with its own try/catch so no exception escapes onto the pool thread.
-    private async Task OnQuotesChangedAsync(IReadOnlyList<DomainQuote> quotes)
+    // what makes the converted total land in a single paint. Driven by Switch (see the subscribe): `ct` is
+    // cancelled the moment a newer emission supersedes this one, so it's checked before every paint — a stale
+    // or partial snapshot bails instead of overwriting the latest total. Own try/catch so no exception escapes
+    // onto the pool thread; OperationCanceledException is swallowed quietly (it's the expected supersede path).
+    private async Task OnQuotesChangedAsync(IReadOnlyList<DomainQuote> quotes, CancellationToken ct)
     {
         try
         {
@@ -126,6 +145,7 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
             // Holdings exist but their prices haven't landed in the cache yet → keep the spinner, don't roll up.
             if (positions.Count > 0 && quotes.Count == 0)
             {
+                if (ct.IsCancellationRequested) return; // a newer emission already supersedes this — don't blank
                 Log.Info("Dock", $"portfolio: {positions.Count} holding(s) but no cached prices yet — spinner");
                 _portfolio = null;
                 IsLoading = true;
@@ -142,13 +162,23 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             if (natives.Length > 0)
-                await CurrencyConverter.Instance.PrimeAsync(preferred, natives);
+                await CurrencyConverter.Instance.PrimeAsync(preferred, natives, ct);
 
-            _portfolio = BuildPortfolio(positions, quotes, preferred);
+            // A newer emission arrived while we were priming → it's the one that should paint. Drop this
+            // (possibly partial / now-stale) roll-up so it can't overwrite the fresher total — the whole point
+            // of the Switch above; without this check the stale handler would still write _portfolio.
+            if (ct.IsCancellationRequested) return;
+
+            var portfolio = BuildPortfolio(positions, quotes, preferred);
+            _portfolio = portfolio;
             Log.Info("Dock",
-                $"portfolio rolled up: {_portfolio.FormatTotalValue()} {_portfolio.FormatTotalChange()} across {positions.Count} holding(s)");
+                $"portfolio rolled up: {portfolio.FormatTotalValue()} {portfolio.FormatTotalChange()} across {positions.Count} holding(s)");
             IsLoading = false;
             RaiseItemsChanged(0);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer emission while priming FX — expected (Switch cancelled us), ignore.
         }
         catch (Exception ex)
         {

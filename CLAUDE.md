@@ -233,7 +233,33 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 
 ## Current Status / Next Steps
 
-- **Done (latest): migrated the `PricedListPage` trio (`WatchlistPage`/`FavoritesPage`/`PortfolioPage`) to
+- **Done (latest): fixed an out-of-order race in the async-projection observe path (Portfolio screen + Portfolio
+  dock band).** On a cold cache `ObserveQuotes` emits progressive *partial* snapshots (CombineLatest fills the
+  set symbol-by-symbol, e.g. `[BABA]` before `[BABA, SPY]` lands). The observe handler was launched
+  **fire-and-forget** (`.Subscribe(q => _ = OnQuotesChangedAsync(q))`), and for the surfaces that `await` an
+  async projection (the Portfolio screen + dock band both `await CurrencyConverter.PrimeAsync`) that lambda
+  returns at the first `await` — so **two handlers run concurrently** and a stale partial could finish LAST and
+  overwrite the full total. Caught it in logs: the dock rolled up `$7,429.79` (SPY+BABA, correct) and
+  `$139.49` (BABA-only) at the same millisecond, the partial able to win and stick until the next poll tick.
+  `ObserveOn`'s serialization did **not** protect this — it serializes the *synchronous* part of `OnNext`, but
+  the fire-and-forget escapes it past the first `await`. **Fix:** project each emission through the handler with
+  **`Select(q => Observable.FromAsync(ct => OnQuotesChangedAsync(q, ct))).Switch()`** instead of fire-and-forget
+  — `Switch` cancels the prior projection's `CancellationToken` the instant a newer emission arrives, and the
+  handler **checks `ct` before painting** (`if (ct.IsCancellationRequested) return;` after the projection) and
+  swallows `OperationCanceledException` as the expected supersede path; `ct` is forwarded into `PrimeAsync` so a
+  superseded FX fetch stops early. Applied in the **base `PricedListPage`** (covers all three priced screens at
+  once) and in **`PortfolioDockPage`**; `OnQuotesProjectingAsync` gained a `ct` param (only `PortfolioPage`
+  overrides it). The base `GetItems` already snapshots `_quotes` into a local (no torn read); the dock's
+  `GetItems` was given the same snapshot. **Watchlist/Favorites are behaviorally unchanged**: their projection
+  is the default `Task.CompletedTask`, which never yields, so their handler still runs fully synchronously and
+  in order under `Switch` (the `ct` guard never skips a paint for them). **Decision (recorded as the escape
+  hatch, NOT built):** the *principled* de-drift fix is a shared **`PortfolioRollup`** observable (a single
+  resolved-portfolio value both dock + page observe, mirroring the per-symbol quote cache one level up) — but
+  the `Switch` fix already removes the wrong-value bug, residual dock↔page divergence is transient-only and
+  self-correcting (they share the quote cache + `CurrencyConverter`), and a shared rollup would pull
+  `PortfolioPage` off its `PricedListPage` base (re-adding chrome). Build clean (0 warnings). ✅
+  **Live-verified on-device** (Portfolio screen + dock band roll up correctly; Watchlist/Favorites unaffected).
+- **Done (previous): migrated the `PricedListPage` trio (`WatchlistPage`/`FavoritesPage`/`PortfolioPage`) to
   pure cache observers — the QUOTE-cache migration is now COMPLETE (every priced quote surface observes).**
   Migrating the shared base moved all three at once. The visible-lifecycle hook is now a single
   `Repository.ObserveQuotes(membership StateFlow)` subscription, and the per-surface fetch/poll machinery is

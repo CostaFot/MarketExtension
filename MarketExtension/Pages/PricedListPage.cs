@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
@@ -53,10 +55,17 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
             _itemsChanged += value;
             // Observe the cache-backed quote stream for this membership set while the page is visible. Replays
             // current quotes on subscribe (initial paint), re-projects on membership change, re-emits on price
-            // change. Fire-and-forget the async handler from the (synchronous) Subscribe lambda so a subclass
-            // can await an async projection (the Portfolio screen primes FX rates) before the repaint.
+            // change. Project each emission through the async handler with Switch (NOT fire-and-forget): a
+            // subclass can await an async projection (the Portfolio screen primes FX rates) before the repaint,
+            // and on a cold cache ObserveQuotes emits progressive partial snapshots (CombineLatest fills symbol
+            // by symbol), so two awaited handlers could otherwise race and a stale partial finish last. Switch
+            // cancels the prior projection's CancellationToken the instant a newer emission arrives, and
+            // OnQuotesChangedAsync honors it before painting — so only the latest emission ever reaches the page.
+            // (Watchlist/Favorites never await — their projection is a no-op — so this is a no-op for them too.)
             _subscriptions.Add(Repository.ObserveQuotes(_instruments)
-                .Subscribe(quotes => _ = OnQuotesChangedAsync(quotes)));
+                .Select(quotes => Observable.FromAsync(ct => OnQuotesChangedAsync(quotes, ct)))
+                .Switch()
+                .Subscribe());
             // Secondary flows: a change just re-renders (e.g. the Watchlist's ★ when favorites change).
             foreach (var trigger in RelistTriggers)
                 _subscriptions.Add(trigger.Subscribe(_ => RaiseItemsChanged(0)));
@@ -112,8 +121,10 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
     // Optional async work a subclass needs done BEFORE an emission is rendered — receives the raw quotes so it
     // can act on their currencies/symbols. The base awaits this, then projects + repaints once. Default:
     // nothing (Watchlist/Favorites). The Portfolio screen overrides it to fetch FX conversion rates so the
-    // converted values + total land in the same paint (see PortfolioDockPage for the same pattern).
-    protected virtual Task OnQuotesProjectingAsync(IReadOnlyList<DomainQuote> quotes) => Task.CompletedTask;
+    // converted values + total land in the same paint (see PortfolioDockPage for the same pattern). `ct` is
+    // cancelled when a newer emission supersedes this one (Switch) — forward it to any async call so a
+    // superseded fetch stops early.
+    protected virtual Task OnQuotesProjectingAsync(IReadOnlyList<DomainQuote> quotes, CancellationToken ct) => Task.CompletedTask;
 
     public override void UpdateSearchText(string oldSearch, string newSearch)
         => RaiseItemsChanged(0);
@@ -155,17 +166,24 @@ internal abstract partial class PricedListPage : DynamicListPage, INotifyItemsCh
     // A new cache emission for the observed set: project it for rendering and repaint. Runs on a pool thread
     // (ObserveQuotes delivers via ObserveOn — no Rx gate lock held), so RaiseItemsChanged's host call is safe
     // and awaiting an async projection here is what makes a subclass's derived data (e.g. the Portfolio screen's
-    // converted total) land in a single paint. Launched fire-and-forget from the Subscribe lambda (`_ = ...`),
-    // with its own try/catch so no exception escapes onto the pool thread.
-    private async Task OnQuotesChangedAsync(IReadOnlyList<DomainQuote> quotes)
+    // converted total) land in a single paint. Driven by Switch (see the subscribe): `ct` is cancelled the
+    // moment a newer emission supersedes this one, so it's checked before painting — a stale/partial snapshot
+    // bails instead of overwriting _quotes with a less-complete set. Own try/catch so no exception escapes onto
+    // the pool thread; OperationCanceledException is the expected supersede path and is swallowed quietly.
+    private async Task OnQuotesChangedAsync(IReadOnlyList<DomainQuote> quotes, CancellationToken ct)
     {
         try
         {
-            await OnQuotesProjectingAsync(quotes); // Portfolio primes native->preferred FX here; others no-op
+            await OnQuotesProjectingAsync(quotes, ct); // Portfolio primes native->preferred FX here; others no-op
+            if (ct.IsCancellationRequested) return; // a newer emission supersedes this one — don't paint a stale set
             _quotes = [.. quotes.Select(UiQuote.From)];
             // Spinner while the set is non-empty but its prices haven't filled the cache yet.
             IsLoading = _quotes.Length == 0 && _instruments.Value.Count > 0;
             RaiseItemsChanged(0);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer emission while projecting (e.g. the FX prime was cancelled) — expected, ignore.
         }
         catch (Exception ex)
         {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
@@ -95,8 +96,10 @@ internal sealed partial class PortfolioPage : PricedListPage
     // Before each emission is rendered, ensure the FX rates for every native currency now present are fetched
     // into the converter's cache, so the converted values + total are ready in the same paint. The base awaits
     // this then projects + repaints once (no RaiseItemsChanged / Task.Run here — already on a pool thread). The
-    // converter skips currencies it already has fresh, so a steady portfolio does no extra network.
-    protected override async Task OnQuotesProjectingAsync(IReadOnlyList<DomainQuote> quotes)
+    // converter skips currencies it already has fresh, so a steady portfolio does no extra network. `ct` is
+    // cancelled when a newer emission supersedes this one (Switch in the base), so it's forwarded to the prime
+    // to stop a superseded FX fetch early.
+    protected override async Task OnQuotesProjectingAsync(IReadOnlyList<DomainQuote> quotes, CancellationToken ct)
     {
         var preferred = MarketSettingsManager.Instance.PortfolioCurrency;
         var natives = quotes
@@ -106,7 +109,7 @@ internal sealed partial class PortfolioPage : PricedListPage
             .ToArray();
 
         if (natives.Length > 0)
-            await CurrencyConverter.Instance.PrimeAsync(preferred, natives);
+            await CurrencyConverter.Instance.PrimeAsync(preferred, natives, ct);
     }
 
     protected override IListItem[] EmptyState() =>
