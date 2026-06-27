@@ -443,7 +443,10 @@ internal sealed class MarketRepository
     // while Rx still holds a producer-side gate, cycling the gate/STA lock order → hang. ObserveOn hands each
     // emission to the scheduler, so surfaces are notified only AFTER the gate locks release. (Surfaces already
     // expect off-host-thread notifications — the toolkit marshals RaiseItemsChanged.)
-    public IObservable<IReadOnlyList<DomainNews>> ObserveNews(NewsCategory category)
+    // Emits null = "loading" (no fetch has landed yet) and a non-null (possibly empty) feed once one has — the
+    // null-vs-empty distinction comes straight from the cache (INewsCacheDataSource.Observe), so a surface
+    // renders loading/empty/items purely from the stream without asking the repository anything extra.
+    public IObservable<IReadOnlyList<DomainNews>?> ObserveNews(NewsCategory category)
         => ObserveNewsCore(category).ObserveOn(TaskPoolScheduler.Default);
 
     // Selection-aware: re-projects (Switch) whenever the chosen view changes. The selection is a NewsCategory?
@@ -452,7 +455,7 @@ internal sealed class MarketRepository
     // switching fetches the newly-selected view and drops the previous one's observation for free. ObserveOn
     // AFTER Switch so the surface is notified off the Switch gate too (Core is used here, not the public
     // overloads, so there's a single ObserveOn hop, after Switch).
-    public IObservable<IReadOnlyList<DomainNews>> ObserveNews(StateFlow<NewsCategory?> selection)
+    public IObservable<IReadOnlyList<DomainNews>?> ObserveNews(StateFlow<NewsCategory?> selection)
         => selection.AsObservable()
             .Select(sel => sel is { } category ? ObserveNewsCore(category) : ObserveAllNewsCore())
             .Switch()
@@ -464,8 +467,8 @@ internal sealed class MarketRepository
     // NewsEntity feed → DomainNews on each emission. On dispose: unregister. Observable.Create (not Defer) so
     // the dispose hook can unregister. The public overloads above add ObserveOn so the host is never called
     // under a producer-side gate (see that note).
-    private IObservable<IReadOnlyList<DomainNews>> ObserveNewsCore(NewsCategory category)
-        => Observable.Create<IReadOnlyList<DomainNews>>(observer =>
+    private IObservable<IReadOnlyList<DomainNews>?> ObserveNewsCore(NewsCategory category)
+        => Observable.Create<IReadOnlyList<DomainNews>?>(observer =>
         {
             RegisterNews(category);
             if (NeedsNewsFetchOnSubscribe(category))
@@ -478,10 +481,12 @@ internal sealed class MarketRepository
                 Log.Info("Repository", $"observe news subscribe: {category} fresh in cache — no fetch");
             }
 
-            // The cache's per-category Observe replays the current feed (empty until the first fetch) then
-            // pushes each change; storage → domain at the boundary.
+            // The cache's per-category Observe emits null until the first fetch (loading), then the feed
+            // (empty included); storage → domain at the boundary, the null "loading" sentinel passed through.
             var inner = _newsCacheSource.Observe(category)
-                .Select(entities => (IReadOnlyList<DomainNews>)entities.Select(e => e.ToDomainNews()).ToList());
+                .Select(entities => entities is null
+                    ? null
+                    : (IReadOnlyList<DomainNews>)entities.Select(e => e.ToDomainNews()).ToList());
 
             return new CompositeDisposable(
                 inner.Subscribe(observer),
@@ -494,14 +499,19 @@ internal sealed class MarketRepository
     // loop while it's the selected view), then flatten, dedupe by news Id (the same article can surface in more
     // than one category feed), and sort newest-first. Re-emits whenever any category's cached feed changes; the
     // selection overload adds ObserveOn so the host is never called under the CombineLatest gate.
-    private IObservable<IReadOnlyList<DomainNews>> ObserveAllNewsCore()
+    private IObservable<IReadOnlyList<DomainNews>?> ObserveAllNewsCore()
         => Observable.CombineLatest(NewsCategoryExtensions.All.Select(ObserveNewsCore))
-            .Select(feeds => (IReadOnlyList<DomainNews>)feeds
-                .SelectMany(feed => feed)
-                .GroupBy(item => item.Id)
-                .Select(group => group.First())
-                .OrderByDescending(item => item.Published)
-                .ToList());
+            // "All" is still loading until EVERY category has been fetched (any null feed) — only then is an
+            // empty merge truly "no headlines" rather than "some categories haven't landed". Once all are
+            // non-null, flatten, dedupe by id (an article can appear in >1 feed), and sort newest-first.
+            .Select(feeds => feeds.Any(feed => feed is null)
+                ? null
+                : (IReadOnlyList<DomainNews>)feeds
+                    .SelectMany(feed => feed!)
+                    .GroupBy(item => item.Id)
+                    .Select(group => group.First())
+                    .OrderByDescending(item => item.Published)
+                    .ToList());
 
     // RefreshNewsAsync with its exceptions swallowed + logged — for the fire-and-forget fetch + poll paths,
     // where a provider throw would otherwise become an unobserved task exception.
@@ -529,17 +539,6 @@ internal sealed class MarketRepository
 
         return TimeSpan.FromMilliseconds(Environment.TickCount64 - ticks) >= settings.NewsRefreshInterval;
     }
-
-    // Whether a news fetch has COMPLETED for the selection (a concrete category, or ALL categories for the
-    // "All" view, selection == null). Lets a surface tell "still loading" (no attempt yet) from
-    // "loaded-but-empty" (fetched, nothing came back) — the news cache emits an empty feed in BOTH cases, so
-    // the emission alone can't disambiguate. Reads the same per-category last-fetch stamps
-    // NeedsNewsFetchOnSubscribe uses (WriteThroughNews stamps them after every fetch, including an empty /
-    // kept-last-good one); _lastNewsFetchTicks is a ConcurrentDictionary, so ContainsKey is thread-safe.
-    public bool HasAttemptedNewsFetch(NewsCategory? selection) =>
-        selection is { } category
-            ? _lastNewsFetchTicks.ContainsKey(category)
-            : NewsCategoryExtensions.All.All(_lastNewsFetchTicks.ContainsKey);
 
     // One news poll tick: refresh every currently-observed category (one /news call each — news isn't
     // batchable across categories like quotes are across symbols). Nothing observed → nothing to do.

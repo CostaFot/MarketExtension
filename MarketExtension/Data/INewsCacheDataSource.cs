@@ -24,12 +24,14 @@ internal interface INewsCacheDataSource
     // Synchronous snapshot read.
     IReadOnlyList<NewsEntity> Get(NewsCategory category);
 
-    // Per-category observable feed: replays the current value (empty until the first fetch lands) on
-    // subscribe, then pushes each change. Distinct-until-changed (an identical re-fetch does NOT re-emit —
-    // Upsert skips a value-equal write at the source). This is the seam a surface waits on for the first
-    // fetch: subscribe → empty (render a spinner/placeholder) → the feed when Upsert lands. A Clear()
-    // re-emits empty while keeping the subscription live.
-    IObservable<IReadOnlyList<NewsEntity>> Observe(NewsCategory category);
+    // Per-category observable feed, mirroring the quote cache's QuoteEntity? convention: emits NULL until the
+    // first fetch lands, then the feed — where a NON-NULL but EMPTY list means "a fetch completed and returned
+    // nothing", distinct from the null "not fetched yet". Then each subsequent change; distinct-until-changed
+    // (an identical re-fetch does NOT re-emit — Upsert skips a value-equal write at the source). A Clear()
+    // re-emits null while keeping the subscription live. This null-vs-empty distinction is the whole point:
+    // it lets a surface tell "loading" (null) from "loaded-but-empty" (empty list) PURELY from the stream, so
+    // no surface has to ask the repository a separate "has it fetched?" question.
+    IObservable<IReadOnlyList<NewsEntity>?> Observe(NewsCategory category);
 
     // Write a freshly fetched feed through to the cache for a category. keepLastGood:true (the default)
     // drops a transient EMPTY result (e.g. a network error or rate-limit mapped to no items) when a

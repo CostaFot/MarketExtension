@@ -122,7 +122,7 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Models/UiNews.cs` | **Ui projection** of `DomainNews` (the ONLY place news formatting lives): `FormatSubtitle()` ("CNBC · 2h ago"), `FormatRelativeTime()`, `Matches(query)`. Toolkit-free — the page builds `IconInfo`/`Details` from these strings (like `UiQuote`). |
 | `Data/NewsEntity.cs` | The news cache's **`*Entity` storage model** — a structural mirror of `DomainNews` BELOW the repository; the repo maps `DomainNews ⇄ NewsEntity` at its boundary (`From`/`ToDomainNews`), so the entity never escapes the data source. |
 | `Data/INewsCacheDataSource.cs` | The **shared observable news cache** abstraction — the news analog of `IQuoteCacheDataSource`, but keyed by **`NewsCategory`** with a **LIST** of `NewsEntity` per category (news is inherently a list, vs one quote per symbol). `Get`/`Observe`/`Upsert(keepLastGood)`/`Clear`. **keep-last-good here = a transient EMPTY result won't wipe a non-empty cached feed.** |
-| `Data/InMemoryNewsCacheDataSource.cs` | The live in-memory impl — DynamicData `SourceCache<NewsFeedEntity, NewsCategory>` (a **private** per-category list wrapper that never crosses the interface). Atomic `Edit` for keep-last-good; `Observe` maps Remove→empty; an identical refetch is deduped via `SequenceEqual`. |
+| `Data/InMemoryNewsCacheDataSource.cs` | The live in-memory impl — DynamicData `SourceCache<NewsFeedEntity, NewsCategory>` (a **private** per-category list wrapper that never crosses the interface). Atomic `Edit` for keep-last-good; `Observe` emits **`null` until the first fetch** (and maps Remove/Clear→`null`) — mirroring the quote cache's `QuoteEntity?` so a non-null EMPTY feed reads as "loaded-but-empty", distinct from the null "loading"; an identical refetch is deduped via `SequenceEqual`. |
 | `Pages/NewsPage.cs` | The **Markets → News** screen (a hub row): a `DynamicListPage` **pure observer** of `MarketRepository.ObserveNews(selection flow)`. Category dropdown (toolkit `Filters`): **"All"** (merged, default) + General/Forex/Crypto/Mergers; Enter opens the article (`OpenUrlCommand`); summary in the `Details` pane; typed search filters headlines client-side. See "Market News (feed)". |
 
 **To add a provider** (e.g. forex): implement `IMarketDataProvider` (`Supports`, `GetQuotesAsync`,
@@ -248,10 +248,13 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   unconditionally `true`, so with no Finnhub key `/news` is still attempted and just returns `[]` → the cold news
   cache stays empty → `NewsPage` treated empty as "loading" forever. Fixed with (a) a **Finnhub-gated
   `ApiKeyHint.NewsStatusRow()`** — gates on `HasFinnhubApiKey`, NOT the broader `HasAnyApiKey` (a Twelve-Data-only
-  key can't serve news) — that renders a "News needs a Finnhub key" row instead of spinning, and (b)
-  **`MarketRepository.HasAttemptedNewsFetch(NewsCategory?)`** (reads the existing `_lastNewsFetchTicks` stamps;
-  `null` = the merged "All" view = all four categories attempted) so `NewsPage.RecomputeLoading` disambiguates
-  "loading" (no fetch yet) from "loaded-but-empty" (fetch done → an explicit `News_Empty_*` row). **#4:**
+  key can't serve news) — that renders a "News needs a Finnhub key" row instead of spinning, and (b) making the
+  news cache/observe emit **`null` until the first fetch lands** (mirroring the quote cache's `QuoteEntity?`), so a
+  non-null-but-EMPTY feed reads as "loaded-but-empty" and `NewsPage` derives loading (`null`) / empty
+  (`News_Empty_*` row) / items purely from the stream — no side query into the repository (an earlier draft added
+  a `HasAttemptedNewsFetch` repo method for this; pushing the distinction into the stream is cleaner and matches
+  how the quote cache already models not-yet-loaded). For "All", the merge emits `null` until every category has
+  been fetched, so an empty merge is genuinely "no headlines". **#4:**
   `NewsPage.GetItems` now inserts `RateLimitHint.Row()` at the top and subscribes to
   `RateLimitSignal.Instance.IsRateLimited` (replay:false) to re-render on throttle start/stop, like the priced
   pages + Search. **#5:** glyph check done (verified; the stale "verify/adjust glyph" comment was removed). New
@@ -1388,9 +1391,10 @@ client-side. New UI strings are in the resx (all 7 locales).
 2. **No-key / empty-state UX — ✅ DONE.** With no Finnhub key, `/news` returns `[]` (Finnhub's `SupportsNews`
    is unconditionally true, so it's still attempted) → the cold cache stayed empty and the page span forever.
    Fixed: a **Finnhub-gated `ApiKeyHint.NewsStatusRow()`** (gates on `HasFinnhubApiKey`, not `HasAnyApiKey`)
-   shows a "News needs a Finnhub key" row instead of spinning, and **`MarketRepository.HasAttemptedNewsFetch(
-   NewsCategory?)`** lets `NewsPage.RecomputeLoading` tell "loading" (no fetch attempt) from "loaded-but-empty"
-   (fetch done → an explicit `News_Empty_*` row). Demo mode still shows the blue "sample data" row.
+   shows a "News needs a Finnhub key" row instead of spinning; and the news cache/observe now emits **`null`
+   until the first fetch** (like the quote cache's `QuoteEntity?`), so `NewsPage` tells "loading" (`null`) from
+   "loaded-but-empty" (a non-null empty feed → an explicit `News_Empty_*` row) straight from the stream — no
+   side query into the repository. Demo mode still shows the blue "sample data" row.
 3. **News dock band** — the repo already exposes the fixed **`ObserveNews(NewsCategory)`** for exactly this: a
    dock band showing one category's latest headline(s), the "screen + dock in sync" payoff. Model it on
    `FavoritesDockPage` (pure observer, `INotifyItemsChanged` visible-lifecycle, its own non-empty `Command.Id`).

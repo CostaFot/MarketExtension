@@ -102,13 +102,10 @@ internal sealed partial class NewsPage : DynamicListPage, INotifyItemsChanged
     private static bool NewsUnavailable =>
         !MarketSettingsManager.Instance.DemoMode && !MarketSettingsManager.Instance.HasFinnhubApiKey;
 
-    // The single source of truth for the spinner. Loading only when news IS serviceable AND we're genuinely
-    // still waiting: no emission yet, or an empty feed whose fetch for the current selection hasn't completed.
-    // No-key (covered by the status row) and loaded-but-empty (fetch done, nothing came back) are NOT loading.
-    private void RecomputeLoading() =>
-        IsLoading = !NewsUnavailable
-                    && (_news is null
-                        || (_news.Length == 0 && !_repository.HasAttemptedNewsFetch(_category.Value)));
+    // The single source of truth for the spinner. _news is null ONLY while loading: the cache-backed stream
+    // emits null until a fetch lands, then a (possibly empty) feed — so null = loading, empty = loaded-but-
+    // empty (see ObserveNews). No-key (covered by the status row) is also not loading.
+    private void RecomputeLoading() => IsLoading = !NewsUnavailable && _news is null;
 
     public override IListItem[] GetItems()
     {
@@ -137,10 +134,9 @@ internal sealed partial class NewsPage : DynamicListPage, INotifyItemsChanged
 
         if (news.Length == 0)
         {
-            // Empty feed: "still loading" vs "loaded-but-empty" (the cache emits empty for both). Only show the
-            // empty-state row once a fetch for this selection has actually completed; else leave the spinner.
-            if (_repository.HasAttemptedNewsFetch(_category.Value))
-                items.Add(EmptyStateRow());
+            // A non-null but empty feed is unambiguously "loaded-but-empty" — the loading case is null and was
+            // handled above (it returned with just the spinner). So show the empty-state row.
+            items.Add(EmptyStateRow());
         }
         else if (rows.Length == 0) // a typed query matched nothing
         {
@@ -195,10 +191,10 @@ internal sealed partial class NewsPage : DynamicListPage, INotifyItemsChanged
 
     // A new cache emission for the selected category: project to UiNews and repaint. Runs on a pool thread
     // (ObserveOn) — no Rx gate lock is held, so RaiseItemsChanged's host call is safe.
-    private void OnNewsChanged(IReadOnlyList<DomainNews> news)
+    private void OnNewsChanged(IReadOnlyList<DomainNews>? news)
     {
-        _news = [.. news.Select(UiNews.From)];
-        RecomputeLoading(); // empty == loading only until the fetch completes; no-key never loads (see RecomputeLoading)
+        _news = news is null ? null : [.. news.Select(UiNews.From)]; // null = loading; empty = loaded-but-empty
+        RecomputeLoading();
         RaiseItemsChanged(0);
     }
 

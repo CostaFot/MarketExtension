@@ -30,9 +30,9 @@ internal sealed class InMemoryNewsCacheDataSource : INewsCacheDataSource
     // One entry per category; only ever the four NewsCategory values, so no eviction is needed.
     private readonly SourceCache<NewsFeedEntity, NewsCategory> _cache = new(f => f.Category);
 
-    // A single shared empty instance returned for an absent/cleared category, so the "no feed yet" value has
-    // a stable reference — Get(), the Remove branch and StartWith all hand back the same object, which lets
-    // DistinctUntilChanged dedupe the empty case by reference.
+    // A shared empty instance returned by Get() for an absent/cleared category — a stable "no feed" snapshot
+    // for the count-based staleness checks (NeedsNewsFetchOnSubscribe). Observe() uses NULL for that case
+    // instead (see GetOrNull), so it can distinguish "not fetched" from "fetched-but-empty".
     private static readonly IReadOnlyList<NewsEntity> Empty = [];
 
     public IReadOnlyList<NewsEntity> Get(NewsCategory category)
@@ -41,19 +41,28 @@ internal sealed class InMemoryNewsCacheDataSource : INewsCacheDataSource
         return found.HasValue ? found.Value.Items : Empty;
     }
 
-    public IObservable<IReadOnlyList<NewsEntity>> Observe(NewsCategory category)
+    public IObservable<IReadOnlyList<NewsEntity>?> Observe(NewsCategory category)
     {
         // Defer so the StartWith snapshot is read at SUBSCRIBE time, not when Observe is called. Connect()
         // replays the cache's current state to each new subscriber, so Watch(category) emits the current feed
-        // on subscribe when the key is present; map a Remove (Clear) back to the empty feed; StartWith seeds
-        // the empty/absent case (and is deduped against Watch's replay by DistinctUntilChanged — they hand
-        // back the same Items reference). Net contract: empty until the first Upsert, then each distinct
-        // feed, empty again on Clear — subscription stays live.
+        // on subscribe when the key is present; a Remove (Clear) or an ABSENT key maps to NULL (= not fetched
+        // yet / cleared — the "loading" state), which a present-but-EMPTY feed does not. StartWith seeds the
+        // absent case with null (deduped against Watch's replay by DistinctUntilChanged — present feeds hand
+        // back the same Items reference). Net contract: null until the first Upsert, then each distinct feed
+        // (empty included), null again on Clear — subscription stays live.
         return Observable.Defer(() => _cache.Connect()
             .Watch(category)
-            .Select(change => change.Reason == ChangeReason.Remove ? Empty : change.Current.Items)
-            .StartWith(Get(category))
+            .Select(change => change.Reason == ChangeReason.Remove ? null : (IReadOnlyList<NewsEntity>?)change.Current.Items)
+            .StartWith(GetOrNull(category))
             .DistinctUntilChanged());
+    }
+
+    // The current cached feed, or NULL when the category was never fetched / has been cleared (absent key) —
+    // the snapshot Observe seeds with. Get() returns an empty list for that case instead, for count checks.
+    private IReadOnlyList<NewsEntity>? GetOrNull(NewsCategory category)
+    {
+        var found = _cache.Lookup(category);
+        return found.HasValue ? found.Value.Items : null;
     }
 
     public void Upsert(NewsCategory category, IReadOnlyList<NewsEntity> news, bool keepLastGood = true)
