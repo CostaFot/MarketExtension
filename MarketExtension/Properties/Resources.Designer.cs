@@ -1069,6 +1069,24 @@ namespace MarketExtension.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Seconds each set of headlines shows before the dock news ticker advances (default 60)..
+        /// </summary>
+        public static string Settings_NewsTicker_Desc {
+            get {
+                return ResourceManager.GetString("Settings_NewsTicker_Desc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to News ticker speed (seconds).
+        /// </summary>
+        public static string Settings_NewsTicker_Label {
+            get {
+                return ResourceManager.GetString("Settings_NewsTicker_Label", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Currency for portfolio totals. Other holdings are converted into it..
         /// </summary>
         public static string Settings_PortfolioCurrency_Desc {

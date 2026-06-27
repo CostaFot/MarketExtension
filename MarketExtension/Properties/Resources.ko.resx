@@ -381,6 +381,12 @@
   <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
     <value>뉴스 새로 고침 간격(분 단위, 0 = 끔).</value>
   </data>
+  <data name="Settings_NewsTicker_Label" xml:space="preserve">
+    <value>뉴스 티커 속도(초)</value>
+  </data>
+  <data name="Settings_NewsTicker_Desc" xml:space="preserve">
+    <value>독 뉴스 티커가 다음으로 넘어가기 전에 각 헤드라인 묶음이 표시되는 시간(초, 기본값 60).</value>
+  </data>
   <data name="Command_MarketsNews" xml:space="preserve">
     <value>마켓 - 뉴스</value>
   </data>

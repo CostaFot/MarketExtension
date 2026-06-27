@@ -435,6 +435,12 @@
   <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
     <value>News refresh interval in minutes (0 = off).</value>
   </data>
+  <data name="Settings_NewsTicker_Label" xml:space="preserve">
+    <value>News ticker speed (seconds)</value>
+  </data>
+  <data name="Settings_NewsTicker_Desc" xml:space="preserve">
+    <value>Seconds each set of headlines shows before the dock news ticker advances (default 60).</value>
+  </data>
   <data name="Command_MarketsNews" xml:space="preserve">
     <value>Markets - News</value>
   </data>

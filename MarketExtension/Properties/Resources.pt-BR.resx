@@ -380,6 +380,12 @@
   <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
     <value>Intervalo de atualização de notícias em minutos (0 = desativado).</value>
   </data>
+  <data name="Settings_NewsTicker_Label" xml:space="preserve">
+    <value>Velocidade do ticker de notícias (segundos)</value>
+  </data>
+  <data name="Settings_NewsTicker_Desc" xml:space="preserve">
+    <value>Segundos que cada grupo de manchetes é exibido antes de o ticker de notícias avançar (padrão 60).</value>
+  </data>
   <data name="Command_MarketsNews" xml:space="preserve">
     <value>Mercados - Notícias</value>
   </data>

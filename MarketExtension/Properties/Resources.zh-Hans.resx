@@ -435,6 +435,12 @@
   <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
     <value>新闻刷新间隔（分钟，0 = 关闭）。</value>
   </data>
+  <data name="Settings_NewsTicker_Label" xml:space="preserve">
+    <value>新闻滚动条速度（秒）</value>
+  </data>
+  <data name="Settings_NewsTicker_Desc" xml:space="preserve">
+    <value>停靠栏新闻滚动条切换到下一组标题前每组显示的秒数（默认 60）。</value>
+  </data>
   <data name="Command_MarketsNews" xml:space="preserve">
     <value>市场 - 新闻</value>
   </data>

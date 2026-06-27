@@ -380,6 +380,12 @@
   <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
     <value>समाचार रिफ़्रेश अंतराल मिनटों में (0 = बंद)।</value>
   </data>
+  <data name="Settings_NewsTicker_Label" xml:space="preserve">
+    <value>समाचार टिकर गति (सेकंड)</value>
+  </data>
+  <data name="Settings_NewsTicker_Desc" xml:space="preserve">
+    <value>डॉक समाचार टिकर के आगे बढ़ने से पहले हर हेडलाइन समूह कितने सेकंड दिखता है (डिफ़ॉल्ट 60)।</value>
+  </data>
   <data name="Command_MarketsNews" xml:space="preserve">
     <value>मार्केट - समाचार</value>
   </data>

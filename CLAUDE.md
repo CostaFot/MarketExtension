@@ -124,6 +124,7 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | `Data/INewsCacheDataSource.cs` | The **shared observable news cache** abstraction — the news analog of `IQuoteCacheDataSource`, but keyed by **`NewsCategory`** with a **LIST** of `NewsEntity` per category (news is inherently a list, vs one quote per symbol). `Get`/`Observe`/`Upsert(keepLastGood)`/`Clear`. **keep-last-good here = a transient EMPTY result won't wipe a non-empty cached feed.** |
 | `Data/InMemoryNewsCacheDataSource.cs` | The live in-memory impl — DynamicData `SourceCache<NewsFeedEntity, NewsCategory>` (a **private** per-category list wrapper that never crosses the interface). Atomic `Edit` for keep-last-good; `Observe` emits **`null` until the first fetch** (and maps Remove/Clear→`null`) — mirroring the quote cache's `QuoteEntity?` so a non-null EMPTY feed reads as "loaded-but-empty", distinct from the null "loading"; an identical refetch is deduped via `SequenceEqual`. |
 | `Pages/NewsPage.cs` | The **Markets → News** screen (a hub row): a `DynamicListPage` **pure observer** of `MarketRepository.ObserveNews(selection flow)`. Category dropdown (toolkit `Filters`): **"All"** (merged, default) + General/Forex/Crypto/Mergers; Enter opens the article (`OpenUrlCommand`); summary in the `Details` pane; typed search filters headlines client-side. See "Market News (feed)". |
+| `Pages/NewsDockPage.cs` | The **news dock band** — a CNBC-style scrolling-marquee news ticker. A `ListPage` **pure observer** of `MarketRepository.ObserveNews(null = "All")`, rendering a **row of 4 headline buttons** (each opens its own article via `OpenUrlCommand`) that **cycles** the visible window through the feed one headline per tick. A single button can't smoothly crawl — the host caps each dock button's Title at `MaxWidth=100`≈15 chars (`CharacterEllipsis`/`NoWrap`; see PowerToys `DockItemControl.xaml`) and won't pixel-scroll a Title — so it's a row of buttons, not one scrolling line. Cycle cadence = the `NewsTickerCycleInterval` setting (default 60 s), re-read **live each tick** via a dedicated per-band `Observable.Generate` (NOT `PollTicker`). Third `CommandItem` in `GetDockBands()` (`Id = com.costafotiadis.market.dock.news`). See "Market News (feed)" + the "Done (latest)" status bullet. |
 
 **To add a provider** (e.g. forex): implement `IMarketDataProvider` (`Supports`, `GetQuotesAsync`,
 and `SearchAsync` — return `[]` if it can't search; optionally **override `GetCandlesAsync`** to serve
@@ -243,7 +244,29 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 
 ## Current Status / Next Steps
 
-- **Done (latest): News feature polish — empty-state / no-key UX + rate-limit banner (Left-to-do #2, #4, #5).**
+- **Done (latest): News dock band — a CNBC-style scrolling news ticker (closes News Left-to-do #3). ✅ Live-verified on-device.**
+  A third Dock band (`Pages/NewsDockPage.cs`) next to the favorites + portfolio bands: a market-news ticker that
+  scrolls headlines like a TV news crawl. A **pure observer** of the shared news cache like the other dock bands —
+  it subscribes to `MarketRepository.ObserveNews(MutableStateFlow<NewsCategory?>(null))` (the merged **"All"** feed)
+  while visible and renders what it emits; no fetch/poll itself. **Rendering: a ROW of headline buttons, NOT one
+  scrolling Title** — the host caps each dock button's Title at **`MaxWidth=100` DIPs** (Segoe UI 12 → ~15 chars,
+  `CharacterEllipsis`, `NoWrap`; see PowerToys `DockItemControl.xaml`), and a Title is static left-aligned text the
+  host does **not** pixel-scroll (a char-step crawl just "pops" jerkily — confirmed the wobble is unfixable on this
+  surface; two earlier single-button approaches — a 60-char then a 200-char overflow window — both wobbled). A
+  dock-band `ListPage` renders **each `GetItems()` item as its own ≤100px button** (how the favorites band shows
+  several tickers), so a row of **4** headline buttons is a wider, stable, jitter-free strip; each button opens
+  **its own** article (`OpenUrlCommand`, stable per-article `Id`), and we "go through the feed" by advancing the
+  visible window one headline each cycle (`offset+1`, wrapping). **Cycle speed is a new setting** —
+  `News ticker speed (seconds)` (`newsTickerSeconds`, surfaced as `NewsTickerCycleSeconds`/`NewsTickerCycleInterval`,
+  **default 60 s = 1 min**; in seconds, not minutes, for finer ticker control) — read **live each tick** by a
+  dedicated per-band self-rescheduling `Observable.Generate` on `TaskPoolScheduler` (PollTicker's live-settings
+  trick; NOT PollTicker itself — that's data-refresh, this is UI animation), so a speed change applies on the next
+  advance with no reload. Both the news subscription and the cycle timer are held in `_subscriptions` and disposed
+  on hide (no orphaned repaint loop). Registered as a third `CommandItem` in `GetDockBands()`
+  (`Id = com.costafotiadis.market.dock.news`). `Settings_NewsTicker_*` resx strings across all 8 locales + the
+  Designer; the `ArticleGlyph` fallback icon is built from `((char)0xE9F9)` (the code point — no literal glyph or
+  `\u` escape for the Write tool to mangle). Build clean (0 warnings). ✅ **Live-verified on-device.**
+- **Done (previous): News feature polish — empty-state / no-key UX + rate-limit banner (Left-to-do #2, #4, #5).**
   Closed three of the news "Left to do" items. **#2 (the perpetual-spinner bug):** Finnhub's `SupportsNews` is
   unconditionally `true`, so with no Finnhub key `/news` is still attempted and just returns `[]` → the cold news
   cache stays empty → `NewsPage` treated empty as "loading" forever. Fixed with (a) a **Finnhub-gated
@@ -259,8 +282,8 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   `RateLimitSignal.Instance.IsRateLimited` (replay:false) to re-render on throttle start/stop, like the priced
   pages + Search. **#5:** glyph check done (verified; the stale "verify/adjust glyph" comment was removed). New
   resx strings (`Status_NewsNoKey_*`, `News_Empty_*`) across all 8 locales + the Designer. Build clean (0
-  warnings). ⚠️ **Still NOT live-verified on-device** (#1). Remaining open: #1 live-verify, #3 news dock band,
-  #6 minId paging, #7 multi-provider, #8 native translation review.
+  warnings). ✅ The news path is now **live-verified on-device** (#1 — confirmed via the news dock band rendering
+  live headlines). Remaining open: #6 minId paging, #7 multi-provider, #8 native translation review.
 - **Done (previous): Market News feature (MVP — built end-to-end, NOT yet live-verified).** A **Markets → News**
   hub screen lists market-news headlines (each row opens the source article in the browser), built behind the
   SAME layered seams as quotes with a parallel cache + repository-orchestration story. The pieces: a Finnhub
@@ -1371,10 +1394,14 @@ exposing **two** independent, refcounted tickers: `Subscribe` (price, `RefreshIn
 (news, `NewsRefreshInterval`) — so news polls on its own gentler clock and only while a news surface is active.
 The guard, off-recheck idle, and `Publish().RefCount()` lifecycle are shared.
 
-**The setting.** A **separate** `News refresh interval (minutes)` setting
+**The settings.** A **separate** `News refresh interval (minutes)` setting
 (`MarketSettingsManager.NewsRefreshMinutes` / `NewsRefreshInterval` / `NewsAutoRefreshEnabled`, default **30**,
 0 = off) — deliberately NOT reusing the price `RefreshInterval` (headlines change less often). Read pull-style by
-the news ticker each iteration.
+the news ticker each iteration. **Plus** the news dock band's **`News ticker speed (seconds)`** setting
+(`NewsTickerCycleSeconds` / `NewsTickerCycleInterval`, default **60 s**) — the marquee CYCLE cadence (how often the
+ticker advances to the next headlines), distinct from the network refresh interval above and in **seconds** (not
+minutes) for finer ticker control; re-read live each tick by `NewsDockPage`'s `Observable.Generate`. See the
+"Done (latest)" dock-band status bullet.
 
 **The screen** (`NewsPage`). A `DynamicListPage` **pure observer** (like the dock bands): while visible it
 subscribes to `ObserveNews(_category)` and renders what it emits — no fetch/poll itself. A toolkit **`Filters`
@@ -1395,9 +1422,15 @@ client-side. New UI strings are in the resx (all 7 locales).
    until the first fetch** (like the quote cache's `QuoteEntity?`), so `NewsPage` tells "loading" (`null`) from
    "loaded-but-empty" (a non-null empty feed → an explicit `News_Empty_*` row) straight from the stream — no
    side query into the repository. Demo mode still shows the blue "sample data" row.
-3. **News dock band** — the repo already exposes the fixed **`ObserveNews(NewsCategory)`** for exactly this: a
-   dock band showing one category's latest headline(s), the "screen + dock in sync" payoff. Model it on
-   `FavoritesDockPage` (pure observer, `INotifyItemsChanged` visible-lifecycle, its own non-empty `Command.Id`).
+3. **News dock band — ✅ DONE (live-verified).** `Pages/NewsDockPage.cs`: a CNBC-style scrolling news ticker, a
+   pure observer of `ObserveNews(null = the merged "All" feed)` (modeled on the dock-band pure-observer pattern,
+   `INotifyItemsChanged` visible-lifecycle, `Command.Id = com.costafotiadis.market.dock.news`). It renders a
+   **row of 4 headline buttons** (each opens its own article) and **cycles** the visible window through the feed
+   one headline per tick — NOT a single scrolling Title, because the host caps each dock button at
+   `MaxWidth=100`≈15 chars (`DockItemControl.xaml`) and won't pixel-scroll a Title (a char-step crawl just "pops").
+   Cycle speed is the configurable `News ticker speed (seconds)` setting (default 60 s), re-read live each tick by
+   a dedicated per-band `Observable.Generate` (not `PollTicker`). Used the StateFlow `null`-=-All overload rather
+   than the fixed single-category `ObserveNews(NewsCategory)` — a ticker shows everything, not one category.
 4. **Rate-limit banner on the news page — ✅ DONE.** `NewsPage.GetItems` inserts `RateLimitHint.Row()` at the
    top (index 0) and subscribes to `RateLimitSignal.Instance.IsRateLimited` (replay:false) to re-render when
    throttling starts/stops, exactly like the priced pages + Search.

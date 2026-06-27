@@ -34,6 +34,11 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     // its own clock so it isn't tied to how aggressively a user refreshes prices.
     private const int DefaultNewsRefreshMinutes = 30;
 
+    // Default dock news-ticker cycle: how long each set of headlines shows before the ticker advances to the
+    // next. In SECONDS (not minutes like the refresh intervals above) since a ticker wants finer control than
+    // whole minutes; 60 = advance once a minute. Used when the field is blank/unparseable.
+    private const int DefaultNewsTickerSeconds = 60;
+
     private readonly TextSetting _twelveDataApiKey = new("twelveDataApiKey", string.Empty)
     {
         Label = Resources.Settings_TwelveData_Label,
@@ -64,6 +69,17 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
         Label = Resources.Settings_NewsRefresh_Label,
         Description = Resources.Settings_NewsRefresh_Desc,
         Placeholder = DefaultNewsRefreshMinutes.ToString(CultureInfo.InvariantCulture),
+    };
+
+    // The dock news-ticker cycle speed (seconds) — a local UI-animation cadence, independent of the network
+    // refresh intervals. NewsDockPage's cycle timer re-reads it each tick, so a change applies on the next
+    // advance without a reload.
+    private readonly TextSetting _newsTickerSeconds = new(
+        "newsTickerSeconds", DefaultNewsTickerSeconds.ToString(CultureInfo.InvariantCulture))
+    {
+        Label = Resources.Settings_NewsTicker_Label,
+        Description = Resources.Settings_NewsTicker_Desc,
+        Placeholder = DefaultNewsTickerSeconds.ToString(CultureInfo.InvariantCulture),
     };
 
     private readonly ToggleSetting _showRateLimitErrors = new("showRateLimitErrors", true)
@@ -170,6 +186,18 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
     // The news cadence as a TimeSpan for the news poll loop.
     public TimeSpan NewsRefreshInterval => TimeSpan.FromMinutes(NewsRefreshMinutes);
 
+    // The dock news-ticker cycle in seconds — how long each set of headlines shows before the row advances. In
+    // seconds (a ticker wants finer granularity than the minute-based refresh intervals); bad/zero/negative
+    // input falls back to the default, and the minimum of 1 keeps the cycle timer off a zero/negative interval.
+    public int NewsTickerCycleSeconds =>
+        int.TryParse(_newsTickerSeconds.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) && v >= 1
+            ? v
+            : DefaultNewsTickerSeconds;
+
+    // The ticker cycle as a TimeSpan, read live by NewsDockPage's self-rescheduling cycle timer each tick (so a
+    // speed change applies on the next advance, no reload).
+    public TimeSpan NewsTickerCycleInterval => TimeSpan.FromSeconds(NewsTickerCycleSeconds);
+
     // Whether the rate-limited banner (RateLimitHint) shows while a provider is throttling requests.
     // Default on; the user can hide it in Settings if they'd rather not see it. Read pull-style each render,
     // so a toggle applies the next time a priced page re-renders (e.g. on navigating back to it).
@@ -202,6 +230,7 @@ internal sealed class MarketSettingsManager : JsonSettingsManager
         Settings.Add(_finnhubApiKey);
         Settings.Add(_refreshMinutes);
         Settings.Add(_newsRefreshMinutes);
+        Settings.Add(_newsTickerSeconds);
         Settings.Add(_showRateLimitErrors);
         Settings.Add(_demoMode);
         Settings.Add(_portfolioCurrency);

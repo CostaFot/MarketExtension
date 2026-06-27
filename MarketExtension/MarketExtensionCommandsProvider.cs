@@ -51,6 +51,7 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
         _dockBands = [
             new CommandItem(new FavoritesDockPage(_repository)) { Title = Resources.Command_Markets },
             new CommandItem(new PortfolioDockPage(_repository)) { Title = Resources.Command_MarketsPortfolio },
+            new CommandItem(new NewsDockPage(_repository)) { Title = Resources.Command_MarketsNews },
         ];
     }
 

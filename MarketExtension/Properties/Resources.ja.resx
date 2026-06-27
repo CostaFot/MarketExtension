@@ -382,6 +382,12 @@
   <data name="Settings_NewsRefresh_Desc" xml:space="preserve">
     <value>ニュースの更新間隔（分単位、0 = オフ）。</value>
   </data>
+  <data name="Settings_NewsTicker_Label" xml:space="preserve">
+    <value>ニュースティッカーの速度（秒）</value>
+  </data>
+  <data name="Settings_NewsTicker_Desc" xml:space="preserve">
+    <value>ドックのニュースティッカーが次に進むまでに各見出しグループが表示される秒数（既定値 60）。</value>
+  </data>
   <data name="Command_MarketsNews" xml:space="preserve">
     <value>マーケット - ニュース</value>
   </data>
