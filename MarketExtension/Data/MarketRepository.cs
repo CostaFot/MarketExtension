@@ -204,7 +204,7 @@ internal sealed class MarketRepository
             IObservable<IReadOnlyList<DomainQuote>> inner = instruments.Count == 0
                 ? Observable.Return<IReadOnlyList<DomainQuote>>([])
                 : Observable
-                    .CombineLatest(instruments.Select(i => _cacheSource.Observe(i.Symbol).AsObservable()))
+                    .CombineLatest(instruments.Select(i => _cacheSource.Observe(i.Symbol)))
                     // storage → domain at the boundary; OfType drops the null (not-yet-loaded) entries.
                     .Select(entities => (IReadOnlyList<DomainQuote>)entities
                         .OfType<QuoteEntity>().Select(e => e.ToDomainQuote()).ToList());

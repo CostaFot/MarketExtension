@@ -84,8 +84,8 @@ the same three layers and the same provider seam — see the "Symbol detail + li
 | File | Role |
 |---|---|
 | `Data/MarketRepository.cs` | **The coordinator the UI depends on**, and now the **orchestration layer** that owns the shared quote cache + polling. Routes each `DomainInstrument` to the first `IMarketDataProvider` whose `Supports(AssetCategory)` matches, fans out concurrently, merges into one order-preserving list. Also `SearchAsync(query)` and `GetCandlesAsync(instrument, range)`. No provider for a category → `IsValid:false` quote / invalid candle series. **`ActiveProviders()`**: any `IsExclusive` provider (the Demo mock) → ALL operations route to it alone. **Owns one `IQuoteCacheDataSource`** (in-memory by default; an injectable ctor overload `MarketRepository(IQuoteCacheDataSource, providers[])` for a future DB-backed cache): `RefreshAsync` **writes through** every fetch (so the cache fills with NO surface changes), and **`ObserveQuotes(...)`** returns a cache-backed `IObservable<IReadOnlyList<DomainQuote>>` — for a fixed instrument list OR a membership `StateFlow` (Rx `CombineLatest` + `Switch`), **delivered via `ObserveOn(TaskPoolScheduler)`** so a surface's `RaiseItemsChanged` is never invoked while Rx holds the combiner gate lock (**the deadlock fix** — see the orchestration section) — so surfaces OBSERVE instead of fetching, and two surfaces on the same symbol can't drift. **Owns the single poll loop:** one process-lifetime `PollTicker` subscription whose `RefreshObserved` re-fetches the union of currently-OBSERVED instruments each tick — "observed" tracked by a refcounted registry that `ObserveQuotes` Register/Unregisters on subscribe/dispose (so a hidden surface stops being polled). The demo-flip handler `Clear()`s the cache then refills the observed set from the new source. **All priced quote surfaces (the `PricedListPage` trio + both dock bands) now OBSERVE through here**; only the candle chart stays off the cache. See "Shared quote cache + repository orchestration". |
-| `Data/IQuoteCacheDataSource.cs` | The **shared observable quote cache** abstraction (an interface, so the in-memory impl now can be swapped for a DB-backed one later without touching the repository or surfaces). **Stores `QuoteEntity` (the data-layer storage model), NOT `DomainQuote`** — `MarketRepository` maps `QuoteEntity ⇄ DomainQuote` at its boundary, so the storage model never escapes the data source. `Get(symbol)` (sync snapshot, null if uncached), `Observe(symbol)` → a per-symbol `StateFlow<QuoteEntity?>` (replays current value, **null until the first fetch**, then pushes changes), `Upsert(quote, keepLastGood=true)` (write-through; **the SINGLE home for keep-last-good** — a transient invalid quote won't overwrite a cached valid one; pass `false` to overwrite unconditionally), `Clear()` (reset every entry to null **keeping observers subscribed** — for a demo source flip). Keyed by `WatchlistStore.Normalize`. |
-| `Data/InMemoryQuoteCacheDataSource.cs` | The **real, live** in-memory `IQuoteCacheDataSource` (un-stubbed): a `Lock`-guarded per-symbol `MutableStateFlow<QuoteEntity?>` dictionary (lazily created, keyed by `WatchlistStore.Normalize`), value-equality distinct-until-changed (an unchanged re-fetch doesn't re-emit → no churn/flicker). `Get` snapshots under the lock; `Upsert` decides the value under the lock (**the SINGLE home for keep-last-good**) then `Update()`s **outside** it; `Clear()` resets every value to null keeping observers subscribed. **It was briefly stubbed to a no-op after the favorites dock appeared to deadlock CmdPal — but the cache's lock was never the culprit** (`Update()` already fans out outside the lock). The real hang was the host's `RaiseItemsChanged` being delivered **under the Rx combiner gate** in `ObserveQuotes`; fixed there via **`ObserveOn`**, so this cache stays the simple, correct version. Swap for a DB-backed `IQuoteCacheDataSource` later via the repo's injectable ctor — no repository/UI change. |
+| `Data/IQuoteCacheDataSource.cs` | The **shared observable quote cache** abstraction (an interface, so the in-memory impl now can be swapped for a DB-backed one later without touching the repository or surfaces). **Stores `QuoteEntity` (the data-layer storage model), NOT `DomainQuote`** — `MarketRepository` maps `QuoteEntity ⇄ DomainQuote` at its boundary, so the storage model never escapes the data source. `Get(symbol)` (sync snapshot, null if uncached), `Observe(symbol)` → a per-symbol `IObservable<QuoteEntity?>` (replays current value, **null until the first fetch**, then pushes changes; `Get()` is the sync read), `Upsert(quote, keepLastGood=true)` (write-through; **the SINGLE home for keep-last-good** — a transient invalid quote won't overwrite a cached valid one; pass `false` to overwrite unconditionally), `Clear()` (reset every entry to null **keeping observers subscribed** — for a demo source flip). Keyed by `WatchlistStore.Normalize`. |
+| `Data/InMemoryQuoteCacheDataSource.cs` | The **real, live** in-memory `IQuoteCacheDataSource`, backed by **DynamicData's `SourceCache<QuoteEntity, string>`** (a reactive keyed cache — the .NET analog of Android Room's `@Query → Flow`; keyed by `WatchlistStore.Normalize(q.Symbol)`). `Get` = `_cache.Lookup(key)`; `Observe(symbol)` = `Observable.Defer(() => _cache.Connect().Watch(key).Select(c => c.Reason==Remove ? null : c.Current).StartWith(Get(symbol)).DistinctUntilChanged())` (the `StartWith`+`DistinctUntilChanged` make it robust whether or not `Watch` replays on subscribe; **absence = a removed key**, mapped back to null); `Clear()` = `_cache.Clear()` (removes keys → each live `Observe` re-emits null while staying subscribed). **`Upsert` is `_cache.Edit(...)`: the read (`Lookup`), the keep-last-good decision, and the write (`AddOrUpdate`) run ATOMICALLY under the cache's lock** — this is why the cache can own keep-last-good correctly under concurrent write-throughs (poll loop, observe-subscribe fetch, demo flip — no repo-side generation guard), which the old hand-rolled "decide under the lock, `Update` outside it" split could *not* guarantee (two concurrent Upserts could both read the pre-write value and let a transient invalid quote land last). DynamicData fans the change out **after `Edit` returns**, and the **deadlock fix still lives at the `ObserveQuotes` seam (`ObserveOn`)** — the cache's lock is always acquired *upstream* of the Rx gates (nothing downstream re-enters the cache under a gate), so there's no cycle. Swap for a DB-backed `IQuoteCacheDataSource` later via the repo's injectable ctor — no repository/UI change. (Needs the `DynamicData` package; it floors `System.Reactive` at 6.1.0.) |
 | `Data/QuoteEntity.cs` | The cache data source's **storage model** (`*Entity` layer): a structural mirror of `DomainQuote` that lives BELOW the repository and **never escapes the data source**. `IQuoteCacheDataSource` stores/emits `QuoteEntity`; `MarketRepository` maps at its boundary — `QuoteEntity.From(domain)` on write-through, `entity.ToDomainQuote()` on read. Identical to `DomainQuote` today, kept separate so the stored shape can diverge later (storage-only fields, a DB representation) without touching domain or surfaces. |
 | `Data/IMarketDataProvider.cs` | ONE data source: `bool Supports(AssetCategory)` + **`bool IsExclusive`** (default `false`; true → MarketRepository routes every operation to this provider alone — how the Demo-mode mock takes precedence everywhere) + `GetQuotesAsync(instruments, ct)` + `SearchAsync(query, ct)` (free-text symbol lookup → `DomainInstrument`s, **identity only, no prices**; a provider that can't search returns `[]`) + `GetCandlesAsync(instrument, ChartRange, ct)` (price history for the detail chart; **default interface method** returns an invalid series, so non-candle providers opt out for free). |
 | `Data/TwelveData/TwelveDataMarketDataProvider.cs` | **Primary provider when its key is set** (`Supports` Stock+Crypto+Currency, **gated on `HasTwelveDataApiKey`** → first-match routing falls back to Finnhub/Frankfurter when unset). One API for all three classes; **`/time_series` candles are free-tier**, so charts render on a free key. `GetQuotesAsync` **batches all symbols into one `/quote`** call (tight 8/min limit); `SearchAsync` = `/symbol_search` (results normalized back to neutral symbols). See Twelve Data specifics. |
@@ -235,7 +235,27 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 
 ## Current Status / Next Steps
 
-- **Done (latest): fixed an out-of-order race in the async-projection observe path (Portfolio screen + Portfolio
+- **Done (latest): re-backed the quote cache on DynamicData's `SourceCache` — fixes the keep-last-good race for
+  free.** `InMemoryQuoteCacheDataSource` is now a thin wrapper over `DynamicData`'s `SourceCache<QuoteEntity, string>`
+  (a reactive keyed cache, the .NET analog of Room's `@Query → Flow`) instead of the hand-rolled `Lock` +
+  per-symbol `MutableStateFlow<QuoteEntity?>` dictionary. **Why:** the hand-rolled `Upsert` read the current value
+  under the lock but called `Update` *outside* it, so two concurrent write-throughs (poll loop, observe-subscribe
+  fetch, demo flip — no repo-side generation guard) could both read the same pre-write value and let a transient
+  invalid quote (e.g. a 429 mapped to `IsValid:false`) land last, defeating keep-last-good and blanking a price for
+  up to one poll interval. Low-severity + self-healing, but it's literally this file's one advertised invariant.
+  **Fix:** `Upsert` is now `_cache.Edit(updater => { Lookup → keep-last-good decision → AddOrUpdate })`, which
+  DynamicData runs ATOMICALLY under the cache's lock — the read-decide-write is indivisible, no app-level lock, and
+  the change is fanned out *after* `Edit` returns. Chose a battle-tested library primitive over a hand-rolled
+  `_writeGate` lock deliberately (concurrency code is where library-over-DIY pays off). `Observe(symbol)` now
+  returns `IObservable<QuoteEntity?>` (was `StateFlow<QuoteEntity?>`) via `_cache.Connect().Watch(key)` (Remove →
+  null) + `StartWith(Get())` + `DistinctUntilChanged`; `Get` = `Lookup`, `Clear` = `_cache.Clear()`. The interface
+  changed return type accordingly; the one consumer (`MarketRepository.ObserveQuotesCore`) just dropped its
+  `.AsObservable()`. The **`ObserveOn` deadlock seam is untouched and still load-bearing** — the cache's lock sits
+  *upstream* of the Rx gates (nothing downstream re-enters it under a gate), so no new cycle. Adds the `DynamicData`
+  package (floors `System.Reactive` at 6.1.0, bumped from 6.0.1). Build clean (0 warnings). ✅ **Live-verified
+  on-device** (prices observe + refresh correctly). See "Shared quote cache + repository orchestration" + the
+  `InMemoryQuoteCacheDataSource.cs` file-map row.
+- **Done (previous): fixed an out-of-order race in the async-projection observe path (Portfolio screen + Portfolio
   dock band).** On a cold cache `ObserveQuotes` emits progressive *partial* snapshots (CombineLatest fills the
   set symbol-by-symbol, e.g. `[BABA]` before `[BABA, SPY]` lands). The observe handler was launched
   **fire-and-forget** (`.Subscribe(q => _ = OnQuotesChangedAsync(q))`), and for the surfaces that `await` an
@@ -656,15 +676,22 @@ drifted out of sync. The fix: one shared observable cache that every surface obs
 orchestrating all fetching/polling, so the same symbol is one cache entry everyone reads.
 
 **The pieces:**
-- **`IQuoteCacheDataSource`** (`Data/`) — the shared store abstraction: per-symbol `StateFlow<QuoteEntity?>`, keyed by
+- **`IQuoteCacheDataSource`** (`Data/`) — the shared store abstraction: per-symbol `IObservable<QuoteEntity?>`, keyed by
   `WatchlistStore.Normalize`. **Stores `QuoteEntity` (the `*Entity` storage model in `Data/QuoteEntity.cs`), not
   `DomainQuote`** — the repository maps `QuoteEntity.From` on write-through and `entity.ToDomainQuote()` on read, so
   the storage model never escapes the data source (the public `ObserveQuotes` still hands surfaces `DomainQuote`). `Observe(symbol)` replays the current value (null until first fetch);
   `Upsert(quote, keepLastGood=true)` is the SINGLE home for keep-last-good; `Clear()` resets entries to null
   while keeping observers subscribed. Interface, so a DB-backed impl swaps in later via the repo's injectable
-  ctor. ✅ **`InMemoryQuoteCacheDataSource` is the real, live impl now** (a `Lock`-guarded per-symbol
-  `MutableStateFlow<QuoteEntity?>` dictionary; `Update()` fires outside the lock). Value-equality
-  distinct-until-changed → an unchanged re-fetch doesn't re-emit (no churn/flicker).
+  ctor. ✅ **`InMemoryQuoteCacheDataSource` is the real, live impl now, backed by DynamicData's
+  `SourceCache<QuoteEntity, string>`** (a reactive keyed cache — the .NET analog of Room's `@Query → Flow`).
+  **`Upsert` = `_cache.Edit(...)`, so read→keep-last-good-decision→write is ATOMIC under the cache's lock** — the
+  reason this layer can own keep-last-good correctly under concurrent write-throughs, which the earlier hand-rolled
+  "decide under the lock, `Update` outside" split could not (two racing Upserts could both read the pre-write value
+  and let a transient invalid quote land last; this was a real, if low-severity, race — picked a library primitive
+  over a hand-rolled lock to close it). `Observe(symbol)` = `_cache.Connect().Watch(key)` mapped to `QuoteEntity?`
+  (Remove → null), with `StartWith(Get())` + `DistinctUntilChanged()`; an unchanged re-fetch is also deduped in
+  `Upsert` (skip `AddOrUpdate` when value-equal) → no churn/flicker. (Adds the `DynamicData` package; it floors
+  `System.Reactive` at 6.1.0.)
 - **`MarketRepository` orchestration** — owns one `IQuoteCacheDataSource`. `RefreshAsync` writes through (the single
   cache-fill path, driven by the poll loop + the observe-subscribe fetch via `RefreshSafe`). The old public
   `GetQuotesAsync` was **removed** — it had no callers once every surface moved to observe.
@@ -680,8 +707,10 @@ orchestrating all fetching/polling, so the same symbol is one cache entry everyo
   still holds the combiner gate lock*. The host then re-enters the extension and the gate↔STA lock order cycles
   → **CmdPal hangs** (this is exactly what made the favorites band crash the host). `ObserveOn` hands each
   emission to the scheduler, so surfaces are notified only **after** the gate locks are released — no host call
-  ever runs under a producer-side lock. The cache itself was a red herring (its `Update()` already fires
-  outside its lock). ⚠️ **`SubscribeOn` is NOT a substitute** — it moves *where you subscribe*, not *where
+  ever runs under a producer-side lock. The cache itself was a red herring and stays one with the DynamicData
+  `SourceCache`: its lock is always acquired *upstream* of the Rx gates (the write-through notifies after
+  `Edit` returns, and nothing downstream re-enters the cache under a gate), so it can never be the deadlock
+  site — the fix is here at the delivery seam. ⚠️ **`SubscribeOn` is NOT a substitute** — it moves *where you subscribe*, not *where
   notifications fire*; the deadlock is in delivery. Consequence for migrators: **`OnQuotesChanged`-style
   handlers run on a pool thread** (the toolkit marshals `RaiseItemsChanged`, same as the priced pages' `Task.Run`).
 - **The single poll loop (the ticker moved into the repo)** — the repo holds ONE process-lifetime

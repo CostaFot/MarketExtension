@@ -1,82 +1,85 @@
-using System.Collections.Generic;
+using System;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Threading;
+using System.Reactive.Linq;
+using DynamicData;
 
 namespace MarketExtension;
 
-// In-memory IQuoteCacheDataSource: one MutableStateFlow<QuoteEntity?> per normalized symbol, lazily created.
-// The single shared store of live quotes; MarketRepository owns one instance for the whole process.
-// Mirrors the WatchlistStore state-holder idiom — a Lock guarding a dictionary, snapshot under the
-// lock then Update() OUTSIDE it (Update fans handlers out that may re-enter Get/Observe, and
-// System.Threading.Lock is non-reentrant, so updating under the lock could deadlock a re-entrant
-// handler).
+// In-memory IQuoteCacheDataSource backed by DynamicData's SourceCache<QuoteEntity, string> — a reactive
+// keyed cache (the .NET analog of Android Room's "@Query → Flow"): writes go through AddOrUpdate, surfaces
+// OBSERVE a key's value as an IObservable that re-emits on every change. The single shared store of live
+// quotes; MarketRepository owns one instance for the whole process. Keyed by WatchlistStore.Normalize.
 //
-// Deadlock note (the reason this was briefly stubbed): the hang was NOT this cache's lock — Update()
-// already fires outside it. It was that the per-symbol fan-out reached a surface's RaiseItemsChanged
-// while Rx still held the CombineLatest/Switch gate lock in MarketRepository.ObserveQuotes, and that
-// host call re-entered Command Palette's STA → a lock-ordering cycle. That is fixed at the seam:
-// ObserveQuotes now delivers via ObserveOn, so surfaces are notified only AFTER the Rx gate locks are
-// released (no host call under a producer-side lock). This cache can therefore stay the simple,
-// correct in-memory version. Swap it for a database-backed IQuoteCacheDataSource later via MarketRepository's
-// injectable ctor overload — no repository or UI change.
+// Why DynamicData rather than the hand-rolled per-symbol BehaviorSubject dictionary it replaces:
+//   * Upsert's keep-last-good (read current -> decide -> write) is the one operation that MUST be atomic,
+//     else two concurrent write-throughs (poll loop, observe-subscribe fetch, demo flip — no repo-side
+//     generation guard) can both read the same pre-write value and let a transient invalid quote land
+//     last, defeating the guard. SourceCache.Edit runs its lambda under the cache's lock, so the
+//     read-decide-write is atomic by construction — no app-level lock, and the change notification is
+//     fanned out by DynamicData AFTER Edit returns (not under our lock), so there is no "fan-out under a
+//     lock" deadlock question to reason about.
+//   * Absence is modelled as a removed key, not a null-valued entry: Clear() removes all keys, and an
+//     Observe stream maps a Remove back to null so subscribers see the "loading" state while staying
+//     subscribed.
 [SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable",
-    Justification = "Owns per-symbol MutableStateFlow<QuoteEntity?> (BehaviorSubject-backed) entries for " +
-                    "the life of the process via the single MarketRepository; they are intentionally never " +
-                    "completed or disposed — mirrors the StateFlow singleton convention (see StateFlow.cs).")]
+    Justification = "The SourceCache is owned by the single process-lifetime MarketRepository and is " +
+                    "observed for the life of the process; it is intentionally never disposed (mirrors the " +
+                    "StateFlow singleton convention — see StateFlow.cs).")]
 internal sealed class InMemoryQuoteCacheDataSource : IQuoteCacheDataSource
 {
-    private readonly Lock _lock = new();
-
-    // key = WatchlistStore.Normalize(symbol). Grows only with distinct observed symbols (watchlist +
-    // favorites + portfolio membership — tens), so no eviction is needed.
-    private readonly Dictionary<string, MutableStateFlow<QuoteEntity?>> _entries = [];
+    // Keyed by WatchlistStore.Normalize(symbol) — the key selector runs on every AddOrUpdate, so every
+    // lookup/observe must normalize its input symbol to match. Grows only with distinct observed symbols
+    // (watchlist + favorites + portfolio membership — tens), so no eviction is needed.
+    private readonly SourceCache<QuoteEntity, string> _cache =
+        new(q => WatchlistStore.Normalize(q.Symbol));
 
     public QuoteEntity? Get(string symbol)
     {
-        lock (_lock)
-            return _entries.TryGetValue(WatchlistStore.Normalize(symbol), out var flow) ? flow.Value : null;
+        var found = _cache.Lookup(WatchlistStore.Normalize(symbol));
+        return found.HasValue ? found.Value : null;
     }
 
-    public StateFlow<QuoteEntity?> Observe(string symbol)
+    public IObservable<QuoteEntity?> Observe(string symbol)
     {
-        lock (_lock)
-            return GetOrCreate(WatchlistStore.Normalize(symbol));
+        var key = WatchlistStore.Normalize(symbol);
+
+        // Defer so the StartWith snapshot is read at SUBSCRIBE time, not when Observe is called. Connect()
+        // replays the cache's current state to each new subscriber, so Watch(key) emits the current value
+        // on subscribe when the key is present; map a Remove (Clear) back to null; StartWith seeds the
+        // null/absent case (and is deduped against Watch's replay by DistinctUntilChanged). Net contract:
+        // null until first Upsert, then each distinct value, null again on Clear — subscription stays live.
+        return Observable.Defer(() => _cache.Connect()
+            .Watch(key)
+            .Select(change => change.Reason == ChangeReason.Remove ? null : (QuoteEntity?)change.Current)
+            .StartWith(Get(symbol))
+            .DistinctUntilChanged());
     }
 
     public void Upsert(QuoteEntity quote, bool keepLastGood = true)
     {
         var key = WatchlistStore.Normalize(quote.Symbol);
 
-        MutableStateFlow<QuoteEntity?> flow;
-        QuoteEntity? next = quote;
-        lock (_lock)
+        // Edit runs ATOMICALLY under the cache's lock — the read (Lookup), the keep-last-good decision, and
+        // the write (AddOrUpdate) are one indivisible operation, so concurrent write-throughs can't clobber
+        // each other (this is the whole reason for the cache to "own" keep-last-good).
+        _cache.Edit(updater =>
         {
-            flow = GetOrCreate(key);
+            var current = updater.Lookup(key);
+
             // Keep-last-good: a transient invalid quote must not overwrite a price that was fine.
-            // Decide the value to write under the lock (reads flow.Value); Update fires outside.
-            if (keepLastGood && !quote.IsValid && flow.Value is { IsValid: true })
-                next = flow.Value; // Update below no-ops (distinct-until-changed)
-        }
+            if (keepLastGood && !quote.IsValid && current is { HasValue: true, Value.IsValid: true })
+                return;
 
-        flow.Update(next); // fan handlers out OUTSIDE the lock (handlers re-read the cache)
+            // Distinct-until-changed at the source: an identical re-fetch is a no-op (no change emitted),
+            // matching the old BehaviorSubject behaviour so an unchanged poll doesn't wake subscribers.
+            if (current.HasValue && current.Value == quote)
+                return;
+
+            updater.AddOrUpdate(quote);
+        });
     }
 
-    public void Clear()
-    {
-        List<MutableStateFlow<QuoteEntity?>> flows;
-        lock (_lock)
-            flows = [.. _entries.Values]; // keep entries so observers stay subscribed; reset the values
-
-        foreach (var flow in flows)
-            flow.Update(null);
-    }
-
-    // Caller must hold _lock.
-    private MutableStateFlow<QuoteEntity?> GetOrCreate(string key)
-    {
-        if (!_entries.TryGetValue(key, out var flow))
-            _entries[key] = flow = new MutableStateFlow<QuoteEntity?>(null); // default comparer = record value equality
-        return flow;
-    }
+    // Reset every entry to null while keeping observers subscribed: removing the keys makes each live
+    // Observe stream emit a Remove -> null, and a later Upsert re-adds -> the stream emits the new value.
+    public void Clear() => _cache.Clear();
 }

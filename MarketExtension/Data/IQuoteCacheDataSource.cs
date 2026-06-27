@@ -1,3 +1,5 @@
+using System;
+
 namespace MarketExtension;
 
 // A process-wide store of the latest QuoteEntity per symbol, exposed as OBSERVABLE state every surface
@@ -22,10 +24,13 @@ internal interface IQuoteCacheDataSource
     QuoteEntity? Get(string symbol);
 
     // Per-symbol observable entry: replays the current value (null until the first fetch lands) on
-    // subscribe, then pushes each change. Lazily created on first access. Distinct-until-changed via
-    // QuoteEntity value equality (an identical re-fetch does NOT re-emit). This is the seam a surface
-    // waits on for the first fetch: subscribe → null (render a spinner) → the quote when Upsert lands.
-    StateFlow<QuoteEntity?> Observe(string symbol);
+    // subscribe, then pushes each change. Distinct-until-changed via QuoteEntity value equality (an
+    // identical re-fetch does NOT re-emit). This is the seam a surface waits on for the first fetch:
+    // subscribe → null (render a spinner) → the quote when Upsert lands. A Clear() re-emits null while
+    // keeping the subscription live. Returns a bare IObservable (not a StateFlow): the synchronous current
+    // value is available via Get(); the only consumer (MarketRepository.ObserveQuotesCore) just composes
+    // this stream with CombineLatest.
+    IObservable<QuoteEntity?> Observe(string symbol);
 
     // Write a freshly fetched quote through to the cache. keepLastGood:true (the default) drops a
     // transient invalid quote (e.g. a 429 mapped to IsValid:false) when a valid quote is already
