@@ -15,8 +15,8 @@ namespace MarketExtension;
 //
 // Two-phase, because the screen renders synchronously but FX is a network fetch:
 //   * PrimeAsync(preferred, natives) — fetch (and cache) every native→preferred rate that isn't already
-//     fresh, in ONE batched Frankfurter call. Called off the price-load path (see PricedListPage's
-//     OnPriceCacheUpdated hook), then the page re-renders.
+//     fresh, in ONE batched Frankfurter call. Awaited before rendering a quote emission (see PortfolioPage's
+//     OnQuotesProjectingAsync override), so the converted values land in the same paint.
 //   * TryGetRate(from, to) — a synchronous cache read used while building the rows. Returns the rate, or
 //     null when it isn't known yet OR the currency pair isn't ECB-supported (the row then shows native
 //     value only and is excluded from the converted total). from == to short-circuits to 1.

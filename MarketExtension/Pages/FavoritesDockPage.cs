@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 using Windows.Foundation;
@@ -15,50 +14,55 @@ namespace MarketExtension;
 //
 // Because the band's command is an IListPage, the host renders each item from GetItems() as
 // its own button within the one band (see reference/dock-support.md). We use the project's
-// INotifyItemsChanged on-load refresh so the band re-reads favorites + quotes every time it
-// becomes visible. Live polling while visible (a timer) + a real data source come with the
-// API phase — see reference/dock-support.md for the OnLoad lifecycle to add then.
+// INotifyItemsChanged on-load refresh so the band re-renders every time it becomes visible.
+//
+// A PURE OBSERVER of the shared quote cache: while visible it subscribes to the repository's cache-backed
+// quote stream for the favorites set (MarketRepository.ObserveQuotes) and renders whatever it emits — and
+// nothing else. It does NOT fetch, poll, or handle demo-mode flips itself: the repository owns all of that
+// (its single poll loop refreshes the observed set on a timer, and it refills the cache on a source flip),
+// so this band can never drift out of sync with any other surface observing the same symbols. Subscribing
+// also registers favorites as "observed" so the repository keeps them fresh; disposing on hide unregisters.
+//
+// Threading: ObserveQuotes delivers via ObserveOn (see MarketRepository) so OnQuotesChanged — and therefore
+// RaiseItemsChanged — runs on a pool thread with NO Rx gate lock held. That is what makes this safe: an
+// earlier revision delivered synchronously under the CombineLatest/Switch gate, so RaiseItemsChanged's COM
+// call into the host re-entered while the gate was held → an STA/gate lock-order deadlock that hung CmdPal.
 internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
 {
     private readonly MarketRepository _repository;
-    private UiQuote[]? _quotes;
+    private UiQuote[]? _quotes; // latest cache emission, projected for rendering; null before the first
 
     private event TypedEventHandler<object, IItemsChangedEventArgs>? _itemsChanged;
-    private IDisposable? _subscription;
-    private IDisposable? _pollSubscription;
-    private IDisposable? _demoModeSubscription;
+    // Subscriptions held in a list (not a single field) so a double-`add` without an intervening `remove`
+    // can't orphan a subscription: a single field would be OVERWRITTEN by the second add, losing the first's
+    // reference so it's never disposed — and because ObserveQuotes registers its symbols as "observed" on
+    // subscribe and only unregisters on dispose, that orphan would pin those symbols to the repository's poll
+    // loop forever. Dispose-all-and-clear in `remove` keeps every subscribe balanced. Matches PricedListPage.
+    private readonly List<IDisposable> _subscriptions = [];
 
     event TypedEventHandler<object, IItemsChangedEventArgs> INotifyItemsChanged.ItemsChanged
     {
         add
         {
             _itemsChanged += value;
-            // Observe the favorites flow while the band is visible: its replay paints the band the moment
-            // it opens, and any later star/unstar from a palette page refreshes it at once (no waiting
-            // for a reopen). Disposed in `remove` so a hidden band does no work and doesn't leak.
-            _subscription = WatchlistStore.Instance.Favorites.Subscribe(_ => RefreshQuotes());
-            // Live polling: each tick silently re-prices favorites in place (no spinner). The ticker is a
-            // pure event stream (no replay), so becoming visible doesn't double-fetch — the favorites
-            // subscription above already paints.
-            _pollSubscription = PollTicker.Subscribe(PollRefresh);
-            // Demo mode flips the data source — re-price from the new one at once if the band is open. A
-            // hidden band already re-fetches on its next open (the favorites-flow replay calls RefreshQuotes),
-            // so this only needs to cover a currently-visible/pinned band. replay:false — opening already
-            // paints via the favorites subscription above.
-            _demoModeSubscription = MarketSettingsManager.Instance.DemoModeChanged
-                .Subscribe(_ => RefreshQuotes(), replayOnSubscribe: false);
-            Log.Info("Poll", $"Dock: started polling [{string.Join(", ", WatchlistStore.Instance.Favorites.Value.Select(i => i.Symbol))}]");
+            // Observe the cache-backed quote stream for the favorites set while the band is visible. The
+            // membership-aware overload replays the current favorites on subscribe (painting from cache the
+            // moment it opens — fetching only symbols not already cached), re-projects on any star/unstar,
+            // and re-emits whenever a member quote changes in the cache (so the repository's poll/demo
+            // refresh repaints the band). Delivery is off-thread (ObserveOn in the repository), so the first
+            // emission lands after this accessor returns — no synchronous RaiseItemsChanged inside the host's
+            // subscription. Disposed in `remove` — a hidden band does no work, doesn't leak, and unregisters
+            // its symbols so the repository stops polling them.
+            _subscriptions.Add(_repository.ObserveQuotes(WatchlistStore.Instance.Favorites).Subscribe(OnQuotesChanged));
+            Log.Info("Dock", $"observing favorites [{string.Join(", ", WatchlistStore.Instance.Favorites.Value.Select(i => i.Symbol))}]");
         }
         remove
         {
             _itemsChanged -= value;
-            _subscription?.Dispose();
-            _subscription = null;
-            _pollSubscription?.Dispose();
-            _pollSubscription = null;
-            _demoModeSubscription?.Dispose();
-            _demoModeSubscription = null;
-            Log.Info("Poll", "Dock: stopped polling");
+            foreach (var subscription in _subscriptions)
+                subscription.Dispose();
+            _subscriptions.Clear();
+            Log.Info("Dock", "stopped observing favorites");
         }
     }
 
@@ -75,18 +79,24 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
 
     public override IListItem[] GetItems()
     {
-        if (_quotes is null)
-            return [];
-
         var favorites = _quotes;
+        if (favorites is null)
+            return []; // before the first cache emission — nothing to show yet
 
         if (favorites.Length == 0)
         {
-            return [new ListItem(new NoOpCommand { Id = "com.costafotiadis.market.dock.empty" })
+            // An empty list means "no favorites" only when the membership is actually empty; otherwise the
+            // prices just haven't landed in the cache yet, so show nothing (the spinner) rather than the
+            // empty-state row.
+            if (WatchlistStore.Instance.Favorites.Value.Count == 0)
             {
-                Title = Resources.Favorites_Empty_Title,
-                Subtitle = Resources.Favorites_Empty_Subtitle,
-            }];
+                return [new ListItem(new NoOpCommand { Id = "com.costafotiadis.market.dock.empty" })
+                {
+                    Title = Resources.Favorites_Empty_Title,
+                    Subtitle = Resources.Favorites_Empty_Subtitle,
+                }];
+            }
+            return [];
         }
 
         return favorites
@@ -100,50 +110,14 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
             .ToArray();
     }
 
-    internal void RefreshQuotes()
+    // A new cache emission for the favorites set: project to UiQuote for rendering and repaint. Runs on a
+    // pool thread (ObserveOn) — no Rx gate lock is held here, so RaiseItemsChanged's host call is safe.
+    private void OnQuotesChanged(IReadOnlyList<DomainQuote> quotes)
     {
-        _quotes = null;
-        IsLoading = true;
-        RaiseItemsChanged(0);
-        Task.Run(() => LoadQuotes(silent: false));
-    }
-
-    // Live-poll refresh: re-price favorites WITHOUT clearing _quotes or showing a spinner, so the current
-    // prices stay on the band until LoadQuotes swaps the new ones in (no flicker). Skips work before the
-    // first paint — the favorites subscription already has a load in flight then. `silent: true` also keeps
-    // a transient bad poll from blanking a good price (see LoadQuotes).
-    internal void PollRefresh()
-    {
-        if (_quotes is null)
-            return;
-        Log.Info("Poll", $"Dock: re-pricing favorites [{string.Join(", ", WatchlistStore.Instance.Favorites.Value.Select(i => i.Symbol))}]");
-        Task.Run(() => LoadQuotes(silent: true));
-    }
-
-    // `silent` = a background poll (no spinner): in that mode, don't let a transient bad result (e.g. a
-    // Finnhub 429 mapped to an invalid quote) overwrite a price that was fine a moment ago. This mirrors
-    // PricedListPage.LoadQuotes' keep-last-good guard — without it a single failed poll would replace every
-    // UiQuote with an invalid one and the band would blank (symbol-only buttons) until the extension is
-    // reloaded, because a pinned dock never re-fetches except on a poll tick.
-    private async Task LoadQuotes(bool silent)
-    {
-        // The dock shows only favorites — price exactly that subset (a snapshot of the flow's value).
-        var prior = _quotes; // on-screen prices, for the keep-last-good merge
-        IEnumerable<UiQuote> fetched =
-            (await _repository.GetQuotesAsync(WatchlistStore.Instance.Favorites.Value)).Select(UiQuote.From);
-
-        if (silent && prior is not null)
-        {
-            var lastGood = prior
-                .Where(q => q.IsValid)
-                .GroupBy(q => q.Symbol, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-            fetched = fetched.Select(q =>
-                !q.IsValid && lastGood.TryGetValue(q.Symbol, out var good) ? good : q);
-        }
-
-        _quotes = [.. fetched];
-        IsLoading = false;
+        _quotes = [.. quotes.Select(UiQuote.From)];
+        // Spinner only while favorites exist but their prices haven't filled the cache yet.
+        IsLoading = _quotes.Length == 0 && WatchlistStore.Instance.Favorites.Value.Count > 0;
+        Log.Info("Dock", $"favorites painted: {_quotes.Length} quote(s)");
         RaiseItemsChanged(0);
     }
 }

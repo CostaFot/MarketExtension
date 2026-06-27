@@ -42,6 +42,13 @@ public partial class MarketExtensionCommandsProvider : CommandProvider
 
         // Dock bands, each pinnable from the Dock: a ticker strip of favorited instruments, and a
         // one-line portfolio total (value + daily P&L in the preferred currency).
+        //
+        // History: FavoritesDockPage once crashed Command Palette because its ObserveQuotes subscription
+        // delivered the reactive graph synchronously while Rx held the CombineLatest/Switch gate lock, so
+        // RaiseItemsChanged's COM call re-entered the host's STA and the gate/STA lock order cycled. Fixed in
+        // MarketRepository.ObserveQuotes via ObserveOn(TaskPoolScheduler) — surfaces are notified only after
+        // the gate locks release. (SubscribeOn was tried first and did NOT help: it moves where you subscribe,
+        // not where notifications fire.) Both bands are live-verified.
         _dockBands = [
             new CommandItem(new FavoritesDockPage(_repository)) { Title = Resources.Command_Markets },
             new CommandItem(new PortfolioDockPage(_repository)) { Title = Resources.Command_MarketsPortfolio },
