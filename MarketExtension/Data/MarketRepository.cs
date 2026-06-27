@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
@@ -36,6 +37,14 @@ internal sealed class MarketRepository
     // surfaces has count 2 and is fetched once.
     private readonly Lock _observedLock = new();
     private readonly Dictionary<string, ObservedInstrument> _observed = [];
+
+    // Per-symbol last fetch-ATTEMPT time (Environment.TickCount64), keyed by Normalize(symbol). Stamped on
+    // every write-through — success OR a kept-last-good failure — so it reflects "last time we tried", which
+    // is what staleness means. A subscribe reads it (NeedsFetchOnSubscribe) to tell a stale cached price from
+    // a fresh one and refresh only the stale ones: the central home for the freshness clock the priced pages
+    // used to keep per-surface (RefreshStaleQuotes). Bounded by tracked symbols (tens) like the cache itself,
+    // so no eviction is needed.
+    private readonly ConcurrentDictionary<string, long> _lastFetchTicks = new();
 
     // Default: an in-memory cache. The call site in MarketExtensionCommandsProvider uses this.
     public MarketRepository(params IMarketDataProvider[] providers)
@@ -79,8 +88,7 @@ internal sealed class MarketRepository
         IReadOnlyList<DomainInstrument> instruments, CancellationToken ct = default)
     {
         var ordered = await FetchMergeAsync(instruments, ct).ConfigureAwait(false);
-        foreach (var quote in ordered)
-            _cache.Upsert(quote); // keep-last-good
+        WriteThrough(ordered, keepLastGood: true);
         return ordered;
     }
 
@@ -134,8 +142,20 @@ internal sealed class MarketRepository
         IReadOnlyList<DomainInstrument> instruments, bool keepLastGood = true, CancellationToken ct = default)
     {
         var ordered = await FetchMergeAsync(instruments, ct).ConfigureAwait(false);
+        WriteThrough(ordered, keepLastGood);
+    }
+
+    // Write a freshly fetched batch through to the cache AND stamp each symbol's last fetch-attempt time, so a
+    // later subscribe can distinguish a stale cached price from a fresh one (see NeedsFetchOnSubscribe). The
+    // single write-through path for both GetQuotesAsync and RefreshAsync.
+    private void WriteThrough(IReadOnlyList<DomainQuote> ordered, bool keepLastGood)
+    {
+        var now = Environment.TickCount64;
         foreach (var quote in ordered)
+        {
             _cache.Upsert(quote, keepLastGood);
+            _lastFetchTicks[WatchlistStore.Normalize(quote.Symbol)] = now;
+        }
     }
 
     // Observe a FIXED set of instruments as one cache-backed list observable. Both public overloads append
@@ -158,8 +178,9 @@ internal sealed class MarketRepository
             .ObserveOn(TaskPoolScheduler.Default);
 
     // The cache-backed list observable WITHOUT the ObserveOn hop — the raw graph. On subscribe: register the
-    // instruments as observed (so the poll loop keeps them fresh) and fetch any not-yet-cached symbols once
-    // (write-through, fire-and-forget). Then CombineLatest the per-symbol cache flows into one ordered list
+    // instruments as observed (so the poll loop keeps them fresh) and fetch any not-yet-cached OR gone-stale
+    // symbols (write-through, fire-and-forget; see NeedsFetchOnSubscribe). Then CombineLatest the per-symbol
+    // cache flows into one ordered list
     // (symbols not yet loaded — null entries — are dropped) that re-emits whenever any member quote changes.
     // On dispose: unregister. Observable.Create (not Defer) so the dispose hook can unregister. The public
     // overloads above add ObserveOn so the host is never called under the combiner gate (see that note).
@@ -167,9 +188,25 @@ internal sealed class MarketRepository
         => Observable.Create<IReadOnlyList<DomainQuote>>(observer =>
         {
             Register(instruments);
-            var missing = instruments.Where(i => _cache.Get(i.Symbol) is null).ToList();
-            if (missing.Count > 0)
-                _ = RefreshSafe(missing); // fire-and-forget; writes through → observers see it land
+            // Fetch the symbols this subscribe should refresh: never-cached ones (we must render something)
+            // plus — when auto-refresh is on — any whose cached price has aged past one interval while
+            // unobserved. The poll loop keeps OBSERVED symbols fresh; this catches a hidden surface reopening
+            // on a stale cache, the central replacement for the priced pages' old per-surface RefreshStaleQuotes.
+            var toFetch = instruments.Where(NeedsFetchOnSubscribe).ToList();
+            if (toFetch.Count > 0)
+            {
+                // Re-derive the missing/stale split for the log only (NeedsFetchOnSubscribe stays the single
+                // decision): a to-fetch symbol is "missing" if it's still uncached, else it's a stale refresh.
+                var missing = toFetch.Count(i => _cache.Get(i.Symbol) is null);
+                Log.Info("Repository",
+                    $"observe subscribe: refreshing {toFetch.Count}/{instruments.Count} " +
+                    $"({missing} missing, {toFetch.Count - missing} stale) [{string.Join(", ", toFetch.Select(i => i.Symbol))}]");
+                _ = RefreshSafe(toFetch); // fire-and-forget; writes through → observers see it land
+            }
+            else if (instruments.Count > 0)
+            {
+                Log.Info("Repository", $"observe subscribe: all {instruments.Count} symbol(s) fresh in cache — no fetch");
+            }
 
             IObservable<IReadOnlyList<DomainQuote>> inner = instruments.Count == 0
                 ? Observable.Return<IReadOnlyList<DomainQuote>>([])
@@ -188,6 +225,26 @@ internal sealed class MarketRepository
     {
         try { await RefreshAsync(instruments).ConfigureAwait(false); }
         catch (Exception ex) { Log.Error("Repository", "background refresh failed", ex); }
+    }
+
+    // Should this instrument be (re)fetched at subscribe time? Never-cached → always (we must render
+    // something). Otherwise only when auto-refresh is on AND the cached price has aged past one refresh
+    // interval — i.e. it went stale while no surface was observing it. With auto-refresh off (interval 0) an
+    // already-cached price is left as-is, so "off" spends no calls. Reads the stamp WriteThrough sets.
+    private bool NeedsFetchOnSubscribe(DomainInstrument instrument)
+    {
+        if (_cache.Get(instrument.Symbol) is null)
+            return true;
+
+        var settings = MarketSettingsManager.Instance;
+        if (!settings.AutoRefreshEnabled)
+            return false;
+
+        // Cached but somehow unstamped (e.g. a value that survived a cache Clear) → refresh to be safe.
+        if (!_lastFetchTicks.TryGetValue(WatchlistStore.Normalize(instrument.Symbol), out var ticks))
+            return true;
+
+        return TimeSpan.FromMilliseconds(Environment.TickCount64 - ticks) >= settings.RefreshInterval;
     }
 
     // --- The poll loop + the observed-instrument registry ----------------------------------------------
@@ -211,6 +268,8 @@ internal sealed class MarketRepository
     {
         _cache.Clear();
         var observed = ObservedInstruments();
+        Log.Info("Repository",
+            $"demo mode flipped — cache cleared; refreshing {observed.Count} observed instrument(s) from the new source");
         if (observed.Count > 0)
             _ = RefreshSafe(observed);
     }

@@ -126,6 +126,7 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
             // Holdings exist but their prices haven't landed in the cache yet → keep the spinner, don't roll up.
             if (positions.Count > 0 && quotes.Count == 0)
             {
+                Log.Info("Dock", $"portfolio: {positions.Count} holding(s) but no cached prices yet — spinner");
                 _portfolio = null;
                 IsLoading = true;
                 RaiseItemsChanged(0);
@@ -144,6 +145,8 @@ internal sealed partial class PortfolioDockPage : ListPage, INotifyItemsChanged
                 await CurrencyConverter.Instance.PrimeAsync(preferred, natives);
 
             _portfolio = BuildPortfolio(positions, quotes, preferred);
+            Log.Info("Dock",
+                $"portfolio rolled up: {_portfolio.FormatTotalValue()} {_portfolio.FormatTotalChange()} across {positions.Count} holding(s)");
             IsLoading = false;
             RaiseItemsChanged(0);
         }

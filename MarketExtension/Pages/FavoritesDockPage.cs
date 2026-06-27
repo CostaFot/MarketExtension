@@ -117,6 +117,7 @@ internal sealed partial class FavoritesDockPage : ListPage, INotifyItemsChanged
         _quotes = [.. quotes.Select(UiQuote.From)];
         // Spinner only while favorites exist but their prices haven't filled the cache yet.
         IsLoading = _quotes.Length == 0 && WatchlistStore.Instance.Favorites.Value.Count > 0;
+        Log.Info("Dock", $"favorites painted: {_quotes.Length} quote(s)");
         RaiseItemsChanged(0);
     }
 }

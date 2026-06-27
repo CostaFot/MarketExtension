@@ -233,6 +233,24 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
 
 ## Current Status / Next Steps
 
+- **Done (latest): migrated `PortfolioDockPage` to a pure cache observer + added the stale-on-subscribe
+  freshness primitive.** The **second dock band is now a pure observer** like the favorites band, and it proves
+  the **async-projection** pattern the favorites band didn't need: its observe handler `await`s
+  `CurrencyConverter.PrimeAsync` before rolling up, so the converted total lands in **one paint** (safe because
+  `ObserveQuotes` delivers off the Rx gate via `ObserveOn`). It dropped its own `PollTicker` + `DemoModeChanged`
+  subscriptions, its keep-last-good merge, and its `GetQuotesAsync` call; it observes `PortfolioStore.Instruments`
+  (which re-emits on **every** mutation, so a quantity-only edit re-rolls via `Switch`) and reads
+  `PortfolioStore.Positions` in the handler. Both dock bands now hold subscriptions in a `List<IDisposable>` (not
+  a single overwritable field) so a double-`add` can't orphan a subscription — which would otherwise pin its
+  symbols to the repo poll loop forever. **Stale-on-subscribe primitive (`MarketRepository`):** every
+  write-through now stamps a per-symbol last-fetch time (`_lastFetchTicks` + a shared `WriteThrough` helper), and
+  a subscribe refreshes **null OR stale** symbols (cached but aged ≥ one `RefreshInterval` while unobserved) via
+  `NeedsFetchOnSubscribe`, not just missing ones — the central home for the freshness clock the priced pages keep
+  per-surface (`_lastFullPriceTicks`/`RefreshStaleQuotes`), so that machinery **deletes** when the trio migrates,
+  and it closes the "reopen shows a stale price until the next poll tick" gap on the two migrated dock bands. The
+  dead Portfolio-dock `SubscribeOn` comment in `MarketExtensionCommandsProvider` was corrected to the real
+  `ObserveOn`-in-the-repo fix. Build clean (0 warnings); **not yet live-verified on-device.** See "Shared quote
+  cache + repository orchestration".
 - **Done (this round): shared quote cache + repository orchestration — the de-drift refactor (cache LIVE, favorites dock migrated + verified).**
   A new **`IQuoteCache`** (in-memory `InMemoryQuoteCache` now — **real, no longer stubbed** — swappable for a
   DB-backed one later) holds the latest `DomainQuote` per symbol as **observable** state. `MarketRepository` is
@@ -244,15 +262,15 @@ cascading CS0534 ("does not implement … `GetTypeInfo`") onto **every** context
   blocking COM call into Command Palette's STA) is never invoked while Rx still holds the `CombineLatest`/`Switch`
   gate lock — that gate/STA lock-order cycle was hanging CmdPal whenever the favorites band activated. (Two
   dead ends, recorded so nobody re-tries them: pulling the band proved it was the trigger; **`SubscribeOn` did
-  NOT help** — it moves *subscription*, not *delivery*, and the host call happens during delivery.) **Migrated
-  so far: `FavoritesDockPage`** — now a **pure observer** (no `PollTicker`/demo subscription, no
+  NOT help** — it moves *subscription*, not *delivery*, and the host call happens during delivery.) **Migrated:
+  `FavoritesDockPage`** — now a **pure observer** (no `PollTicker`/demo subscription, no
   `GetQuotesAsync`/`RefreshAsync`, no keep-last-good; it renders what the cache emits, and membership changes
   come free via the `Switch` overload). Build clean (0 warnings). ✅ **Live-verified on-device**: the band
-  activates without hanging CmdPal and shows live prices. **NOT yet migrated** (still on per-surface fetch+poll,
-  filling the cache only via write-through): `PortfolioDockPage`, the `PricedListPage` trio
-  (`WatchlistPage`/`FavoritesPage`/`PortfolioPage`), plus the `SymbolDetailPage` chart (candles, separate path).
-  **The favorites dock is the template for the rest.** See "Shared quote cache + repository orchestration" for
-  the full design + the migration checklist.
+  activates without hanging CmdPal and shows live prices. (`PortfolioDockPage` was migrated the following round —
+  see the "Done (latest)" bullet above.) **NOT yet migrated** (still on per-surface fetch+poll, filling the cache
+  only via write-through): the `PricedListPage` trio (`WatchlistPage`/`FavoritesPage`/`PortfolioPage`), plus the
+  `SymbolDetailPage` chart (candles, separate path). **The dock bands are the template for the rest.** See
+  "Shared quote cache + repository orchestration" for the full design + the migration checklist.
 - **Done (this round): removed Sentry entirely — the app ships with NO telemetry.** The optional crash
   reporter (SDK init in `Program.cs`, the `CaptureException`/`CaptureMessage` calls in `Log.Error`, the
   `Sentry` package in the csproj + `Directory.Packages.props`) is **gone**. Rationale: it was a one-off in
@@ -617,17 +635,29 @@ orchestrating all fetching/polling, so the same symbol is one cache entry everyo
   symbols stop being polled, and a symbol observed by two surfaces is fetched once. Carrying the full
   `DomainInstrument` (not just the symbol) is deliberate: routing needs `Category`, which a bare
   `BehaviorSubject.HasObservers` boolean couldn't give for a not-yet-loaded symbol.
+- **Stale-on-subscribe (the central freshness clock)** — every write-through stamps a per-symbol last-fetch time
+  (`_lastFetchTicks`, via the `WriteThrough` helper shared by `GetQuotesAsync`/`RefreshAsync`). On subscribe,
+  `ObserveQuotesCore` refreshes the symbols `NeedsFetchOnSubscribe` flags: **never-cached** ones always (must
+  render something), plus — only when `AutoRefreshEnabled` — ones whose cached price **aged ≥ one
+  `RefreshInterval`** while unobserved. The poll loop keeps *observed* symbols stamped within the interval, so
+  only symbols that went quiet while their surfaces were hidden trip the stale check — that's what makes a hidden
+  surface refresh on reopen instead of showing a stale price until the next tick. Replaces the priced pages'
+  per-surface `_lastFullPriceTicks`/`RefreshStaleQuotes` clock.
 - **Demo-mode flip** is centralized: the repo's `DemoModeChanged` handler `Clear()`s the cache then
   `RefreshSafe`es the observed set from the new source (visible surfaces repaint at once; a hidden one
   refetches on next open via `ObserveQuotes`' fetch-missing).
 
-**Migrated so far: `FavoritesDockPage` only — the template.** It is now a **pure observer**: its whole
+**Migrated: both dock bands.** `FavoritesDockPage` (the simple template) is a **pure observer**: its whole
 lifecycle is `_repository.ObserveQuotes(WatchlistStore.Instance.Favorites).Subscribe(OnQuotesChanged)` and
 nothing else — no `PollTicker`/demo subscriptions, no `GetQuotesAsync`/`RefreshAsync`, no keep-last-good code.
 `GetItems` disambiguates "no favorites" from "still loading" via `Favorites.Value.Count == 0` (an empty cache
 emission with favorites present = spinner, not the empty-state row). Membership changes are free (the `Switch`
 overload). ✅ Build clean; ✅ **live-verified on-device** — the band activates without hanging CmdPal and shows
-live prices (this is the build that confirmed the `ObserveOn` deadlock fix).
+live prices (this is the build that confirmed the `ObserveOn` deadlock fix). **`PortfolioDockPage`** is the
+**async-projection template**: same pure-observer shape, but it observes `PortfolioStore.Instruments` and its
+handler `await`s `CurrencyConverter.PrimeAsync` before rolling up `UiPortfolio` (one paint), reading
+`PortfolioStore.Positions` for the quantities; it disambiguates empty-vs-loading from `Positions.Value.Count`.
+Both bands hold subscriptions in a `List<IDisposable>` (double-`add`-safe). Build clean; not yet live-verified.
 
 **To migrate the next surface (the checklist):**
 1. Replace its `MarketRepository.GetQuotesAsync` call + private price cache with a subscription to
@@ -642,12 +672,16 @@ live prices (this is the build that confirmed the `ObserveOn` deadlock fix).
    and call `RaiseItemsChanged` from the handler (the toolkit marshals it). Re-introducing a synchronous
    delivery path (or doing heavy work inside the handler under an Rx gate) is what re-creates the CmdPal hang.
 6. ⚠️ **`PricedListPage` is shared by `WatchlistPage`/`FavoritesPage`/`PortfolioPage` — migrating the base
-   moves all three at once.** Carry over carefully: the **freshness clock** (`_lastFullPriceTicks` /
-   `RefreshStaleQuotes`) and **`OnPriceCacheUpdated`** (Portfolio's FX `PrimeAsync`) must be driven by
-   *fetch completion*, NOT by observe emissions — value-equality dedup hides an unchanged re-fetch, so keying
-   "a fetch happened" off an emission would miss it. `LeadingRows` must recompute on each emission.
-7. `PortfolioDockPage` additionally `await`s `CurrencyConverter.PrimeAsync` before rolling up — keep that
-   inside the observe handler (one paint), not a separate fetch.
+   moves all three at once.** Two things to handle: the **freshness clock** (`_lastFullPriceTicks` /
+   `RefreshStaleQuotes`) is now **handled centrally** by the repo's stale-on-subscribe primitive
+   (`_lastFetchTicks` + `NeedsFetchOnSubscribe` refreshing null-OR-stale on subscribe), so the base can just
+   **DROP** its per-surface clock rather than re-wire it. **`OnPriceCacheUpdated`** (Portfolio's FX `PrimeAsync`)
+   should fold **into the observe handler** — `await` the prime before rendering, exactly as `PortfolioDockPage`
+   now does — not a separate fetch-completion hook (an unchanged, value-equality-deduped re-fetch won't re-emit,
+   but the prime keys off the emission's currencies, which only change when the set does anyway). `LeadingRows`
+   must recompute on each emission.
+7. `PortfolioDockPage` is the **worked example** of the async-projection handler (`await PrimeAsync` then roll
+   up, one paint) — copy its shape for the Portfolio screen rather than reinventing it.
 
 **Transitional truth:** un-migrated surfaces still fetch+poll themselves AND fill the cache via write-through,
 so a symbol they share with the dock is briefly fetched by both the repo loop (for the dock) and the surface's
